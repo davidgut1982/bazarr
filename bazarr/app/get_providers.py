@@ -32,8 +32,7 @@ from sonarr.blacklist import blacklist_log
 _TRACEBACK_RE = re.compile(r'File "(.*?providers[\\/].*?)", line (\d+)')
 
 
-def time_until_midnight(timezone):
-    # type: (datetime.datetime) -> datetime.timedelta
+def time_until_midnight(timezone) -> datetime.timedelta:
     """
     Get timedelta until midnight.
     """
