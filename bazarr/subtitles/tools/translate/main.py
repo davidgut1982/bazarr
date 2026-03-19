@@ -3,6 +3,7 @@
 import logging
 import os
 
+
 from subliminal_patch.core import get_subtitle_path
 from subzero.language import Language
 
@@ -11,15 +12,11 @@ from .services.translator_factory import TranslatorFactory
 from languages.get_languages import alpha3_from_alpha2
 from app.config import settings
 from app.jobs_queue import jobs_queue
-from app.event_handler import event_stream
-from subtitles.indexer.series import store_subtitles
-from subtitles.indexer.movies import store_subtitles_movie
 from subtitles.indexer.utils import get_external_subtitles_path
-from utilities.path_mappings import path_mappings
 
 
 def translate_subtitles_file(video_path, source_srt_file, from_lang, to_lang, forced, hi,
-                             media_type, sonarr_series_id, sonarr_episode_id, radarr_id, job_id=None):
+                             media_type, sonarr_series_id, sonarr_episode_id, radarr_id, metadata, job_id=None):
     if not job_id:
         # Build job label with media title. Note: no local variables can be
         # assigned here because add_job_from_function introspects the frame
@@ -77,22 +74,16 @@ def translate_subtitles_file(video_path, source_srt_file, from_lang, to_lang, fo
         result = translator.translate(job_id=job_id)
         logging.debug(f'BAZARR saved translated subtitles to {dest_srt_file}')
 
-        # Re-index subtitles so Bazarr's DB picks up the new file
-        if media_type == "series" and sonarr_series_id:
-            store_subtitles(path_mappings.path_replace_reverse(video_path), video_path)
-            event_stream(type='series', payload=sonarr_series_id)
-            if sonarr_episode_id:
-                event_stream(type='episode', payload=sonarr_episode_id)
-        elif media_type == "movies" and radarr_id:
-            store_subtitles_movie(path_mappings.path_replace_reverse_movie(video_path), video_path)
-            event_stream(type='movie', payload=radarr_id)
+        from api.subtitles.subtitles import postprocess_subtitles
+        # Call postprocess_subtitles after translation (handles chmod, re-indexing, events)
+        postprocess_subtitles(dest_srt_file, video_path, media_type, metadata, sonarr_episode_id if media_type == 'series' else radarr_id)
 
         # Get current job name (which batch.py already set with title) and mark as done
         current_name = jobs_queue.get_job_name(job_id)
         if current_name and 'Translating' in current_name:
             done_name = current_name.replace('Translating', 'Translated')
         else:
-            done_name = f'Translated {from_lang.upper()} → {to_lang.upper()} using {translator_label}'
+            done_name = f'Translated {from_lang.upper()} \u2192 {to_lang.upper()} using {translator_label}'
         jobs_queue.update_job_name(job_id=job_id, new_job_name=done_name)
         return result
 
