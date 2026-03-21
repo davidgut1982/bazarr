@@ -26,9 +26,13 @@ def _is_legacy_md5(stored_hash):
 
 def _verify_password(pw, stored_hash):
     if stored_hash.startswith('pbkdf2:'):
-        _, salt_hex, hash_hex = stored_hash.split(':', 2)
-        salt = bytes.fromhex(salt_hex)
-        expected = bytes.fromhex(hash_hex)
+        try:
+            _, salt_hex, hash_hex = stored_hash.split(':', 2)
+            salt = bytes.fromhex(salt_hex)
+            expected = bytes.fromhex(hash_hex)
+        except (ValueError, TypeError):
+            logging.error('Corrupted PBKDF2 password hash in config. Re-set your password in settings.')
+            return False
         actual = hashlib.pbkdf2_hmac('sha256', f"{pw}".encode('utf-8'), salt, PBKDF2_ITERATIONS)
         return hmac.compare_digest(actual, expected)
     else:
