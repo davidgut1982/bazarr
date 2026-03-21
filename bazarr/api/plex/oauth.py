@@ -322,6 +322,7 @@ class PlexPinCheck(Resource):
                 stored_state = cached_pin.get('state_token')
                 if not stored_state or not get_token_manager().validate_state_token(state_param, stored_state):
                     logger.warning(f"CSRF state validation failed for PIN {pin_id}")
+                    return abort(403, "CSRF state validation failed")
 
             headers = {
                 'Accept': 'application/json',
