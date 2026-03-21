@@ -1,6 +1,7 @@
 import { FunctionComponent, ReactElement, useCallback, useMemo } from "react";
 import { Divider, List, Menu, MenuProps, ScrollArea } from "@mantine/core";
 import {
+  faAlignJustify,
   faClock,
   faCode,
   faDeaf,
@@ -29,6 +30,7 @@ import { ModalComponent } from "@/modules/modals/WithModal";
 import { task } from "@/modules/task";
 import { toPython } from "@/utilities";
 import { SyncSubtitleModal } from "./forms/SyncSubtitleForm";
+import { TwoPointFitModal } from "./forms/TwoPointFit";
 
 export interface ToolOptions {
   key: string;
@@ -100,6 +102,12 @@ export function useTools() {
         icon: faClock,
         name: "Adjust Times...",
         modal: TimeOffsetModal,
+      },
+      {
+        key: "two_point_fit",
+        icon: faAlignJustify,
+        name: "Two-Point Fit...",
+        modal: TwoPointFitModal,
       },
       {
         key: "translation",

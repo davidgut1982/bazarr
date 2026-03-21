@@ -134,6 +134,16 @@ class SubtitlesApi extends BaseApi {
     const response = await client.axios.get<SubtitleContentResponse>(url);
     return response.data;
   }
+
+  async contents(subtitlePath: string) {
+    const response = await this.get<DataWrapper<SubtitleContents.Line[]>>(
+      "/contents",
+      {
+        subtitlePath,
+      },
+    );
+    return response.data;
+  }
 }
 
 const subtitlesApi = new SubtitlesApi();
