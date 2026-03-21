@@ -8,6 +8,7 @@ import string
 _BLOCKED_PATHS = {
     '/proc', '/sys', '/dev', '/run', '/snap',
     '/boot', '/lost+found', '/swapfile',
+    '/etc', '/root', '/tmp',
 }
 
 
