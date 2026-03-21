@@ -11,9 +11,12 @@ from bs4 import UnicodeDammit
 from app.config import settings
 
 
+PBKDF2_ITERATIONS = 600_000
+
+
 def hash_password(pw):
     salt = os.urandom(16)
-    hashed = hashlib.pbkdf2_hmac('sha256', f"{pw}".encode('utf-8'), salt, 150000)
+    hashed = hashlib.pbkdf2_hmac('sha256', f"{pw}".encode('utf-8'), salt, PBKDF2_ITERATIONS)
     return 'pbkdf2:' + salt.hex() + ':' + hashed.hex()
 
 
@@ -26,7 +29,7 @@ def _verify_password(pw, stored_hash):
         _, salt_hex, hash_hex = stored_hash.split(':', 2)
         salt = bytes.fromhex(salt_hex)
         expected = bytes.fromhex(hash_hex)
-        actual = hashlib.pbkdf2_hmac('sha256', f"{pw}".encode('utf-8'), salt, 150000)
+        actual = hashlib.pbkdf2_hmac('sha256', f"{pw}".encode('utf-8'), salt, PBKDF2_ITERATIONS)
         return hmac.compare_digest(actual, expected)
     else:
         return hmac.compare_digest(
@@ -37,10 +40,16 @@ def _verify_password(pw, stored_hash):
 
 def upgrade_password_hash(pw):
     new_hash = hash_password(pw)
+    old_hash = settings.auth.password
     settings.auth.password = new_hash
-    from app.config import write_config
-    write_config()
-    logging.info('Upgraded password hash from MD5 to PBKDF2-SHA256')
+    try:
+        from app.config import write_config
+        write_config()
+        logging.info('Upgraded password hash from MD5 to PBKDF2-SHA256')
+    except Exception:
+        settings.auth.password = old_hash
+        logging.exception('Failed to persist password hash upgrade, reverted to previous hash')
+        raise
 
 
 def check_credentials(user, pw, request, log_success=True):
