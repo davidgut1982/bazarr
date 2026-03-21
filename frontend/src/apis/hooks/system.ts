@@ -274,13 +274,10 @@ export function useSystem() {
     mutationFn: (param: { username: string; password: string }) =>
       api.system.login(param.username, param.password),
 
-    onSuccess: (data, variables) => {
-      if (data && typeof data === "object" && "upgrade_hash" in data && data.upgrade_hash) {
-        // Store credentials temporarily for upgrade prompt
-        sessionStorage.setItem("password_upgrade_pending", JSON.stringify({
-          username: variables.username,
-          password: variables.password,
-        }));
+    onSuccess: (data) => {
+      if (data && typeof data === "object" && "upgrade_token" in data && data.upgrade_token) {
+        // Store opaque token (not password) for upgrade prompt
+        sessionStorage.setItem("password_upgrade_token", data.upgrade_token);
       }
       // TODO: Hard-coded value
       window.location.replace(Environment.baseUrl);

@@ -51,19 +51,18 @@ const App: FunctionComponent = () => {
   }, []);
 
   useEffect(() => {
-    const pending = sessionStorage.getItem("password_upgrade_pending");
-    if (pending) {
+    const token = sessionStorage.getItem("password_upgrade_token");
+    if (token) {
       setUpgradeModalOpen(true);
     }
   }, []);
 
   const handleUpgradeAccept = useCallback(async () => {
-    const raw = sessionStorage.getItem("password_upgrade_pending");
-    if (!raw) return;
+    const token = sessionStorage.getItem("password_upgrade_token");
+    if (!token) return;
     setUpgrading(true);
     try {
-      const { username, password } = JSON.parse(raw);
-      await api.system.upgradePasswordHash(username, password);
+      await api.system.upgradePasswordHash(token);
       showNotification(
         notification.info(
           "Password upgraded",
@@ -75,14 +74,14 @@ const App: FunctionComponent = () => {
         notification.warn("Upgrade failed", "Could not upgrade password hash"),
       );
     } finally {
-      sessionStorage.removeItem("password_upgrade_pending");
+      sessionStorage.removeItem("password_upgrade_token");
       setUpgradeModalOpen(false);
       setUpgrading(false);
     }
   }, []);
 
   const handleUpgradeDecline = useCallback(() => {
-    sessionStorage.removeItem("password_upgrade_pending");
+    sessionStorage.removeItem("password_upgrade_token");
     setUpgradeModalOpen(false);
   }, []);
 

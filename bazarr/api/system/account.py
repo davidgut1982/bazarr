@@ -1,6 +1,7 @@
 # coding=utf-8
 
 import gc
+import secrets
 
 from flask import session, request
 from flask_restx import Resource, Namespace, reqparse
@@ -39,7 +40,10 @@ class SystemAccount(Resource):
             if check_credentials(username, password, request):
                 session['logged_in'] = True
                 if needs_password_upgrade():
-                    return {'upgrade_hash': True}, 200
+                    # Store password in session for upgrade (server-side only, never sent to client)
+                    session['_pw_for_upgrade'] = password
+                    session['_upgrade_token'] = secrets.token_urlsafe(16)
+                    return {'upgrade_hash': True, 'upgrade_token': session['_upgrade_token']}, 200
                 return '', 204
             else:
                 session['logged_in'] = False
@@ -52,12 +56,15 @@ class SystemAccount(Resource):
                 gc.collect()
                 return '', 204
         elif action == 'upgrade_hash':
-            username = args.get('username')
-            password = args.get('password')
-            if check_credentials(username, password, request, log_success=False):
-                upgrade_password_hash(password)
-                return '', 204
-            else:
-                return 'Authentication failed', 403
+            # Verify upgrade token from session (no password re-transmission)
+            token = args.get('password')  # reuse password field for token
+            stored_token = session.get('_upgrade_token')
+            stored_pw = session.get('_pw_for_upgrade')
+            if not stored_token or not stored_pw or token != stored_token:
+                return 'Invalid or expired upgrade token', 403
+            upgrade_password_hash(stored_pw)
+            session.pop('_pw_for_upgrade', None)
+            session.pop('_upgrade_token', None)
+            return '', 204
 
         return 'Unknown action', 400
