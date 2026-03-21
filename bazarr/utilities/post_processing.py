@@ -4,13 +4,18 @@ import os
 import re
 import sys
 import shlex
+import subprocess
 import logging
 
 from app.config import settings
 
 
 def _escape(in_str):
-    return shlex.quote(str(in_str))
+    s = str(in_str) if in_str is not None else ''
+    if os.name == 'nt':
+        # cmd.exe: use subprocess.list2cmdline for proper Windows quoting
+        return subprocess.list2cmdline([s])
+    return shlex.quote(s)
 
 
 def pp_replace(pp_command, episode, subtitles, language, language_code2, language_code3, episode_language,
