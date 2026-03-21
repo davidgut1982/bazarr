@@ -29,6 +29,7 @@ const AuthSection = () => {
 
   const { data: pinData } = usePlexPinCheckQuery(
     pin?.pinId ?? null,
+    pin?.state ?? null,
     isPolling,
     pin?.pinId ? PLEX_AUTH_CONFIG.POLLING_INTERVAL_MS : false,
   );
