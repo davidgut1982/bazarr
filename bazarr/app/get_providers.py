@@ -1,6 +1,7 @@
 # coding=utf-8
 
 import os
+import json
 import datetime
 import pytz
 import logging
@@ -202,7 +203,7 @@ def get_providers():
             else:
                 logging.info("Using %s again after %s, (disabled because: %s)", provider, throttle_desc, reason)
                 del tp[provider]
-                set_throttled_providers(str(tp))
+                set_throttled_providers(tp)
         # if forced only is enabled: # fixme: Prepared for forced only implementation to remove providers with don't support forced only subtitles
         #     for provider in providers_list:
         #         if provider in PROVIDERS_FORCED_OFF:
@@ -434,7 +435,7 @@ def provider_throttle(name, exception, ids=None, language=None):
                     logging.debug("Couldn't remove cache file: %s", os.path.basename(fn))
         else:
             tp[name] = (cls_name, throttle_until, throttle_description)
-            set_throttled_providers(str(tp))
+            set_throttled_providers(tp)
 
             trac_info = _get_traceback_info(exception)
 
@@ -496,7 +497,7 @@ def update_throttled_provider():
     for provider in list(tp):
         if provider not in providers_list:
             del tp[provider]
-            set_throttled_providers(str(tp))
+            set_throttled_providers(tp)
 
         reason, until, throttle_desc = tp.get(provider, (None, None, None))
 
@@ -507,7 +508,7 @@ def update_throttled_provider():
             else:
                 logging.info("Using %s again after %s, (disabled because: %s)", provider, throttle_desc, reason)
                 del tp[provider]
-                set_throttled_providers(str(tp))
+                set_throttled_providers(tp)
 
             reason, until, throttle_desc = tp.get(provider, (None, None, None))
 
@@ -516,7 +517,7 @@ def update_throttled_provider():
                 if now >= until:
                     logging.info("Using %s again after %s, (disabled because: %s)", provider, throttle_desc, reason)
                     del tp[provider]
-                    set_throttled_providers(str(tp))
+                    set_throttled_providers(tp)
 
     event_stream(type='badges')
 
@@ -538,7 +539,7 @@ def reset_throttled_providers(only_auth_or_conf_error=False):
                                                                'PaymentRequired']:
             continue
         del tp[provider]
-    set_throttled_providers(str(tp))
+    set_throttled_providers(tp)
     update_throttled_provider()
     if only_auth_or_conf_error:
         logging.info('BAZARR throttled providers have been reset (only AuthenticationError, ConfigurationError and '
@@ -549,21 +550,30 @@ def reset_throttled_providers(only_auth_or_conf_error=False):
 
 def get_throttled_providers():
     providers = {}
+    dat_path = os.path.normpath(os.path.join(args.config_dir, 'config', 'throttled_providers.dat'))
     try:
-        if os.path.exists(os.path.join(args.config_dir, 'config', 'throttled_providers.dat')):
-            with open(os.path.normpath(os.path.join(args.config_dir, 'config', 'throttled_providers.dat')), 'r') as \
-                    handle:
-                providers = eval(handle.read())
+        if os.path.exists(dat_path):
+            with open(dat_path, 'r') as handle:
+                raw = json.loads(handle.read())
+                for name, val in raw.items():
+                    cls_name, until_str, description = val
+                    providers[name] = (cls_name, datetime.datetime.fromisoformat(until_str), description)
     except Exception:
-        # set empty content in throttled_providers.dat
         logging.error("Invalid content in throttled_providers.dat. Resetting")
-        set_throttled_providers(str(providers))
+        set_throttled_providers(providers)
     finally:
         return providers
 
 
 def set_throttled_providers(data):
-    with open(os.path.normpath(os.path.join(args.config_dir, 'config', 'throttled_providers.dat')), 'w+') as handle:
+    dat_path = os.path.normpath(os.path.join(args.config_dir, 'config', 'throttled_providers.dat'))
+    if isinstance(data, dict):
+        serializable = {}
+        for name, val in data.items():
+            cls_name, throttle_until, description = val
+            serializable[name] = (cls_name, throttle_until.isoformat(), description)
+        data = json.dumps(serializable)
+    with open(dat_path, 'w+') as handle:
         handle.write(data)
 
 
