@@ -548,33 +548,50 @@ def reset_throttled_providers(only_auth_or_conf_error=False):
         logging.info('BAZARR throttled providers have been reset.')
 
 
+def _throttled_providers_path():
+    return os.path.normpath(os.path.join(args.config_dir, 'config', 'throttled_providers.dat'))
+
+
 def get_throttled_providers():
     providers = {}
-    dat_path = os.path.normpath(os.path.join(args.config_dir, 'config', 'throttled_providers.dat'))
+    dat_path = _throttled_providers_path()
     try:
         if os.path.exists(dat_path):
             with open(dat_path, 'r') as handle:
-                raw = json.loads(handle.read())
+                content = handle.read()
+                if not content.strip():
+                    return providers
+                raw = json.loads(content)
                 for name, val in raw.items():
                     cls_name, until_str, description = val
-                    providers[name] = (cls_name, datetime.datetime.fromisoformat(until_str), description)
-    except Exception:
-        logging.error("Invalid content in throttled_providers.dat. Resetting")
+                    until = datetime.datetime.fromisoformat(until_str) if until_str else None
+                    providers[name] = (cls_name, until, description)
+    except (json.JSONDecodeError, KeyError, ValueError):
+        logging.info("Migrating throttled_providers.dat from legacy format to JSON. Throttle state reset.")
         set_throttled_providers(providers)
-    finally:
-        return providers
+    except Exception:
+        logging.exception("Unexpected error reading throttled_providers.dat. Resetting.")
+        set_throttled_providers(providers)
+    return providers
 
 
 def set_throttled_providers(data):
-    dat_path = os.path.normpath(os.path.join(args.config_dir, 'config', 'throttled_providers.dat'))
-    if isinstance(data, dict):
-        serializable = {}
-        for name, val in data.items():
-            cls_name, throttle_until, description = val
-            serializable[name] = (cls_name, throttle_until.isoformat(), description)
-        data = json.dumps(serializable)
-    with open(dat_path, 'w+') as handle:
-        handle.write(data)
+    if not isinstance(data, dict):
+        raise TypeError(f"set_throttled_providers expects a dict, got {type(data).__name__}")
+    dat_path = _throttled_providers_path()
+    serializable = {}
+    for name, val in data.items():
+        cls_name, throttle_until, description = val
+        serializable[name] = (
+            cls_name,
+            throttle_until.isoformat() if throttle_until else None,
+            description
+        )
+    json_data = json.dumps(serializable)
+    tmp_path = dat_path + '.tmp'
+    with open(tmp_path, 'w') as handle:
+        handle.write(json_data)
+    os.replace(tmp_path, dat_path)
 
 
 tp = get_throttled_providers()
