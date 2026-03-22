@@ -9,7 +9,6 @@ on:
       - libs/**
       - custom_libs/**
       - migrations/**
-      - opensubtitles-scraper/**
       - bazarr.py
       - requirements.txt
       - dev-requirements.txt
