@@ -22,8 +22,9 @@ const AIModelSelector: FunctionComponent = () => {
       label="AI Model"
       options={modelOptions}
       settingKey="settings-translator-openrouter_model"
-      placeholder={isLoading ? "Loading models..." : "Select a model..."}
+      placeholder={isLoading ? "Loading models..." : "Select or type a model ID..."}
       disabled={isLoading}
+      searchable
     />
   );
 };

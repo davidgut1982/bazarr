@@ -4,6 +4,7 @@ import {
   CollapseBox,
   Layout,
   Message,
+  Password,
   Section,
   Selector,
   Slider,
@@ -98,7 +99,7 @@ const SettingsTranslatorView: FunctionComponent = () => {
               https://github.com/LavX/ai-subtitle-translator
             </a>
           </Message>
-          <Text
+          <Password
             label="OpenRouter API Key"
             settingKey="settings-translator-openrouter_api_key"
           />
