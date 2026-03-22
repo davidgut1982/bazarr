@@ -56,7 +56,7 @@ def process_episode_translation(item, source_language, target_language, forced, 
 
     # Queue translation
     try:
-        result = translate_subtitles_file(
+        translate_subtitles_file(
             video_path=video_path,
             source_srt_file=source_subtitle_path,
             from_lang=source_language,
@@ -69,14 +69,12 @@ def process_episode_translation(item, source_language, target_language, forced, 
             radarr_id=None,
             job_id=job_id
         )
-        if result is not False:
-            # Re-index subtitles so Bazarr's DB knows about the new translated file
-            store_subtitles(path_mappings.path_replace_reverse(video_path), video_path)
-            # Notify frontend to refresh
-            event_stream(type='series', payload=sonarr_series_id)
-            event_stream(type='episode', payload=sonarr_episode_id)
-            return True
-        return False
+        # Re-index subtitles so Bazarr's DB knows about the new translated file
+        store_subtitles(path_mappings.path_replace_reverse(video_path), video_path)
+        # Notify frontend to refresh series and episode views
+        event_stream(type='series', payload=sonarr_series_id)
+        event_stream(type='episode', payload=sonarr_episode_id)
+        return True
     except Exception as e:
         logger.error(f'Translation failed for episode {sonarr_episode_id}: {e}')
         return False
@@ -119,7 +117,7 @@ def process_movie_translation(item, source_language, target_language, forced, hi
 
     # Queue translation
     try:
-        result = translate_subtitles_file(
+        translate_subtitles_file(
             video_path=video_path,
             source_srt_file=source_subtitle_path,
             from_lang=source_language,
@@ -132,13 +130,11 @@ def process_movie_translation(item, source_language, target_language, forced, hi
             radarr_id=radarr_id,
             job_id=job_id
         )
-        if result is not False:
-            # Re-index subtitles so Bazarr's DB knows about the new translated file
-            store_subtitles_movie(path_mappings.path_replace_reverse_movie(video_path), video_path)
-            # Notify frontend to refresh
-            event_stream(type='movie', payload=radarr_id)
-            return True
-        return False
+        # Re-index subtitles so Bazarr's DB knows about the new translated file
+        store_subtitles_movie(path_mappings.path_replace_reverse_movie(video_path), video_path)
+        # Notify frontend to refresh movie view
+        event_stream(type='movie', payload=radarr_id)
+        return True
     except Exception as e:
         logger.error(f'Translation failed for movie {radarr_id}: {e}')
         return False

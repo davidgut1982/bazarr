@@ -282,7 +282,12 @@ const NotificationDrawer: FunctionComponent<NotificationDrawerProps> = ({
                                                       job.progress_max) *
                                                     100
                                                   : 0,
-                                            color: "brand",
+                                            color:
+                                              status === "completed"
+                                                ? "green"
+                                                : status === "failed"
+                                                  ? "red"
+                                                  : "brand",
                                           },
                                         ]}
                                         label={
@@ -294,6 +299,13 @@ const NotificationDrawer: FunctionComponent<NotificationDrawerProps> = ({
                                                 : "9px"
                                             }
                                             fw={700}
+                                            c={
+                                              status === "completed"
+                                                ? "green"
+                                                : status === "failed"
+                                                  ? "red"
+                                                  : undefined
+                                            }
                                           >
                                             {status === "completed" &&
                                             job.progress_max == 0 &&
