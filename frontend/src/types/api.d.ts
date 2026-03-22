@@ -269,6 +269,7 @@ declare namespace Plex {
     pinId: string;
     code: string;
     clientId: string;
+    state: string;
     authUrl: string;
   }
 
