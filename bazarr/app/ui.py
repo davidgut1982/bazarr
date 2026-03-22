@@ -178,7 +178,7 @@ def swaggerui_static(filename):
 
 
 def _resolve_and_validate(url_str):
-    """Resolve DNS once and validate all resolved IPs are safe.
+    """Resolve DNS once and validate resolved IPs. Pick a safe address to pin to.
     Returns (resolved_ip, hostname, parsed) or raises ValueError."""
     parsed = urlparse(url_str)
     hostname = parsed.hostname
@@ -188,12 +188,17 @@ def _resolve_and_validate(url_str):
     addrs = socket.getaddrinfo(hostname, port)
     if not addrs:
         raise ValueError("DNS resolution returned no results")
+    # Find a safe (non-link-local, non-loopback) address to pin to.
+    # Dual-stack hosts may resolve to both private LAN and link-local IPv6.
+    safe_ip = None
     for _, _, _, _, sockaddr in addrs:
         ip = ipaddress.ip_address(sockaddr[0])
-        if ip.is_link_local or ip.is_loopback:
-            raise ValueError(f"Blocked address: {ip}")
-    # Return first resolved IP for pinning
-    return addrs[0][4][0], hostname, parsed
+        if not ip.is_link_local and not ip.is_loopback:
+            if safe_ip is None:
+                safe_ip = sockaddr[0]
+    if safe_ip is None:
+        raise ValueError("All resolved addresses are link-local or loopback")
+    return safe_ip, hostname, parsed
 
 
 @check_login
