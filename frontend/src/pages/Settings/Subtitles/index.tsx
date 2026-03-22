@@ -27,17 +27,19 @@ import { SelectorOption } from "@/components";
 import {
   adaptiveSearchingDelayOption,
   adaptiveSearchingDeltaOption,
-  aiTranslatorConcurrentOptions,
-  aiTranslatorModelOptions,
-  aiTranslatorReasoningOptions,
   colorOptions,
   embeddedSubtitlesParserOption,
   folderOptions,
   hiExtensionOptions,
   providerOptions,
   syncMaxOffsetSecondsOptions,
-  translatorOption,
 } from "./options";
+import {
+  aiTranslatorConcurrentOptions,
+  aiTranslatorModelOptions,
+  aiTranslatorReasoningOptions,
+  translatorOption,
+} from "@/pages/Settings/Translator/options";
 
 interface CommandOption {
   option: string;
