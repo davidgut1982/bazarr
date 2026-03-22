@@ -180,6 +180,7 @@ jobs:
           file: ./opensubtitles-scraper/Dockerfile
           platforms: ${{ inputs.platforms }}
           build-args: |
+            PYTHON_VERSION=${{ steps.version.outputs.python_version }}
             PYTHON_JIT=${{ inputs.enable_jit == true && '1' || '0' }}
           push: true
           tags: ${{ steps.version.outputs.tags }}
