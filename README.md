@@ -127,13 +127,26 @@ Create a `docker-compose.yml` file:
 
 ```yaml
 services:
-  # OpenSubtitles.org Scraper Service (required for the scraper provider)
+  # FlareSolverr - Handles browser challenges for web scraping
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    restart: unless-stopped
+    ports:
+      - "8191:8191"
+    environment:
+      - LOG_LEVEL=info
+
   opensubtitles-scraper:
     image: ghcr.io/lavx/opensubtitles-scraper:latest
     container_name: opensubtitles-scraper
     restart: unless-stopped
+    depends_on:
+      - flaresolverr
     ports:
       - "8000:8000"
+    environment:
+      - FLARESOLVERR_URL=http://flaresolverr:8191
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8000/health"]
       interval: 30s
@@ -200,7 +213,7 @@ docker compose up -d
 | `PUID` | User ID for file permissions | `1000` |
 | `PGID` | Group ID for file permissions | `1000` |
 | `TZ` | Timezone | `UTC` |
-| `OPENSUBTITLES_USE_WEB_SCRAPER` | Enable web scraper mode | `false` |
+| `OPENSUBTITLES_USE_WEB_SCRAPER` | Enable web scraper mode | `true` |
 | `OPENSUBTITLES_SCRAPER_URL` | URL of the scraper service | `http://localhost:8000` |
 
 ### Enabling the Provider
@@ -247,6 +260,8 @@ docker compose up -d
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
+> **Note:** The scraper service uses [FlareSolverr](https://github.com/FlareSolverr/FlareSolverr) (port 8191) to handle browser challenges. See the Docker Compose example above for the full setup.
+
 ---
 
 ## 🛠️ Configuration Options
@@ -258,7 +273,8 @@ docker compose up -d
 | `PUID` | `1000` | User ID for file permissions |
 | `PGID` | `1000` | Group ID for file permissions |
 | `TZ` | `UTC` | Timezone (e.g., `Europe/Budapest`) |
-| `OPENSUBTITLES_SCRAPER_URL` | `http://opensubtitles-scraper:8765` | Scraper service URL |
+| `OPENSUBTITLES_USE_WEB_SCRAPER` | `true` | Enable the OpenSubtitles.org web scraper provider |
+| `OPENSUBTITLES_SCRAPER_URL` | `http://opensubtitles-scraper:8000` | Scraper service URL (port 8000, not 8765) |
 
 ### Volumes
 
