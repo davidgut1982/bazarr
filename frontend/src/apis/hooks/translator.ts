@@ -4,7 +4,7 @@ import client from "@/apis/raw/client";
 
 export interface TranslatorJob {
   jobId: string;
-  status: "queued" | "processing" | "completed" | "failed" | "cancelled";
+  status: "queued" | "processing" | "completed" | "partial" | "failed" | "cancelled";
   progress: number;
   message?: string;
   createdAt: string;
@@ -14,6 +14,21 @@ export interface TranslatorJob {
   sourceLanguage?: string;
   targetLanguage?: string;
   filename?: string;
+  title?: string;
+  mediaType?: string;
+  model?: string;
+  jobName?: string;
+  totalLines?: number;
+  completedLines?: number;
+  totalBatches?: number;
+  completedBatches?: number;
+  tokensUsed?: number;
+  totalCost?: number;
+  elapsedSeconds?: number;
+  result?: {
+    model_used?: string;
+    tokens_used?: number;
+  };
 }
 
 export interface TranslatorStatus {
@@ -31,6 +46,10 @@ export interface TranslatorStatus {
     completed: number;
     failed: number;
     total: number;
+  };
+  bazarr_queue?: {
+    pending: number;
+    running: number;
   };
 }
 

@@ -1,30 +1,26 @@
-import { FunctionComponent, useMemo } from "react";
-import { useTranslatorModels } from "@/apis/hooks/translator";
-import { SelectorOption } from "@/components";
-import { Selector } from "@/pages/Settings/components";
+import { FunctionComponent } from "react";
+import { Autocomplete } from "@mantine/core";
+import { useBaseInput } from "@/pages/Settings/utilities/hooks";
 import { aiTranslatorModelOptions } from "./options";
 
-const AIModelSelector: FunctionComponent = () => {
-  const { data: modelsResponse, isLoading } = useTranslatorModels();
+const modelData = aiTranslatorModelOptions.map((o) => o.value);
 
-  const modelOptions = useMemo((): SelectorOption<string>[] => {
-    if (modelsResponse?.models && modelsResponse.models.length > 0) {
-      return modelsResponse.models.map((model) => ({
-        label: model.name + (model.is_default ? " (Recommended)" : ""),
-        value: model.id,
-      }));
-    }
-    return aiTranslatorModelOptions;
-  }, [modelsResponse]);
+const AIModelSelector: FunctionComponent = () => {
+  const { value, update } = useBaseInput<
+    { settingKey: string },
+    string
+  >({
+    settingKey: "settings-translator-openrouter_model",
+  });
 
   return (
-    <Selector
+    <Autocomplete
       label="AI Model"
-      options={modelOptions}
-      settingKey="settings-translator-openrouter_model"
-      placeholder={isLoading ? "Loading models..." : "Select or type a model ID..."}
-      disabled={isLoading}
-      searchable
+      data={modelData}
+      value={(value as string) ?? ""}
+      onChange={(val) => update(val)}
+      placeholder="Select or type any model ID..."
+      limit={30}
     />
   );
 };

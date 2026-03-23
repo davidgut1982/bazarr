@@ -233,6 +233,14 @@ class JobsQueue:
                 return True
         return False
 
+    def get_job_name(self, job_id: int) -> str:
+        """Get the current name of a job by its ID."""
+        queues = self.jobs_pending_queue + self.jobs_running_queue + self.jobs_failed_queue + self.jobs_completed_queue
+        for job in queues:
+            if job.job_id == job_id:
+                return job.job_name
+        return ""
+
     def get_job_returned_value(self, job_id: int):
         """
         Fetches the returned value of a job from the queue provided its unique identifier.
@@ -500,8 +508,21 @@ class JobsQueue:
             try:
                 if self.jobs_pending_queue:
                     with self._queue_lock:
-                        can_run_job = (len(self.jobs_running_queue) < settings.general.concurrent_jobs
-                                       and len(self.jobs_pending_queue) > 0)
+                        next_job = self.jobs_pending_queue[0] if self.jobs_pending_queue else None
+                        if next_job:
+                            is_translation = 'translat' in (next_job.job_name or '').lower()
+                            if is_translation:
+                                # Translation jobs respect their own concurrency limit
+                                running_translations = sum(
+                                    1 for j in self.jobs_running_queue
+                                    if 'translat' in (j.job_name or '').lower()
+                                )
+                                max_translations = settings.translator.openrouter_max_concurrent
+                                can_run_job = running_translations < max_translations
+                            else:
+                                can_run_job = len(self.jobs_running_queue) < settings.general.concurrent_jobs
+                        else:
+                            can_run_job = False
 
                     if can_run_job:
                         job_thread = Thread(target=self._run_job)

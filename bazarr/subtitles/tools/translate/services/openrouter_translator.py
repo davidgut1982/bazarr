@@ -14,6 +14,7 @@ from languages.get_languages import language_from_alpha2, language_from_alpha3
 from radarr.history import history_log_movie
 from sonarr.history import history_log
 from app.event_handler import show_progress, hide_progress, show_message
+from app.jobs_queue import jobs_queue
 
 from ..core.translator_utils import add_translator_info, create_process_result, get_title
 
@@ -51,25 +52,15 @@ class OpenRouterTranslatorService:
     def _build_reasoning_config(self):
         """
         Build reasoning configuration based on Bazarr settings.
-        Maps effort levels to max_tokens for the AI Subtitle Translator service.
+        Sends effort level directly to the AI Subtitle Translator service.
         """
         reasoning_mode = getattr(settings.translator, 'openrouter_reasoning', 'disabled')
-        
+
         if reasoning_mode == 'disabled':
             return None
-        
-        # Map effort levels to max_tokens for reasoning
-        effort_to_tokens = {
-            'low': 1000,      # Minimal thinking
-            'medium': 2000,   # Default balanced
-            'high': 4000,     # Extended thinking
-        }
-        
-        max_tokens = effort_to_tokens.get(reasoning_mode, 2000)
-        
+
         return {
-            'enabled': True,
-            'maxTokens': max_tokens,
+            'effort': reasoning_mode,
         }
 
     def translate(self, job_id=None):
@@ -85,7 +76,7 @@ class OpenRouterTranslatorService:
             logger.debug(f'Starting AI translation for {self.source_srt_file}')
 
             # Submit job and poll for completion
-            translated_lines = self._submit_and_poll(lines_list)
+            translated_lines = self._submit_and_poll(lines_list, bazarr_job_id=job_id)
 
             if translated_lines is None:
                 logger.error(f'Translation failed for {self.source_srt_file}')
@@ -132,7 +123,7 @@ class OpenRouterTranslatorService:
             hide_progress(id=f'translate_progress_{self.dest_srt_file}')
             return False
 
-    def _submit_and_poll(self, lines_list: List[str]) -> Optional[List[Dict[str, Any]]]:
+    def _submit_and_poll(self, lines_list: List[str], bazarr_job_id=None) -> Optional[List[Dict[str, Any]]]:
         """Submit translation job and poll for completion with progress updates"""
         try:
             # Prepare language codes
@@ -182,6 +173,7 @@ class OpenRouterTranslatorService:
                     "model": settings.translator.openrouter_model,
                     "temperature": settings.translator.openrouter_temperature,
                     "maxConcurrentJobs": settings.translator.openrouter_max_concurrent,
+                    "parallelBatches": settings.translator.openrouter_parallel_batches,
                     "reasoning": self._build_reasoning_config(),
                 }
             }
@@ -211,7 +203,7 @@ class OpenRouterTranslatorService:
             logger.debug(f'BAZARR translation job submitted: {job_id}')
 
             # Poll for completion
-            return self._poll_job(base_url, job_id, len(lines_payload))
+            return self._poll_job(base_url, job_id, len(lines_payload), bazarr_job_id=bazarr_job_id)
 
         except requests.exceptions.Timeout:
             logger.error('AI Subtitle Translator request timed out')
@@ -223,7 +215,7 @@ class OpenRouterTranslatorService:
             logger.error(f'AI Subtitle Translator error: {str(e)}')
             return None
 
-    def _poll_job(self, base_url: str, job_id: str, total_lines: int) -> Optional[Any]:
+    def _poll_job(self, base_url: str, job_id: str, total_lines: int, bazarr_job_id=None) -> Optional[Any]:
         """Poll job status until completion"""
         poll_interval = 2  # seconds
         max_wait_time = 1800  # 30 minutes
@@ -255,6 +247,16 @@ class OpenRouterTranslatorService:
                     value=progress,
                     count=100
                 )
+
+                # Sync progress to bazarr jobs queue (for NotificationDrawer)
+                if bazarr_job_id:
+                    model_used = job_status.get("model_used", settings.translator.openrouter_model or "")
+                    jobs_queue.update_job_progress(
+                        job_id=bazarr_job_id,
+                        progress_value=progress,
+                        progress_max=100,
+                        progress_message=f'{message} [{model_used}]' if model_used else message
+                    )
 
                 if status == "completed":
                     hide_progress(id=f'translate_progress_{self.dest_srt_file}')

@@ -1,7 +1,7 @@
 import { SelectorOption } from "@/components";
 
 export const translatorOption: SelectorOption<string>[] = [
-  { label: "AI Subtitle Translator", value: "openrouter" },
+  { label: "OpenRouter", value: "openrouter" },
   { label: "Google Translate", value: "google_translate" },
   { label: "Gemini", value: "gemini" },
   { label: "Lingarr", value: "lingarr" },
@@ -53,4 +53,13 @@ export const aiTranslatorConcurrentOptions: SelectorOption<number>[] = [
   { label: "3", value: 3 },
   { label: "4", value: 4 },
   { label: "5 (High)", value: 5 },
+];
+
+export const aiTranslatorParallelBatchesOptions: SelectorOption<number>[] = [
+  { label: "1 (Sequential)", value: 1 },
+  { label: "2", value: 2 },
+  { label: "3", value: 3 },
+  { label: "4 (Default)", value: 4 },
+  { label: "6", value: 6 },
+  { label: "8 (Aggressive)", value: 8 },
 ];

@@ -38,6 +38,7 @@ const StatusBadge: FunctionComponent<StatusBadgeProps> = ({ status }) => {
     queued: { color: "gray", icon: faClock, label: "Queued" },
     processing: { color: "blue", icon: faSpinner, label: "Processing" },
     completed: { color: "green", icon: faCheck, label: "Completed" },
+    partial: { color: "yellow", icon: faExclamationTriangle, label: "Partial" },
     failed: { color: "red", icon: faExclamationTriangle, label: "Failed" },
     cancelled: { color: "orange", icon: faTimes, label: "Cancelled" },
   }[status];
@@ -63,13 +64,27 @@ interface JobRowProps {
   job: TranslatorJob;
 }
 
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds.toFixed(0)}s`;
+  const min = Math.floor(seconds / 60);
+  const sec = Math.round(seconds % 60);
+  return `${min}m ${sec}s`;
+}
+
+function formatCostValue(cost: number): string {
+  if (cost === 0) return "Free";
+  if (cost < 0.01) return `$${cost.toFixed(4)}`;
+  return `$${cost.toFixed(2)}`;
+}
+
 const JobRow: FunctionComponent<JobRowProps> = ({
   job,
 }) => {
-
   const modelUsed = job.result?.model_used || job.model;
-  const tokensUsed = job.result?.tokens_used;
-  // Build media title from job metadata — never use job.message (that's status text)
+  // Prefer top-level tokensUsed (live from API), fall back to result
+  const tokensUsed = job.tokensUsed || job.result?.tokens_used;
+
+  // Build media title
   const langPair =
     job.sourceLanguage && job.targetLanguage
       ? ` (${job.sourceLanguage.toUpperCase()} → ${job.targetLanguage.toUpperCase()})`
@@ -80,50 +95,61 @@ const JobRow: FunctionComponent<JobRowProps> = ({
       ? `${job.filename}${langPair}`
       : langPair || "-";
 
-  // Calculate duration and TPS
+  // Duration — prefer server-side elapsedSeconds
   let durationStr = "-";
-  let tpsStr = "-";
-  if (job.startedAt && job.completedAt) {
-    const durationMs =
-      new Date(job.completedAt).getTime() - new Date(job.startedAt).getTime();
-    const durationSec = durationMs / 1000;
-    if (durationSec < 60) {
-      durationStr = `${durationSec.toFixed(0)}s`;
-    } else {
-      const min = Math.floor(durationSec / 60);
-      const sec = Math.round(durationSec % 60);
-      durationStr = `${min}m ${sec}s`;
-    }
-    if (tokensUsed && durationSec > 0) {
-      tpsStr = `${(tokensUsed / durationSec).toFixed(0)} t/s`;
-    }
+  let durationSec = 0;
+  if (job.elapsedSeconds) {
+    durationSec = job.elapsedSeconds;
+    durationStr = formatDuration(durationSec);
+  } else if (job.startedAt && job.completedAt) {
+    durationSec =
+      (new Date(job.completedAt).getTime() - new Date(job.startedAt).getTime()) / 1000;
+    durationStr = formatDuration(durationSec);
   } else if (job.status === "processing" && job.startedAt) {
-    const elapsed =
-      (Date.now() - new Date(job.startedAt).getTime()) / 1000;
-    if (elapsed < 60) {
-      durationStr = `${elapsed.toFixed(0)}s...`;
-    } else {
-      durationStr = `${Math.floor(elapsed / 60)}m...`;
-    }
+    const elapsed = (Date.now() - new Date(job.startedAt).getTime()) / 1000;
+    durationStr = `${formatDuration(elapsed)}...`;
   }
+
+  // TPS
+  const tpsStr = tokensUsed && durationSec > 0
+    ? `${(tokensUsed / durationSec).toFixed(0)} t/s`
+    : "-";
+
+  // Progress — show lines if available
+  const progressLabel = job.completedLines && job.totalLines
+    ? `${job.completedLines}/${job.totalLines} lines`
+    : `${job.progress}%`;
+
+  // Batch info for tooltip
+  const batchInfo = job.completedBatches && job.totalBatches
+    ? `Batch ${job.completedBatches}/${job.totalBatches}`
+    : undefined;
 
   return (
     <Table.Tr>
       <Table.Td>
-        <Tooltip label={job.jobId}>
+        <Tooltip label={job.jobName || job.jobId} openDelay={300}>
           <Text size="sm" truncate style={{ maxWidth: 200 }}>
             {mediaTitle}
           </Text>
         </Tooltip>
       </Table.Td>
       <Table.Td>
-        <StatusBadge status={job.status} />
+        {job.error ? (
+          <Tooltip label={job.error} multiline w={350} withArrow>
+            <span><StatusBadge status={job.status} /></span>
+          </Tooltip>
+        ) : (
+          <StatusBadge status={job.status} />
+        )}
       </Table.Td>
       <Table.Td>
         {job.status === "processing" ? (
-          <Progress value={job.progress} size="sm" animated />
+          <Tooltip label={[progressLabel, batchInfo].filter(Boolean).join(" · ")} withArrow>
+            <Progress value={job.progress} size="sm" animated />
+          </Tooltip>
         ) : (
-          <Text size="sm">{job.progress}%</Text>
+          <Text size="sm">{progressLabel}</Text>
         )}
       </Table.Td>
       <Table.Td>
@@ -134,6 +160,17 @@ const JobRow: FunctionComponent<JobRowProps> = ({
       <Table.Td>
         <Text size="xs" ff="monospace">
           {tokensUsed ? tokensUsed.toLocaleString() : "-"}
+        </Text>
+      </Table.Td>
+      <Table.Td>
+        <Text size="xs" ff="monospace">
+          {job.totalCost != null && job.totalCost > 0 ? (
+            <Tooltip label={`${formatCostValue(job.totalCost)} total cost`} withArrow>
+              <Text component="span" size="xs" ff="monospace" c="green.4">
+                {formatCostValue(job.totalCost)}
+              </Text>
+            </Tooltip>
+          ) : "-"}
         </Text>
       </Table.Td>
       <Table.Td>
@@ -253,22 +290,26 @@ export const TranslatorStatusPanel: FunctionComponent<
             role="status"
             aria-live="assertive"
           >
-            <Badge
-              color={status?.healthy ? "green" : "red"}
-              variant="light"
-              size="lg"
-              leftSection={
-                <span
-                  className={status?.healthy ? classes.promptConnected : undefined}
-                  aria-hidden="true"
-                  style={{ fontWeight: 700 }}
-                >
-                  ❯
-                </span>
-              }
-            >
-              {status?.healthy ? "Connected" : "Disconnected"}
-            </Badge>
+            <Group gap={6}>
+              <Text
+                c={status?.healthy ? "green.5" : "red.5"}
+                fw={700}
+                size="sm"
+                component="span"
+                className={status?.healthy ? classes.promptConnected : undefined}
+              >
+                ❯
+              </Text>
+              <Text
+                c={status?.healthy ? "green.5" : "red.5"}
+                fw={600}
+                size="sm"
+                tt="uppercase"
+                style={{ letterSpacing: 0.5 }}
+              >
+                {status?.healthy ? "Connected" : "Disconnected"}
+              </Text>
+            </Group>
           </div>
         </Group>
 
@@ -277,12 +318,18 @@ export const TranslatorStatusPanel: FunctionComponent<
       {/* Queue Stats */}
       {status && (
         <SimpleGrid cols={{ base: 2, sm: 4 }}>
+          {(status.bazarr_queue?.pending ?? 0) > 0 && (
+            <StatCard
+              label="Pending"
+              value={status.bazarr_queue!.pending}
+              color="queued"
+            />
+          )}
           <StatCard
             label="Processing"
             value={status.queue.processing}
             color="processing"
           />
-          <StatCard label="Queued" value={status.queue.queued} color="queued" />
           <StatCard
             label="Completed"
             value={status.queue.completed}
@@ -307,6 +354,7 @@ export const TranslatorStatusPanel: FunctionComponent<
                   <Table.Th>Progress</Table.Th>
                   <Table.Th>Model</Table.Th>
                   <Table.Th>Tokens</Table.Th>
+                  <Table.Th>Cost</Table.Th>
                   <Table.Th>Duration</Table.Th>
                   <Table.Th>Speed</Table.Th>
                 </Table.Tr>

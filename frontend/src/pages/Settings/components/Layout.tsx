@@ -149,7 +149,8 @@ const Layout: FunctionComponent<Props> = (props) => {
                   <Button
                     type="submit"
                     radius="xl"
-                    color="brand"
+                    variant="gradient"
+                    gradient={{ from: "brand.5", to: "brand.6", deg: 135 }}
                     size="md"
                     leftSection={<FontAwesomeIcon icon={faFloppyDisk} />}
                     loading={isMutating}

@@ -25,3 +25,4 @@ VERSION
 !*.dll
 
 .claude/
+docs/superpowers/

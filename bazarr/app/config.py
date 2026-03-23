@@ -210,6 +210,7 @@ validators = [
     Validator('translator.openrouter_max_concurrent', must_exist=True, default=2, is_type_of=int, gte=1, lte=10),
     Validator('translator.openrouter_reasoning', must_exist=True, default='disabled', is_type_of=str,
               is_in=['disabled', 'low', 'medium', 'high']),
+    Validator('translator.openrouter_parallel_batches', must_exist=True, default=4, is_type_of=int, gte=1, lte=8),
     Validator('translator.lingarr_token', must_exist=True, default='', is_type_of=str, cast=str),
 
     # sonarr section
@@ -707,12 +708,15 @@ def save_settings(settings_items):
             if value in empty_values and value != '':
                 value = None
 
-        # try to cast string as integer
+        # try to cast string as integer or float
         if isinstance(value, str) and settings_keys[-1] not in str_keys:
             try:
                 value = int(value)
             except ValueError:
-                pass
+                try:
+                    value = float(value)
+                except ValueError:
+                    pass
 
         # Make sure empty language list are stored correctly
         if settings_keys[-1] in array_keys and value[0] in empty_values:

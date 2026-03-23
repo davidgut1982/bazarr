@@ -62,7 +62,7 @@ const AppHeader: FunctionComponent = () => {
               src={`${Environment.baseUrl}/images/logo64.png`}
             ></Avatar>
           </Anchor>
-          <Badge size="lg" radius="sm" variant="brand" visibleFrom="sm">
+          <Badge size="lg" radius="sm" variant="gradient" gradient={{ from: "brand.5", to: "brand.6", deg: 135 }} visibleFrom="sm">
             Bazarr
           </Badge>
         </Group>

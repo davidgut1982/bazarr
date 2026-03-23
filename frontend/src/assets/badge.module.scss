@@ -5,8 +5,9 @@
     background-color: color.adjust(bazarr.$color-brand-6, $alpha: -0.8);
 
     &[data-variant="warning"] {
-      color: color.adjust(bazarr.$color-warning-2, $lightness: 80%);
-      background-color: color.adjust(bazarr.$color-warning-6, $alpha: -0.8);
+      color: #ff6b6b;
+      background-color: transparent;
+      border: 1px dashed #ff6b6b;
     }
 
     &[data-variant="highlight"] {
@@ -19,9 +20,12 @@
       background-color: color.adjust(bazarr.$color-disabled-7, $alpha: -0.8);
     }
 
-    &[data-variant="light"] {
-      color: var(--mantine-color-dark-0);
-      background-color: color.adjust(bazarr.$color-disabled-9, $alpha: -0.8);
+    &[data-variant="light"],
+    &[data-variant="outline"] {
+      /* Let Mantine handle these natively — they use per-badge color props */
+      color: unset;
+      background: unset;
+      background-color: unset;
     }
 
     @include mantine.light {
@@ -29,8 +33,9 @@
       background-color: color.adjust(bazarr.$color-brand-3, $alpha: -0.8);
 
       &[data-variant="warning"] {
-        color: color.adjust(bazarr.$color-warning-7, $lightness: -100%);
-        background-color: color.adjust(bazarr.$color-warning-6, $alpha: -0.8);
+        color: #e03131;
+        background-color: transparent;
+        border: 1px dashed #e03131;
       }
 
       &[data-variant="disabled"] {
@@ -43,9 +48,11 @@
         background-color: color.adjust(bazarr.$color-highlight-5, $alpha: -0.8);
       }
 
-      &[data-variant="light"] {
-        color: var(--mantine-color-black);
-        background-color: var(--mantine-color-gray-5);
+      &[data-variant="light"],
+      &[data-variant="outline"] {
+        color: unset;
+        background: unset;
+        background-color: unset;
       }
     }
   }

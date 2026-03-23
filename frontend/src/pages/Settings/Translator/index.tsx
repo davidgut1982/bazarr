@@ -1,5 +1,18 @@
 import { FunctionComponent } from "react";
-import { Anchor, Paper, SimpleGrid, Stack, Text as MantineText } from "@mantine/core";
+import {
+  Alert,
+  Anchor,
+  Badge,
+  Group,
+  Paper,
+  SimpleGrid,
+  Stack,
+  Text as MantineText,
+  Tooltip,
+  UnstyledButton,
+} from "@mantine/core";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faCircleInfo, faExclamationTriangle } from "@fortawesome/free-solid-svg-icons";
 import {
   Check,
   CollapseBox,
@@ -14,46 +27,189 @@ import {
 } from "@/pages/Settings/components";
 import { TranslatorStatusPanelWithFormContext } from "@/components/TranslatorStatus";
 import AIModelSelector from "./AIModelSelector";
-import ModelDetailsCard from "./ModelDetails";
+import ModelDetailsCard, { useOpenRouterModelDetails } from "./ModelDetails";
 import {
   aiTranslatorConcurrentOptions,
+  aiTranslatorParallelBatchesOptions,
   aiTranslatorReasoningOptions,
-  translatorOption,
 } from "./options";
 import { useSettingValue } from "@/pages/Settings/utilities/hooks";
+import { useFormActions } from "@/pages/Settings/utilities/FormValues";
+
+const engineOptions = [
+  { value: "openrouter", label: "OpenRouter" },
+  { value: "google_translate", label: "Google Translate" },
+  { value: "gemini", label: "Gemini" },
+  { value: "lingarr", label: "Lingarr" },
+];
+
+const TranslatorEnginePicker: FunctionComponent = () => {
+  const current = useSettingValue<string>(
+    "settings-translator-translator_type",
+  );
+  const { setValue } = useFormActions();
+
+  return (
+    <Group gap="xs" wrap="wrap">
+      {engineOptions.map((opt) => {
+        const active = current === opt.value;
+        return (
+          <UnstyledButton
+            key={opt.value}
+            onClick={() =>
+              setValue(
+                active ? null : opt.value,
+                "settings-translator-translator_type",
+              )
+            }
+          >
+            <Badge
+              size="lg"
+              variant={active ? "gradient" : "outline"}
+              gradient={active ? { from: "brand.5", to: "brand.6", deg: 135 } : undefined}
+              color={active ? undefined : "gray"}
+              style={{
+                cursor: "pointer",
+                opacity: active ? 1 : 0.55,
+                transition: "all 150ms ease",
+              }}
+            >
+              {opt.label}
+            </Badge>
+          </UnstyledButton>
+        );
+      })}
+    </Group>
+  );
+};
+
+const FreeModelWarning: FunctionComponent = () => {
+  const modelId = useSettingValue<string>(
+    "settings-translator-openrouter_model",
+  );
+  if (!modelId) return null;
+  const isFree =
+    modelId === "openrouter/free" ||
+    modelId.endsWith(":free") ||
+    modelId.includes("/free");
+  if (!isFree) return null;
+
+  return (
+    <Alert
+      color="yellow"
+      variant="light"
+      icon={<FontAwesomeIcon icon={faExclamationTriangle} />}
+      p="xs"
+    >
+      <MantineText size="xs">
+        Free models are heavily rate-limited by their upstream providers.
+        Expect slow translations, frequent retries, and possible job failures.
+        Use a paid model for reliable results.
+      </MantineText>
+    </Alert>
+  );
+};
+
+const ReasoningSelector: FunctionComponent = () => {
+  const modelId = useSettingValue<string>(
+    "settings-translator-openrouter_model",
+  );
+  const { data: model } = useOpenRouterModelDetails(modelId ?? "");
+  const supportsReasoning = model?.supported_parameters?.includes("reasoning") ?? false;
+  const { setValue } = useFormActions();
+
+  // Auto-set to disabled when model doesn't support reasoning
+  const currentReasoning = useSettingValue<string>(
+    "settings-translator-openrouter_reasoning",
+  );
+  if (!supportsReasoning && currentReasoning && currentReasoning !== "disabled") {
+    setValue("disabled", "settings-translator-openrouter_reasoning");
+  }
+
+  return (
+    <Selector
+      label="Reasoning Mode"
+      options={aiTranslatorReasoningOptions}
+      settingKey="settings-translator-openrouter_reasoning"
+      disabled={!supportsReasoning}
+    />
+  );
+};
 
 const ModelDetailsFromSetting: FunctionComponent = () => {
   const modelId = useSettingValue<string>(
     "settings-translator-openrouter_model",
   );
+  const reasoningLevel = useSettingValue<string>(
+    "settings-translator-openrouter_reasoning",
+  );
   if (!modelId) return null;
-  return <ModelDetailsCard modelId={modelId} />;
+  return <ModelDetailsCard modelId={modelId} reasoningLevel={reasoningLevel ?? "disabled"} />;
 };
 
 const SettingsTranslatorView: FunctionComponent = () => {
   return (
     <Layout name="AI Translator">
-      {/* Zone 1: Engine Selector — compact inline row */}
-      <SimpleGrid cols={{ base: 1, sm: 3 }} mt="lg">
-        <Selector
-          label="Translator"
-          clearable
-          options={translatorOption}
-          placeholder="Default translator"
-          settingKey="settings-translator-translator_type"
-        />
-        <Number
-          label="Score for Translated Subtitles"
-          settingKey="settings-translator-default_score"
-          min={0}
-          max={100}
-          step={1}
-        />
-        <Check
-          label="Add translation info at the beginning"
-          settingKey="settings-translator-translator_info"
-        />
-      </SimpleGrid>
+      {/* Zone 1: Translator Engine */}
+      <Group justify="space-between" align="flex-start" mt="lg" wrap="wrap">
+        <Stack gap="xs">
+          <MantineText size="sm" fw={600}>
+            Translator Engine
+          </MantineText>
+          <TranslatorEnginePicker />
+        </Stack>
+        <Group gap="lg" align="center">
+          <Group gap="xs" align="center">
+            <MantineText size="sm" c="dimmed">
+              Score
+            </MantineText>
+            <Number
+              settingKey="settings-translator-default_score"
+              min={0}
+              max={100}
+              step={1}
+              w={70}
+              size="xs"
+            />
+            <Tooltip
+              label="Score assigned to translated subtitles (0-100). Higher scores are preferred over lower ones."
+              multiline
+              w={250}
+              withArrow
+            >
+              <MantineText
+                size="xs"
+                c="dimmed"
+                style={{ cursor: "help" }}
+                component="span"
+              >
+                <FontAwesomeIcon icon={faCircleInfo} />
+              </MantineText>
+            </Tooltip>
+          </Group>
+          <Group gap="xs" align="center">
+            <Check
+              label="Translation credit"
+              settingKey="settings-translator-translator_info"
+            />
+            <Tooltip
+              label="Appends a brief credit subtitle at the end of translated files (e.g. '# Subtitles translated with AI Subtitle Translator #')"
+              multiline
+              w={280}
+              withArrow
+            >
+              <MantineText
+                size="xs"
+                c="dimmed"
+                style={{ cursor: "help" }}
+                component="span"
+              >
+                <FontAwesomeIcon icon={faCircleInfo} />
+              </MantineText>
+            </Tooltip>
+          </Group>
+        </Group>
+      </Group>
 
       {/* Gemini config — unchanged */}
       <CollapseBox
@@ -111,30 +267,36 @@ const SettingsTranslatorView: FunctionComponent = () => {
                   label="Service URL"
                   settingKey="settings-translator-openrouter_url"
                 />
-                <Anchor
-                  href="https://github.com/LavX/ai-subtitle-translator"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  size="xs"
-                  c="dimmed"
-                >
-                  github.com/LavX/ai-subtitle-translator
-                </Anchor>
+                <MantineText size="xs" c="dimmed" mt={4}>
+                  URL of the AI Subtitle Translator service.{" "}
+                  <Anchor
+                    href="https://github.com/LavX/ai-subtitle-translator"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    size="xs"
+                    c="yellow.6"
+                  >
+                    Setup guide
+                  </Anchor>
+                </MantineText>
               </div>
               <div>
                 <Password
                   label="OpenRouter API Key"
                   settingKey="settings-translator-openrouter_api_key"
                 />
-                <Anchor
-                  href="https://openrouter.ai/keys"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  size="xs"
-                  c="dimmed"
-                >
-                  openrouter.ai/keys
-                </Anchor>
+                <MantineText size="xs" c="dimmed" mt={4}>
+                  Required for AI translation.{" "}
+                  <Anchor
+                    href="https://openrouter.ai/keys"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    size="xs"
+                    c="yellow.6"
+                  >
+                    Get your API key
+                  </Anchor>
+                </MantineText>
               </div>
             </SimpleGrid>
           </Paper>
@@ -143,6 +305,7 @@ const SettingsTranslatorView: FunctionComponent = () => {
           <Paper withBorder radius="md" p="md">
             <Stack gap="xs">
               <AIModelSelector />
+              <FreeModelWarning />
               <MantineText size="xs" c="dimmed">
                 Models are fetched from the service. You can also type any model
                 ID from{" "}
@@ -156,7 +319,7 @@ const SettingsTranslatorView: FunctionComponent = () => {
                 </Anchor>
               </MantineText>
               <ModelDetailsFromSetting />
-              <SimpleGrid cols={{ base: 1, sm: 3 }} mt="xs">
+              <SimpleGrid cols={{ base: 1, sm: 4 }} mt="xs">
                 <div>
                   <Slider
                     label="Temperature"
@@ -165,20 +328,35 @@ const SettingsTranslatorView: FunctionComponent = () => {
                     max={1}
                     step={0.1}
                   />
-                  <MantineText size="xs" c="dimmed" mt={4}>
+                  <MantineText size="xs" c="dimmed" mt={4} ta="center">
                     deterministic ← → creative
                   </MantineText>
                 </div>
-                <Selector
-                  label="Reasoning Mode"
-                  options={aiTranslatorReasoningOptions}
-                  settingKey="settings-translator-openrouter_reasoning"
-                />
-                <Selector
-                  label="Max Concurrent Jobs"
-                  options={aiTranslatorConcurrentOptions}
-                  settingKey="settings-translator-openrouter_max_concurrent"
-                />
+                <ReasoningSelector />
+                <Tooltip
+                  label="Hard limit on simultaneous translation jobs. Bazarr will queue excess jobs until a slot opens."
+                  multiline
+                  w={250}
+                  withArrow
+                >
+                  <Selector
+                    label="Max Concurrent Jobs"
+                    options={aiTranslatorConcurrentOptions}
+                    settingKey="settings-translator-openrouter_max_concurrent"
+                  />
+                </Tooltip>
+                <Tooltip
+                  label="Batches sent in parallel per job. Higher = faster but more rate limits. Keep low (1-2) for free models."
+                  multiline
+                  w={250}
+                  withArrow
+                >
+                  <Selector
+                    label="Parallel Batches"
+                    options={aiTranslatorParallelBatchesOptions}
+                    settingKey="settings-translator-openrouter_parallel_batches"
+                  />
+                </Tooltip>
               </SimpleGrid>
             </Stack>
           </Paper>

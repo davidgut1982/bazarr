@@ -68,16 +68,21 @@ def translate_subtitles_file(video_path, source_srt_file, from_lang, to_lang, fo
         result = translator.translate(job_id=job_id)
         logging.debug(f'BAZARR saved translated subtitles to {dest_srt_file}')
 
-        jobs_queue.update_job_name(
-            job_id=job_id,
-            new_job_name=f'Translated from {from_lang.upper()} to {to_lang.upper()} using {translator_label}'
-        )
+        # Get current job name (which batch.py already set with title) and mark as done
+        current_name = jobs_queue.get_job_name(job_id)
+        if current_name and 'Translating' in current_name:
+            done_name = current_name.replace('Translating', 'Translated')
+        else:
+            done_name = f'Translated {from_lang.upper()} → {to_lang.upper()} using {translator_label}'
+        jobs_queue.update_job_name(job_id=job_id, new_job_name=done_name)
         return result
 
     except Exception as e:
         logging.error(f'Translation failed: {str(e)}', exc_info=True)
-        jobs_queue.update_job_name(
-            job_id=job_id,
-            new_job_name=f'Translation failed: {from_lang.upper()} to {to_lang.upper()} using {translator_label}'
-        )
+        current_name = jobs_queue.get_job_name(job_id)
+        if current_name and 'Translating' in current_name:
+            fail_name = current_name.replace('Translating', 'Failed')
+        else:
+            fail_name = f'Failed: {from_lang.upper()} → {to_lang.upper()} using {translator_label}'
+        jobs_queue.update_job_name(job_id=job_id, new_job_name=fail_name)
         raise

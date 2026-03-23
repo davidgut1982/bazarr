@@ -42,7 +42,7 @@ export function usePrompt(
       modals.open({
         title: "Unsaved Changes",
         centered: true,
-        size: "sm",
+        size: "md",
         closeOnEscape: true,
         closeOnClickOutside: false,
         onClose: () => {
@@ -56,9 +56,10 @@ export function usePrompt(
             <Text size="sm" c="dimmed">
               {message}
             </Text>
-            <Group justify="flex-end" mt="md" gap="sm">
+            <Group justify="flex-end" mt="lg" gap="xs">
               <Button
-                variant="outline"
+                variant="default"
+                size="sm"
                 data-autofocus
                 onClick={handleStay}
                 aria-label="Stay on this page and continue editing"
@@ -67,15 +68,17 @@ export function usePrompt(
               </Button>
               <Button
                 variant="light"
-                color="red.9"
+                color="red"
+                size="sm"
                 onClick={handleDiscard}
                 aria-label="Discard unsaved changes and leave this page"
               >
-                Discard Changes
+                Discard
               </Button>
               {onSaveAndLeave && (
                 <Button
                   color="brand"
+                  size="sm"
                   onClick={handleSaveAndLeave}
                   aria-label="Save all changes and leave this page"
                 >
