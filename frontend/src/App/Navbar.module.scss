@@ -11,7 +11,7 @@
     background-color: var(--mantine-color-gray-1);
 
     @include mantine.dark {
-      border-left: 2px solid bazarr.$color-brand-8;
+      border-left: 2px solid bazarr.$color-brand-5;
       background-color: var(--mantine-color-dark-8);
     }
   }

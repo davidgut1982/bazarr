@@ -31,6 +31,18 @@ const themeProvider = createTheme({
       styleVars.colorBrand8,
       styleVars.colorBrand9,
     ],
+    dark: [
+      '#C1C2D3',  // dark.0
+      '#A9AABB',  // dark.1
+      '#8E8FA3',  // dark.2
+      '#6C6D85',  // dark.3
+      '#53546C',  // dark.4
+      '#3D3E55',  // dark.5
+      '#2A2A45',  // dark.6
+      '#22223A',  // dark.7
+      '#1A1A2E',  // dark.8
+      '#121125',  // dark.9
+    ],
   },
   primaryColor: "brand",
   components: {

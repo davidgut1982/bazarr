@@ -11,7 +11,11 @@ from .services.translator_factory import TranslatorFactory
 from languages.get_languages import alpha3_from_alpha2
 from app.config import settings
 from app.jobs_queue import jobs_queue
+from app.event_handler import event_stream
+from subtitles.indexer.series import store_subtitles
+from subtitles.indexer.movies import store_subtitles_movie
 from subtitles.indexer.utils import get_external_subtitles_path
+from utilities.path_mappings import path_mappings
 
 
 def translate_subtitles_file(video_path, source_srt_file, from_lang, to_lang, forced, hi,
@@ -68,16 +72,31 @@ def translate_subtitles_file(video_path, source_srt_file, from_lang, to_lang, fo
         result = translator.translate(job_id=job_id)
         logging.debug(f'BAZARR saved translated subtitles to {dest_srt_file}')
 
-        jobs_queue.update_job_name(
-            job_id=job_id,
-            new_job_name=f'Translated from {from_lang.upper()} to {to_lang.upper()} using {translator_label}'
-        )
+        # Re-index subtitles so Bazarr's DB picks up the new file
+        if media_type == "series" and sonarr_series_id:
+            store_subtitles(path_mappings.path_replace_reverse(video_path), video_path)
+            event_stream(type='series', payload=sonarr_series_id)
+            if sonarr_episode_id:
+                event_stream(type='episode', payload=sonarr_episode_id)
+        elif media_type == "movies" and radarr_id:
+            store_subtitles_movie(path_mappings.path_replace_reverse_movie(video_path), video_path)
+            event_stream(type='movie', payload=radarr_id)
+
+        # Get current job name (which batch.py already set with title) and mark as done
+        current_name = jobs_queue.get_job_name(job_id)
+        if current_name and 'Translating' in current_name:
+            done_name = current_name.replace('Translating', 'Translated')
+        else:
+            done_name = f'Translated {from_lang.upper()} → {to_lang.upper()} using {translator_label}'
+        jobs_queue.update_job_name(job_id=job_id, new_job_name=done_name)
         return result
 
     except Exception as e:
         logging.error(f'Translation failed: {str(e)}', exc_info=True)
-        jobs_queue.update_job_name(
-            job_id=job_id,
-            new_job_name=f'Translation failed: {from_lang.upper()} to {to_lang.upper()} using {translator_label}'
-        )
+        current_name = jobs_queue.get_job_name(job_id)
+        if current_name and 'Translating' in current_name:
+            fail_name = current_name.replace('Translating', 'Failed')
+        else:
+            fail_name = f'Failed: {from_lang.upper()} → {to_lang.upper()} using {translator_label}'
+        jobs_queue.update_job_name(job_id=job_id, new_job_name=fail_name)
         raise

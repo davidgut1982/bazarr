@@ -5,7 +5,8 @@ import os
 import ast
 import re
 import subprocess
-from app.database import TableEpisodes, TableMovies, database, select
+from app.database import TableEpisodes, TableMovies, TableShows, database, select
+from app.jobs_queue import jobs_queue
 from app.event_handler import event_stream
 from utilities.path_mappings import path_mappings
 from utilities.binaries import get_binary
@@ -28,13 +29,28 @@ def process_episode_translation(item, source_language, target_language, forced, 
 
     # Get episode info from database
     episode = database.execute(
-        select(TableEpisodes.path, TableEpisodes.subtitles, TableEpisodes.sonarrSeriesId)
+        select(TableEpisodes.path, TableEpisodes.subtitles, TableEpisodes.sonarrSeriesId,
+               TableEpisodes.title, TableEpisodes.season, TableEpisodes.episode)
         .where(TableEpisodes.sonarrEpisodeId == sonarr_episode_id)
     ).first()
 
     if not episode:
         logger.error(f'Episode {sonarr_episode_id} not found')
         return False
+
+    # Get series title
+    show = database.execute(
+        select(TableShows.title).where(TableShows.sonarrSeriesId == sonarr_series_id)
+    ).first()
+    show_title = show.title if show else 'Unknown'
+
+    # Update job name with actual episode info
+    if job_id:
+        ep_label = f'{show_title} S{episode.season:02d}E{episode.episode:02d}'
+        jobs_queue.update_job_name(
+            job_id=job_id,
+            new_job_name=f'Translating {ep_label} ({source_language.upper()} → {target_language.upper()})'
+        )
 
     video_path = path_mappings.path_replace(episode.path)
 
@@ -89,13 +105,20 @@ def process_movie_translation(item, source_language, target_language, forced, hi
 
     # Get movie info from database
     movie = database.execute(
-        select(TableMovies.path, TableMovies.subtitles)
+        select(TableMovies.path, TableMovies.subtitles, TableMovies.title)
         .where(TableMovies.radarrId == radarr_id)
     ).first()
 
     if not movie:
         logger.error(f'Movie {radarr_id} not found')
         return False
+
+    # Update job name with actual movie title
+    if job_id:
+        jobs_queue.update_job_name(
+            job_id=job_id,
+            new_job_name=f'Translating {movie.title} ({source_language.upper()} → {target_language.upper()})'
+        )
 
     video_path = path_mappings.path_replace_movie(movie.path)
 

@@ -146,7 +146,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - FLARESOLVERR_URL=http://flaresolverr:8191
+      - FLARESOLVERR_URL=http://flaresolverr:8191/v1
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8000/health"]
       interval: 30s

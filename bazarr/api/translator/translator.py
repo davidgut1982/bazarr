@@ -5,6 +5,7 @@ import requests
 from flask_restx import Resource, Namespace
 
 from app.config import settings
+from app.jobs_queue import jobs_queue
 from ..utils import authenticate
 
 api_ns_translator = Namespace('Translator', description='AI Subtitle Translator service operations')
@@ -35,7 +36,21 @@ class TranslatorStatus(Resource):
         try:
             response = requests.get(f"{service_url}/api/v1/status", timeout=10)
             if response.status_code == 200:
-                return response.json(), 200
+                data = response.json()
+                # Count Bazarr-side pending translation jobs
+                pending_count = sum(
+                    1 for job in jobs_queue.jobs_pending_queue
+                    if 'translat' in (job.job_name or '').lower()
+                )
+                running_count = sum(
+                    1 for job in jobs_queue.jobs_running_queue
+                    if 'translat' in (job.job_name or '').lower()
+                )
+                data['bazarr_queue'] = {
+                    'pending': pending_count,
+                    'running': running_count,
+                }
+                return data, 200
             else:
                 return {"error": f"Service returned {response.status_code}"}, response.status_code
         except requests.exceptions.ConnectionError:

@@ -35,6 +35,12 @@ const Table: FunctionComponent<Props> = ({ movie, profile, disabled }) => {
 
   const { download, remove } = useMovieSubtitleModification();
 
+  // Available subtitles with actual files (for translate-from source)
+  const availableSources = useMemo(
+    () => (movie?.subtitles ?? []).filter((s) => s.path && !isSubtitleTrack(s.path)),
+    [movie?.subtitles],
+  );
+
   const CodeCell = React.memo(({ item }: { item: Subtitle }) => {
     const { code2, path, hi, forced } = item;
 
@@ -63,22 +69,30 @@ const Table: FunctionComponent<Props> = ({ movie, profile, disabled }) => {
 
     if (isSubtitleMissing(path)) {
       return (
-        <Action
-          label="Search Subtitle"
-          icon={faSearch}
-          disabled={disabled}
-          loading={download.isPending}
-          onClick={async () => {
-            await download.mutateAsync({
-              radarrId,
-              form: {
-                language: code2,
-                forced,
-                hi,
-              },
-            });
+        <SubtitleToolsMenu
+          selections={[]}
+          missingLanguage={item}
+          translationSources={availableSources}
+          mediaId={radarrId}
+          mediaType="movie"
+          onAction={async (action) => {
+            if (action === "search") {
+              await download.mutateAsync({
+                radarrId,
+                form: {
+                  language: code2,
+                  forced,
+                  hi,
+                },
+              });
+            }
           }}
-        ></Action>
+        >
+          <Action
+            label="Subtitle Actions"
+            icon={faEllipsis}
+          ></Action>
+        </SubtitleToolsMenu>
       );
     }
 
