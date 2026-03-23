@@ -22,10 +22,17 @@
 
     &[data-variant="light"],
     &[data-variant="outline"] {
-      /* Let Mantine handle these natively — they use per-badge color props */
       color: unset;
       background: unset;
       background-color: unset;
+    }
+
+    &[data-variant="gradient"] {
+      color: #fff;
+    }
+
+    &[data-variant="transparent"] {
+      color: unset;
     }
 
     @include mantine.light {
@@ -53,6 +60,14 @@
         color: unset;
         background: unset;
         background-color: unset;
+      }
+
+      &[data-variant="gradient"] {
+        color: #fff;
+      }
+
+      &[data-variant="transparent"] {
+        color: unset;
       }
     }
   }

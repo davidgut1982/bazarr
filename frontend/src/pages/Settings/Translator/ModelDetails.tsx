@@ -150,11 +150,11 @@ const ModelDetailsCard: FunctionComponent<ModelDetailsProps> = ({
       <SimpleGrid cols={{ base: 2, sm: hasCache ? 4 : 2 }} spacing="xs">
         <Box>
           <Text size="xs" c="dimmed">Input</Text>
-          <Text size="sm" fw={600} c="gray.1">{formatPerMillion(promptCost)}</Text>
+          <Text size="sm" fw={600}>{formatPerMillion(promptCost)}</Text>
         </Box>
         <Box>
           <Text size="xs" c="dimmed">Output</Text>
-          <Text size="sm" fw={600} c="gray.1">{formatPerMillion(completionCost)}</Text>
+          <Text size="sm" fw={600}>{formatPerMillion(completionCost)}</Text>
         </Box>
         {cacheReadCost !== null && (
           <Box>

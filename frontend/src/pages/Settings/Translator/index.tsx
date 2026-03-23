@@ -114,15 +114,16 @@ const ReasoningSelector: FunctionComponent = () => {
   const modelId = useSettingValue<string>(
     "settings-translator-openrouter_model",
   );
-  const { data: model } = useOpenRouterModelDetails(modelId ?? "");
+  const { data: model, isLoading } = useOpenRouterModelDetails(modelId ?? "");
+  const modelLoaded = !!model && !isLoading;
   const supportsReasoning = model?.supported_parameters?.includes("reasoning") ?? false;
   const { setValue } = useFormActions();
 
-  // Auto-set to disabled when model doesn't support reasoning
+  // Only auto-disable after model data has loaded, not while loading
   const currentReasoning = useSettingValue<string>(
     "settings-translator-openrouter_reasoning",
   );
-  if (!supportsReasoning && currentReasoning && currentReasoning !== "disabled") {
+  if (modelLoaded && !supportsReasoning && currentReasoning && currentReasoning !== "disabled") {
     setValue("disabled", "settings-translator-openrouter_reasoning");
   }
 
@@ -131,7 +132,7 @@ const ReasoningSelector: FunctionComponent = () => {
       label="Reasoning Mode"
       options={aiTranslatorReasoningOptions}
       settingKey="settings-translator-openrouter_reasoning"
-      disabled={!supportsReasoning}
+      disabled={modelLoaded && !supportsReasoning}
     />
   );
 };

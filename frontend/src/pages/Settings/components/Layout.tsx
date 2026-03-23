@@ -158,7 +158,7 @@ const Layout: FunctionComponent<Props> = (props) => {
                     style={{ boxShadow: "var(--bz-shadow-float)" }}
                   >
                     Save
-                    <Badge size="sm" circle ml={8} aria-hidden="true">
+                    <Badge size="sm" circle ml={8} aria-hidden="true" variant="outline" style={{ color: "#fff", borderColor: "rgba(255,255,255,0.5)" }}>
                       {totalStagedCount}
                     </Badge>
                   </Button>

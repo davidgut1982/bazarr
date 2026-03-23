@@ -204,7 +204,7 @@ const StatCard: FunctionComponent<StatCardProps> = ({
     className={classes.statCard}
     style={{ borderLeftColor: `var(--bz-stat-${color})` }}
   >
-    <Text size="2rem" fw={700} c="gray.1" lh={1}>
+    <Text size="2rem" fw={700} lh={1}>
       {value}
     </Text>
     <Text size="xs" c="dimmed" tt="uppercase" style={{ letterSpacing: 0.5 }} fw={600}>

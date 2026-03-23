@@ -2,6 +2,10 @@
   .root {
     @include mantine.dark {
       color: var(--mantine-color-dark-0);
+
+      &[data-variant="gradient"] {
+        color: #fff;
+      }
     }
 
     &[data-variant="danger"] {
