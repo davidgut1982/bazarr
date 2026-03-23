@@ -1,6 +1,9 @@
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+@keyframes heartbeat {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  14% { opacity: 1; transform: scale(1.15); }
+  28% { opacity: 1; transform: scale(1); }
+  42% { opacity: 1; transform: scale(1.1); }
+  56% { opacity: 1; transform: scale(1); }
 }
 
 @keyframes spin {
@@ -8,8 +11,9 @@
   to { transform: rotate(360deg); }
 }
 
-.statusDotConnected {
-  animation: pulse 2s ease-in-out infinite;
+.promptConnected {
+  animation: heartbeat 1.5s ease-in-out infinite;
+  display: inline-block;
 }
 
 .statCard {
@@ -29,7 +33,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .statusDotConnected,
+  .promptConnected,
   .spin {
     animation: none;
   }
