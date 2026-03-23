@@ -317,7 +317,7 @@ export const TranslatorStatusPanel: FunctionComponent<
 
       {/* Queue Stats */}
       {status && (
-        <SimpleGrid cols={{ base: 2, sm: 4 }}>
+        <SimpleGrid cols={{ base: 2, sm: 3 }}>
           {(status.bazarr_queue?.pending ?? 0) > 0 && (
             <StatCard
               label="Pending"

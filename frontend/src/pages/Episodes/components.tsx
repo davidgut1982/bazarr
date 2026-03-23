@@ -10,6 +10,7 @@ interface Props {
   episodeId: number;
   missing?: boolean;
   subtitle: Subtitle;
+  availableSubtitles?: Subtitle[];
 }
 
 export const Subtitle: FunctionComponent<Props> = ({
@@ -17,6 +18,7 @@ export const Subtitle: FunctionComponent<Props> = ({
   episodeId,
   missing = false,
   subtitle,
+  availableSubtitles,
 }) => {
   const { remove, download } = useEpisodeSubtitleModification();
 
@@ -25,7 +27,7 @@ export const Subtitle: FunctionComponent<Props> = ({
   const disabled = subtitle.path === null;
 
   const variant: MantineColor | undefined = useMemo(() => {
-    if (opened && !disabled) {
+    if (opened && (missing || !disabled)) {
       return "highlight";
     } else if (missing) {
       return "warning";
@@ -51,13 +53,19 @@ export const Subtitle: FunctionComponent<Props> = ({
     return list;
   }, [episodeId, subtitle.code2, subtitle.path, subtitle.forced, subtitle.hi]);
 
+  // For missing subs: translation sources from available subtitles
+  const translationSources = useMemo(
+    () => (availableSubtitles ?? []).filter((s) => s.path),
+    [availableSubtitles],
+  );
+
   const ctx = (
     <Badge variant={variant}>
       <Language.Text value={subtitle} long={false}></Language.Text>
     </Badge>
   );
 
-  if (disabled) {
+  if (disabled && !missing) {
     return <Tooltip.Floating label="Embedded Subtitle">{ctx}</Tooltip.Floating>;
   }
 
@@ -69,6 +77,10 @@ export const Subtitle: FunctionComponent<Props> = ({
         onClose: () => setOpen(false),
       }}
       selections={selections}
+      missingLanguage={missing ? subtitle : undefined}
+      translationSources={missing ? translationSources : undefined}
+      mediaId={episodeId}
+      mediaType="episode"
       onAction={async (action) => {
         if (action === "search") {
           await download.mutateAsync({
