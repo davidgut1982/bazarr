@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { Box, Container, useCombobox } from "@mantine/core";
 import { faCheck, faUndo } from "@fortawesome/free-solid-svg-icons";
@@ -14,10 +14,11 @@ interface MassEditorProps<T extends Item.Base = Item.Base> {
   columns: ColumnDef<T>[];
   data: T[];
   mutation: UseMutationResult<void, unknown, FormType.ModifyItem>;
+  toolbarExtras?: (selections: T[]) => ReactNode;
 }
 
 function MassEditor<T extends Item.Base>(props: MassEditorProps<T>) {
-  const { columns, data: raw, mutation } = props;
+  const { columns, data: raw, mutation, toolbarExtras } = props;
 
   const [selections, setSelections] = useState<T[]>([]);
   const [dirties, setDirties] = useState<T[]>([]);
@@ -119,6 +120,7 @@ function MassEditor<T extends Item.Base>(props: MassEditorProps<T>) {
   return (
     <Container fluid px={0}>
       <Toolbox>
+        {toolbarExtras && <Box>{toolbarExtras(selections)}</Box>}
         <Box>
           <GroupedSelector
             onClick={() => combobox.openDropdown()}
