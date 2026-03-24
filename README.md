@@ -89,7 +89,7 @@ docker pull ghcr.io/lavx/ai-subtitle-translator:latest
 | **Batch Translation** | ❌ Not available | ✅ Translate entire series/libraries from Wanted pages |
 | **Dedicated Translator Settings** | ❌ Not available | ✅ 4-zone page with pricing, cost estimates, status panel |
 | **Security Hardening** | MD5, no CSRF/SSRF/rate limiting | ✅ PBKDF2 (600k iter), CSRF, SSRF, brute-force, 4 more |
-| **Audio Language Display** | ❌ Not shown in tables | ✅ Blue badges in all table views |
+| **Audio Language Display** | ❌ Not shown in tables | ✅ Badges in all table views |
 | **Advanced Table Filters** | ❌ No filters | ✅ Include/exclude audio, missing subtitle, title search |
 | **Floating Save + Ctrl+S** | ❌ Not available | ✅ Sticky save button with 3-option unsaved changes modal |
 | **Navy + Amber Theme** | Purple | ✅ `#121125` navy to `#fff8e1` cream, amber accents |
