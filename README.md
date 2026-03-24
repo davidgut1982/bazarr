@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  OpenSubtitles.org web scraper (no API/VIP needed) · AI translation via OpenRouter (30+ LLMs) · batch translation · advanced table filters · security hardening · Python 3.14 · navy + amber dark theme
+  OpenSubtitles.org web scraper · AI translation via OpenRouter (300+ LLMs) · batch translation · advanced table filters · security hardening · Python 3.14 · navy + amber dark theme
 </p>
 
 ---
@@ -151,7 +151,7 @@ services:
     environment:
       # OpenRouter API key (can also be configured in Bazarr UI)
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
-      - OPENROUTER_DEFAULT_MODEL=google/gemini-2.5-flash-preview-05-20
+      - OPENROUTER_DEFAULT_MODEL=google/gemini-2.5-flash-lite-preview-09-2025
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8765/health"]
       interval: 30s
@@ -216,7 +216,7 @@ docker compose up -d
 1. Go to **Settings** → **AI Translator**
 2. Select **"AI Subtitle Translator"** as the translator engine
 3. Enter your **OpenRouter API Key** (get one at [openrouter.ai/keys](https://openrouter.ai/keys))
-4. Choose your preferred **AI Model** (Gemini 2.5 Flash recommended)
+4. Choose your preferred **AI Model** (Google: Gemini 2.5 Flash Lite Preview 09-2025 recommended)
 5. Save and test with a manual translation
 
 ---
