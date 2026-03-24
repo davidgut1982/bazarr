@@ -171,3 +171,29 @@ export function useTranslatorModels(enabled = true) {
     throwOnError: false,
   });
 }
+
+export interface TranslatorTestResponse {
+  encryption?: {
+    status: string;
+    message: string;
+  } | null;
+  apiKey?: {
+    status: string;
+    label: string;
+    limitRemaining: number;
+    usage: number;
+    isFreeTier: boolean;
+  } | null;
+  error?: string;
+}
+
+export function useTestTranslator() {
+  return useMutation({
+    mutationFn: async () => {
+      const response = await client.axios.post<TranslatorTestResponse>(
+        "/translator/test",
+      );
+      return response.data;
+    },
+  });
+}
