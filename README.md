@@ -1,6 +1,10 @@
-# Bazarr+
-
 <p align="center">
+  <img src="frontend/public/images/logo128.png" alt="Bazarr+ Logo" width="96">
+</p>
+
+# <p align="center">Bazarr+
+
+
   <a href="https://ghcr.io/lavx/bazarr"><img src="https://img.shields.io/badge/ghcr.io-lavx%2Fbazarr-blue?style=for-the-badge&logo=docker" alt="Docker"></a>
   <a href="https://github.com/LavX/bazarr/releases/latest"><img src="https://img.shields.io/github/v/release/LavX/bazarr?style=for-the-badge&label=RELEASE" alt="Latest Release"></a>
   <a href="https://github.com/LavX/bazarr/actions/workflows/build-docker.yml"><img src="https://img.shields.io/github/actions/workflow/status/LavX/bazarr/build-docker.yml?style=for-the-badge&label=DOCKER%20BUILD" alt="Docker Build"></a>
@@ -97,13 +101,17 @@ docker pull ghcr.io/lavx/ai-subtitle-translator:latest
 | Docker images | linuxserver.io / hotio | ghcr.io/lavx (self-built, multi-arch) |
 | Python runtime | 3.8-3.13 | 3.14 |
 
-| Wanted Movies with filters | Series with audio filter |
+| Series overview | Series detail with translate menu |
 |:---:|:---:|
-| ![Wanted Movies Filter](/screenshot/filter-wanted-movies.png?raw=true "Wanted Movies with active filters") | ![Series Filter](/screenshot/filter-series-include.png?raw=true "Series with Include Audio filter") |
+| ![Series Overview](/screenshot/series-overview.png?raw=true "Series overview with audio badges") | ![Translate Menu](/screenshot/series-translate-menu.png?raw=true "Translate from subtitle action menu") |
 
-| Mass Translate with filtered selection |
+| AI Translator settings with live status | Mass Translate dialog |
+|:---:|:---:|
+| ![Translator Settings](/screenshot/translator-settings.png?raw=true "AI Translator settings with job queue") | ![Mass Translate](/screenshot/mass-translate-dialog.png?raw=true "Mass Translate with model and language selection") |
+
+| Wanted page with advanced filters |
 |:---:|
-| ![Mass Translate](/screenshot/filter-mass-translate.png?raw=true "Mass Translate dialog with filtered items") |
+| ![Wanted Filters](/screenshot/wanted-filters.png?raw=true "Wanted page with include/exclude audio and subtitle filters") |
 
 ---
 
