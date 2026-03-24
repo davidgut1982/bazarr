@@ -7,15 +7,11 @@
 </p>
 
 <p align="center">
-  <strong>Automated subtitle management with OpenSubtitles.org scraper & AI-powered translation</strong>
+  <strong>Enhanced subtitle management built on <a href="https://www.bazarr.media">Bazarr</a></strong>
 </p>
 
 <p align="center">
-  Built on <a href="https://www.bazarr.media">Bazarr</a>, Bazarr+ adds:<br/>
-  - OpenSubtitles.org provider that works <strong>without VIP API credentials</strong> (survives the API shutdown)<br/>
-  - <strong>AI Subtitle Translator</strong> using OpenRouter LLMs for high-quality subtitle translation<br/>
-  - <strong>Batch translation</strong> for entire series/movie libraries<br/>
-  - <strong>Advanced table filters</strong> with collapsible panels, active filter pills, and audio language filtering
+  OpenSubtitles.org web scraper (no API/VIP needed) · AI translation via OpenRouter (30+ LLMs) · batch translation · advanced table filters · security hardening · Python 3.14 · navy + amber dark theme
 </p>
 
 ---
@@ -83,59 +79,23 @@ docker pull ghcr.io/lavx/ai-subtitle-translator:latest
 
 ---
 
-## 🔌 What's Different in This Fork?
+## At a Glance
 
 | Feature | Upstream Bazarr | Bazarr+ |
 |---------|-----------------|---------|
-| **OpenSubtitles.org (Scraper)** | ❌ Not available | ✅ Included (API-independent) |
-| **AI Subtitle Translator (OpenRouter)** | ❌ Not available | ✅ 100+ LLMs via OpenRouter API |
+| **OpenSubtitles.org (Scraper)** | ❌ Not available | ✅ Self-hosted FastAPI microservice via CloudScraper |
+| **AI Subtitle Translator (OpenRouter)** | ❌ Not available | ✅ 30+ preconfigured LLMs + any custom model ID |
 | **Translate from Missing Menu** | ❌ Not available | ✅ Action menu on missing subs with source language picker |
-| **Batch Translation** | ❌ Not available | ✅ Translate entire series/libraries |
-| **Dedicated Translator Settings** | ❌ Not available | ✅ Own page with model pricing, cost estimates, status panel |
-| **Security Hardening** | Basic | ✅ PBKDF2, CSRF, SSRF, brute-force, shell injection, more |
-| **Audio Language Display** | ❌ Not shown in tables | ✅ Audio languages visible in all table views |
-| **Advanced Table Filters** | ❌ Basic search only | ✅ Collapsible filter panel with active filter pills |
-| **Floating Save + Ctrl+S** | ❌ Not available | ✅ Sticky save button with unsaved changes modal |
-| **Navy + Amber Theme** | Default blue | ✅ Custom dark theme with golden/amber accents |
-| OpenSubtitles.org (API) | Shutting down | N/A (uses scraper instead) |
+| **Batch Translation** | ❌ Not available | ✅ Translate entire series/libraries from Wanted pages |
+| **Dedicated Translator Settings** | ❌ Not available | ✅ 4-zone page with pricing, cost estimates, status panel |
+| **Security Hardening** | MD5, no CSRF/SSRF/rate limiting | ✅ PBKDF2 (600k iter), CSRF, SSRF, brute-force, 4 more |
+| **Audio Language Display** | ❌ Not shown in tables | ✅ Blue badges in all table views |
+| **Advanced Table Filters** | ❌ No filters | ✅ Include/exclude audio, missing subtitle, title search |
+| **Floating Save + Ctrl+S** | ❌ Not available | ✅ Sticky save button with 3-option unsaved changes modal |
+| **Navy + Amber Theme** | Purple | ✅ `#121125` navy to `#fff8e1` cream, amber accents |
 | OpenSubtitles.com (API) | ✅ Available | ✅ Available |
-| Docker images | linuxserver.io / hotio | ghcr.io/lavx (self-built) |
+| Docker images | linuxserver.io / hotio | ghcr.io/lavx (self-built, multi-arch) |
 | Python runtime | 3.8-3.13 | 3.14 |
-
-### 🎯 OpenSubtitles.org Scraper Provider
-
-Bazarr+ adds a **new subtitle provider** called "OpenSubtitles.org" that:
-
-- ✅ Works **without** API credentials or VIP subscription
-- ✅ Searches by IMDB ID for accurate results
-- ✅ Supports both movies and TV shows
-- ✅ Provides subtitle rating and download count info
-- ✅ Runs as a separate microservice for reliability
-
-### 🤖 AI Subtitle Translator
-
-Bazarr+ adds **OpenRouter** as a new translator engine alongside Bazarr's existing Google Translate, Gemini, and Lingarr:
-
-- ✅ Access to **100+ AI models** via OpenRouter (Gemini, GPT, Claude, LLaMA, Grok, etc.)
-- ✅ **Translate from missing subtitle menu**: click the action button (...) on a missing subtitle row, then pick an existing source subtitle to translate from
-- ✅ **Batch translation** for entire series/movie libraries via mass translate dialog
-- ✅ **Dedicated settings page** with live model pricing from OpenRouter API, per-episode/movie cost estimates, reasoning mode selector, and prompt caching indicators
-- ✅ **Status panel** with live queue stats, job progress, token usage, cost tracking, and speed metrics
-- ✅ **Async job queue** with configurable concurrent jobs (1-5) and parallel batches (1-8)
-- ✅ Runs as a separate microservice for reliability
-
-**Repository:** [github.com/LavX/ai-subtitle-translator](https://github.com/LavX/ai-subtitle-translator)
-
-### 🔍 Advanced Table Filters
-
-All table views (Movies, Series, Wanted Movies, Wanted Series) feature a **sophisticated filter system**:
-
-- ✅ **Collapsible filter panel** toggled via a filter button with active filter count badge
-- ✅ **Include/Exclude audio language** filters with labeled, searchable multi-select dropdowns
-- ✅ **Missing subtitle language** filter (on Wanted pages)
-- ✅ **Active filter pills** showing each active filter as a color-coded removable badge
-- ✅ **Clear all** button to reset all filters at once
-- ✅ **Search by title** with inline clear button
 
 | Wanted Movies with filters | Series with audio filter |
 |:---:|:---:|
@@ -198,7 +158,7 @@ services:
       timeout: 10s
       retries: 3
 
-  # Bazarr with OpenSubtitles.org scraper support
+  # Bazarr+
   bazarr:
     image: ghcr.io/lavx/bazarr:latest
     container_name: bazarr
@@ -253,8 +213,8 @@ docker compose up -d
 
 ### Enabling AI Translation
 
-1. Go to **Settings** → **Subtitles** → **Translating**
-2. Select **"AI Subtitle Translator"** from the Translator dropdown
+1. Go to **Settings** → **AI Translator**
+2. Select **"AI Subtitle Translator"** as the translator engine
 3. Enter your **OpenRouter API Key** (get one at [openrouter.ai/keys](https://openrouter.ai/keys))
 4. Choose your preferred **AI Model** (Gemini 2.5 Flash recommended)
 5. Save and test with a manual translation
