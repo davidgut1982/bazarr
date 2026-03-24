@@ -3,6 +3,7 @@ import {
   Alert,
   Anchor,
   Badge,
+  Button,
   Group,
   Paper,
   SimpleGrid,
@@ -11,8 +12,10 @@ import {
   Tooltip,
   UnstyledButton,
 } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import { faCircleInfo, faExclamationTriangle } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { useTestTranslator } from "@/apis/hooks/translator";
 import { TranslatorStatusPanelWithFormContext } from "@/components/TranslatorStatus";
 import {
   Check,
@@ -146,6 +149,61 @@ const ModelDetailsFromSetting: FunctionComponent = () => {
   );
   if (!modelId) return null;
   return <ModelDetailsCard modelId={modelId} reasoningLevel={reasoningLevel ?? "disabled"} />;
+};
+
+const TestConnectionButton: FunctionComponent = () => {
+  const testMutation = useTestTranslator();
+  const serviceUrl = useSettingValue<string>("settings-translator-openrouter_url");
+  const apiKey = useSettingValue<string>("settings-translator-openrouter_api_key");
+
+  const handleTest = () => {
+    testMutation.mutate(undefined, {
+      onSuccess: (data) => {
+        if (data.error) {
+          notifications.show({
+            title: "Connection Failed",
+            message: data.error,
+            color: "red",
+          });
+          return;
+        }
+        const parts: string[] = [];
+        if (data.encryption?.status === "ok") {
+          parts.push("Encryption: OK");
+        }
+        if (data.apiKey?.status === "ok") {
+          parts.push(`API Key: ${data.apiKey.label}`);
+          if (data.apiKey.isFreeTier) {
+            parts.push("(Free tier)");
+          }
+        }
+        notifications.show({
+          title: "Connected",
+          message: parts.join(" | ") || "Connection successful",
+          color: "green",
+        });
+      },
+      onError: () => {
+        notifications.show({
+          title: "Connection Failed",
+          message: "Could not reach the translator service",
+          color: "red",
+        });
+      },
+    });
+  };
+
+  return (
+    <Button
+      variant="default"
+      size="xs"
+      onClick={handleTest}
+      loading={testMutation.isPending}
+      disabled={!serviceUrl || !apiKey}
+    >
+      Test Connection
+    </Button>
+  );
 };
 
 const SettingsTranslatorView: FunctionComponent = () => {
@@ -300,6 +358,27 @@ const SettingsTranslatorView: FunctionComponent = () => {
                 </MantineText>
               </div>
             </SimpleGrid>
+            <div style={{ marginTop: 8 }}>
+              <Password
+                label="Encryption Key (optional)"
+                settingKey="settings-translator-openrouter_encryption_key"
+              />
+              <MantineText size="xs" c="dimmed" mt={4}>
+                Encrypts API keys in transit.{" "}
+                <Anchor
+                  href="https://github.com/LavX/ai-subtitle-translator/blob/main/docs/BAZARR-SETUP.md#get-your-encryption-key"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  size="xs"
+                  c="yellow.6"
+                >
+                  How to get your key
+                </Anchor>
+              </MantineText>
+            </div>
+            <Group mt="xs">
+              <TestConnectionButton />
+            </Group>
           </Paper>
 
           {/* Zone 3: Model & Tuning Card */}
