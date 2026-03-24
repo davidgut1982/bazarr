@@ -8,7 +8,6 @@ import React, {
 } from "react";
 import { matchPath, NavLink, RouteObject, useLocation } from "react-router";
 import {
-  Anchor,
   AppShell,
   Badge,
   Collapse,
