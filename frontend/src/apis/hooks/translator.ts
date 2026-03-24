@@ -187,11 +187,18 @@ export interface TranslatorTestResponse {
   error?: string;
 }
 
+export interface TranslatorTestParams {
+  serviceUrl?: string;
+  apiKey?: string;
+  encryptionKey?: string;
+}
+
 export function useTestTranslator() {
   return useMutation({
-    mutationFn: async () => {
+    mutationFn: async (params?: TranslatorTestParams) => {
       const response = await client.axios.post<TranslatorTestResponse>(
         "/translator/test",
+        params,
       );
       return response.data;
     },

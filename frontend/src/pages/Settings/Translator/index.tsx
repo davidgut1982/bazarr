@@ -155,9 +155,10 @@ const TestConnectionButton: FunctionComponent = () => {
   const testMutation = useTestTranslator();
   const serviceUrl = useSettingValue<string>("settings-translator-openrouter_url");
   const apiKey = useSettingValue<string>("settings-translator-openrouter_api_key");
+  const encryptionKey = useSettingValue<string>("settings-translator-openrouter_encryption_key");
 
   const handleTest = () => {
-    testMutation.mutate(undefined, {
+    testMutation.mutate({ serviceUrl, apiKey, encryptionKey }, {
       onSuccess: (data) => {
         if (data.error) {
           notifications.show({
