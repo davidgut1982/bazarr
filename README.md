@@ -20,17 +20,40 @@
 
 ---
 
-## OpenSubtitles.org API Shutdown Notice
+## Why Bazarr+?
 
-On **January 29, 2026**, OpenSubtitles.org [announced the final shutdown](https://forum.opensubtitles.org/viewtopic.php?t=19471) of their legacy XML-RPC API for **all third-party applications** -- both VIP and non-VIP users. The shutdown is taking effect in the coming weeks.
+Bazarr is great at finding subtitles. Bazarr+ takes it further with features upstream doesn't have:
 
-**This fork is not affected.** It includes a self-hosted web scraper that accesses OpenSubtitles.org directly through the website, bypassing the API entirely. As long as the OpenSubtitles.org website remains accessible ([confirmed by the site admin](https://forum.opensubtitles.org/viewtopic.php?t=19471) to stay available as read-only), subtitle search and download will continue to work.
+### OpenSubtitles.org Web Scraper
+OpenSubtitles.org shut down their XML-RPC API for all third-party apps, VIP included. Bazarr+ ships a self-hosted FastAPI microservice that scrapes OpenSubtitles.org directly via CloudScraper with optional FlareSolverr fallback. It provides search, subtitle listing, and download endpoints (`/api/v1/search`, `/api/v1/subtitles`, `/api/v1/download/subtitle`) and integrates into Bazarr's provider system through a mixin class. No API key or VIP subscription needed.
 
-## Why This Fork Exists
+### AI Subtitle Translation via OpenRouter
+Upstream has Google Translate, Gemini, and Lingarr. Bazarr+ adds **OpenRouter** as a fourth translator engine, giving access to 30+ preconfigured LLMs (Claude, Gemini, GPT, LLaMA, Grok, and more) plus any custom model ID from openrouter.ai. It runs as a separate microservice with an async job queue supporting 1-5 concurrent jobs and 1-8 parallel batches. Features include:
+- **Translate from the subtitle action menu**: click (...) on a missing subtitle row, pick an existing source subtitle to translate from
+- **Batch translation** for entire series/movie libraries from the Wanted pages
+- **Dedicated settings page** with 4 zones: engine picker, connection config, model tuning (temperature, reasoning mode, parallel batches), and a live status panel showing queue stats, job progress, token usage, cost, and speed
+- **Model details** fetched live from the OpenRouter API with per-million token pricing, per-episode/movie cost estimates, context length, and prompt caching indicators
 
-With the OpenSubtitles.org API shut down for all third-party apps (VIP included), and OpenSubtitles.com still lacking full parity with the .org library, there's a real gap for users who depend on older or less common subtitles.
+### Advanced UI
+- **Table filters** on Wanted and Library pages: include/exclude audio language (multi-select), missing subtitle language filter, title search, with active filter chips and a collapsible filter panel
+- **Floating save button** with Ctrl+S/Cmd+S keyboard shortcut, visible only when settings have unsaved changes
+- **Three-button unsaved changes modal**: Save & Leave, Discard, or Keep Editing (upstream only has Leave/Stay)
+- **Navy + amber dark theme**: custom color palette from `#121125` (navy black) to `#fff8e1` (cream), with amber brand accents (`#e68a00` to `#b36b00`)
+- **Audio language display** as blue badges in all table views
 
-This fork fills that gap with a self-hosted web scraper that accesses OpenSubtitles.org directly — rate-limited and respectful to their infrastructure. It also adds AI-powered subtitle translation and advanced UI filters not available upstream.
+### Security Hardening
+8 areas upstream doesn't address:
+- **Password hashing**: PBKDF2-SHA256 with 600,000 iterations and 16-byte random salt (upstream uses plain MD5)
+- **CSRF protection**: cryptographic state tokens (`secrets.token_urlsafe(32)`) on Plex OAuth with timing-safe validation
+- **SSRF blocking**: DNS pinning with IP validation, blocks loopback and link-local addresses, fails closed
+- **Brute-force protection**: 5 failed attempts trigger 300-second lockout per IP, tracks up to 10,000 IPs with thread-safe OrderedDict
+- **Shell injection**: replaced naive character escaping with `shlex.quote()` (POSIX) and `subprocess.list2cmdline()` (Windows)
+- **Filesystem sandboxing**: blocks `/proc`, `/sys`, `/dev`, `/etc`, `/root`, `/tmp` and 4 others from the filesystem browser, resolves symlinks
+- **eval() removal**: replaced `eval()` in throttled provider cache with `json.loads()` to prevent arbitrary code execution
+- **API key comparison**: `hmac.compare_digest()` for constant-time comparison (upstream uses Python `in` operator, which is timing-dependent)
+
+### Python 3.14
+Dockerfile uses `python:3.14-slim-bookworm`. Upstream supports Python 3.8-3.13 and relies on third-party Docker images (LinuxServer.io, hotio). Bazarr+ builds and publishes its own multi-arch image to GHCR.
 
 ---
 
@@ -76,8 +99,8 @@ docker pull ghcr.io/lavx/ai-subtitle-translator:latest
 | **Navy + Amber Theme** | Default blue | ✅ Custom dark theme with golden/amber accents |
 | OpenSubtitles.org (API) | Shutting down | N/A (uses scraper instead) |
 | OpenSubtitles.com (API) | ✅ Available | ✅ Available |
-| Docker images | linuxserver/hotio | ghcr.io/lavx |
-| Python runtime | 3.11/3.12 | 3.14 with JIT |
+| Docker images | linuxserver.io / hotio | ghcr.io/lavx (self-built) |
+| Python runtime | 3.8-3.13 | 3.14 |
 
 ### 🎯 OpenSubtitles.org Scraper Provider
 

@@ -102,11 +102,9 @@ COPY package_info /app/bazarr/package_info
 COPY frontend/build ./frontend/build
 
 # Set environment variables
-# PYTHON_JIT=1 enables the experimental JIT compiler (Python 3.13+)
 ENV HOME="/config" \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PYTHON_JIT=1
+    PYTHONUNBUFFERED=1
 
 # Volume for persistent data
 VOLUME /config
