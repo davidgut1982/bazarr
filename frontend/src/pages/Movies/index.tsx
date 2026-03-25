@@ -177,8 +177,8 @@ const MovieView: FunctionComponent = () => {
           },
         }) =>
           upgradableMovieIds.has(radarrId) ? (
-            <Tooltip label="Upgrade available">
-              <FontAwesomeIcon icon={faArrowUp} color="var(--mantine-color-brand-5)" />
+            <Tooltip label="Subtitle match could be improved. Try re-searching.">
+              <FontAwesomeIcon icon={faArrowUp} color="var(--mantine-color-dimmed)" size="sm" />
             </Tooltip>
           ) : null,
       },

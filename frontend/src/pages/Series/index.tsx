@@ -182,8 +182,8 @@ const SeriesView: FunctionComponent = () => {
         id: "upgradable",
         cell: ({ row: { original } }) =>
           upgradableSeriesIds.has(original.sonarrSeriesId) ? (
-            <Tooltip label="Upgrade available">
-              <FontAwesomeIcon icon={faArrowUp} color="var(--mantine-color-brand-5)" />
+            <Tooltip label="Subtitle match could be improved. Try re-searching.">
+              <FontAwesomeIcon icon={faArrowUp} color="var(--mantine-color-dimmed)" size="sm" />
             </Tooltip>
           ) : null,
       },
