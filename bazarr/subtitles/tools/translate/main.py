@@ -21,11 +21,14 @@ from utilities.path_mappings import path_mappings
 def translate_subtitles_file(video_path, source_srt_file, from_lang, to_lang, forced, hi,
                              media_type, sonarr_series_id, sonarr_episode_id, radarr_id, job_id=None):
     if not job_id:
-        title = get_title(media_type, radarr_id, sonarr_series_id, sonarr_episode_id)
-        translator_name = settings.translator.translator_type.replace("_", " ").title()
-        job_label = f'Translating {title} ({from_lang.upper()} to {to_lang.upper()})' if title else \
-                    f'Translating from {from_lang.upper()} to {to_lang.upper()} using {translator_name}'
-        jobs_queue.add_job_from_function(job_label, is_progress=True)
+        # Build job label with media title. Note: no local variables can be
+        # assigned here because add_job_from_function introspects the frame
+        # and re-passes all locals as kwargs on re-invocation.
+        jobs_queue.add_job_from_function(
+            (lambda t: f'Translating {t} ({from_lang.upper()} to {to_lang.upper()})' if t else
+             f'Translating {from_lang.upper()} to {to_lang.upper()}')(
+                get_title(media_type, radarr_id, sonarr_series_id, sonarr_episode_id)),
+            is_progress=True)
         return
 
     translator_label = settings.translator.translator_type.replace("_", " ").title()
