@@ -1,5 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
-import { useNavigate } from "react-router";
+import { ReactNode, useCallback, useMemo, useState } from "react";
 import {
   ActionIcon,
   Badge,
@@ -19,14 +18,13 @@ import {
 import {
   faEraser,
   faFilter,
-  faList,
   faSearch,
   faTimes,
   faVolumeUp,
   faVolumeXmark,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { ColumnDef } from "@tanstack/react-table";
+import { ColumnDef, Row } from "@tanstack/react-table";
 import { useAudioLanguages } from "@/apis/hooks";
 import { UsePaginationQueryResult } from "@/apis/queries/hooks";
 import { QueryPageTable, Toolbox } from "@/components";
@@ -40,6 +38,10 @@ interface Props<T extends Item.Base = Item.Base> {
   onAudioLanguagesChange?: (values: string[]) => void;
   excludeLanguages?: string[];
   onExcludeLanguagesChange?: (values: string[]) => void;
+  enableRowSelection?: boolean;
+  onSelectionChanged?: (selections: T[]) => void;
+  selectionToolbar?: ReactNode;
+  profileToolbar?: ReactNode;
 }
 
 function ItemView<T extends Item.Base>({
@@ -51,8 +53,11 @@ function ItemView<T extends Item.Base>({
   onAudioLanguagesChange,
   excludeLanguages = [],
   onExcludeLanguagesChange,
+  enableRowSelection,
+  onSelectionChanged,
+  selectionToolbar,
+  profileToolbar,
 }: Props<T>) {
-  const navigate = useNavigate();
   const { data: audioLangs = [] } = useAudioLanguages();
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -171,13 +176,12 @@ function ItemView<T extends Item.Base>({
   return (
     <Stack gap={0}>
       <Toolbox>
-        <Toolbox.Button
-          disabled={query.paginationStatus.totalCount === 0 && !hasActiveFilter}
-          icon={faList}
-          onClick={() => navigate("edit")}
-        >
-          Mass Edit
-        </Toolbox.Button>
+        {selectionToolbar ? (
+          <Box>{selectionToolbar}</Box>
+        ) : null}
+        {profileToolbar ? (
+          <Box>{profileToolbar}</Box>
+        ) : null}
         <Group gap="xs">
           {hasAnyFilterControl && (
             <Tooltip
@@ -366,6 +370,10 @@ function ItemView<T extends Item.Base>({
         query={query}
         dataFilter={hasActiveFilter ? dataFilter : undefined}
         tableStyles={{ emptyText: "No items found" }}
+        enableRowSelection={enableRowSelection}
+        onRowSelectionChanged={(rows: Row<T>[]) => {
+          onSelectionChanged?.(rows.map((r) => r.original));
+        }}
       ></QueryPageTable>
     </Stack>
   );
