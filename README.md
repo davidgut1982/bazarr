@@ -49,7 +49,7 @@ Upstream has Google Translate, Gemini, and Lingarr. Bazarr+ adds **OpenRouter** 
 - **Audio language display** as blue badges in all table views
 
 ### Mass Subtitle Sync
-Upstream lets you sync subtitles one at a time, or per-series via Mass Edit. But there's no way to sync your entire library at once. This has been [requested for years](https://bazarr.featureupvote.com/suggestions/191692/mass-sync-all-subtitles) (249 votes), but upstream rejected it as "won't happen," saying "Bazarr isn't a batch tool."
+Upstream lets you sync subtitles one at a time, or per-series via Mass Edit. But there's no way to sync your entire library at once. This has been [requested for years](https://bazarr.featureupvote.com/suggestions/172013/mass-sync-all-subtitles) (249 votes), but upstream rejected it as "won't happen," saying "Bazarr isn't a batch tool."
 
 Bazarr+ adds two entry points for bulk sync:
 - **System Tasks page**: a "Mass Sync All Subtitles" task with a Run button that syncs every subtitle in your library
@@ -109,7 +109,7 @@ docker pull ghcr.io/lavx/ai-subtitle-translator:latest
 | **API Key Encryption** | ❌ Not available | ✅ AES-256-GCM encryption for keys in transit |
 | **Translate from Missing Menu** | ❌ Not available | ✅ Action menu on missing subs with source language picker |
 | **Batch Translation** | ❌ Not available | ✅ Translate entire series/libraries from Wanted pages |
-| **Mass Subtitle Sync** | ❌ [Rejected](https://bazarr.featureupvote.com/suggestions/191692/mass-sync-all-subtitles) (249 votes) | ✅ Bulk sync from Tasks page or Mass Edit, skips already-synced |
+| **Mass Subtitle Sync** | ❌ [Rejected](https://bazarr.featureupvote.com/suggestions/172013/mass-sync-all-subtitles) (249 votes) | ✅ Bulk sync from Tasks page or Mass Edit, skips already-synced |
 | **Dedicated Translator Settings** | ❌ Not available | ✅ 4-zone page with pricing, cost estimates, status panel |
 | **Security Hardening** | MD5, no CSRF/SSRF/rate limiting | ✅ PBKDF2 (600k iter), CSRF, SSRF, brute-force, 4 more |
 | **Audio Language Display** | ❌ Not shown in tables | ✅ Badges in all table views |
