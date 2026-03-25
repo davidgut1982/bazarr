@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  Provider priority · OpenSubtitles.org web scraper · AI translation via OpenRouter (300+ LLMs) · API key encryption · batch translation · advanced table filters · security hardening · Python 3.14 · navy + amber dark theme
+  Provider priority · OpenSubtitles.org web scraper · AI translation via OpenRouter (300+ LLMs) · API key encryption · batch translation · mass subtitle sync · advanced table filters · security hardening · Python 3.14 · navy + amber dark theme
 </p>
 
 ---
@@ -47,6 +47,15 @@ Upstream has Google Translate, Gemini, and Lingarr. Bazarr+ adds **OpenRouter** 
 - **Three-button unsaved changes modal**: Save & Leave, Discard, or Keep Editing (upstream only has Leave/Stay)
 - **Navy + amber dark theme**: custom color palette from `#121125` (navy black) to `#fff8e1` (cream), with amber brand accents (`#e68a00` to `#b36b00`)
 - **Audio language display** as blue badges in all table views
+
+### Mass Subtitle Sync
+Upstream lets you sync subtitles one at a time, or per-series via Mass Edit. But there's no way to sync your entire library at once. This has been [requested for years](https://bazarr.featureupvote.com/suggestions/191692/mass-sync-all-subtitles) (249 votes), but upstream rejected it as "won't happen," saying "Bazarr isn't a batch tool."
+
+Bazarr+ adds two entry points for bulk sync:
+- **System Tasks page**: a "Mass Sync All Subtitles" task with a Run button that syncs every subtitle in your library
+- **Mass Edit pages**: a "Sync Subtitles" button for both Movies and Series editors, so you can select specific items and sync their subtitles in bulk
+
+Both use the existing ffsubsync engine. Already-synced subtitles are skipped by default (with a force re-sync option). Configurable max offset, Golden-Section Search, and framerate correction settings.
 
 ### Security Hardening
 8 areas upstream doesn't address:
@@ -100,6 +109,7 @@ docker pull ghcr.io/lavx/ai-subtitle-translator:latest
 | **API Key Encryption** | ❌ Not available | ✅ AES-256-GCM encryption for keys in transit |
 | **Translate from Missing Menu** | ❌ Not available | ✅ Action menu on missing subs with source language picker |
 | **Batch Translation** | ❌ Not available | ✅ Translate entire series/libraries from Wanted pages |
+| **Mass Subtitle Sync** | ❌ [Rejected](https://bazarr.featureupvote.com/suggestions/191692/mass-sync-all-subtitles) (249 votes) | ✅ Bulk sync from Tasks page or Mass Edit, skips already-synced |
 | **Dedicated Translator Settings** | ❌ Not available | ✅ 4-zone page with pricing, cost estimates, status panel |
 | **Security Hardening** | MD5, no CSRF/SSRF/rate limiting | ✅ PBKDF2 (600k iter), CSRF, SSRF, brute-force, 4 more |
 | **Audio Language Display** | ❌ Not shown in tables | ✅ Badges in all table views |

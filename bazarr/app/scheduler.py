@@ -25,6 +25,7 @@ from subtitles.indexer.movies import movies_full_scan_subtitles
 from subtitles.indexer.series import series_full_scan_subtitles
 from subtitles.wanted import wanted_search_missing_subtitles_series, wanted_search_missing_subtitles_movies
 from subtitles.upgrade import upgrade_subtitles
+from subtitles.mass_sync import mass_sync_subtitles
 from utilities.cache import cache_maintenance
 from utilities.health import check_health
 from utilities.backup import backup_to_zip
@@ -108,6 +109,7 @@ class Scheduler:
         self.__update_bazarr_task()
         self.__search_wanted_subtitles_task()
         self.__upgrade_subtitles_task()
+        self.__mass_sync_task()
         self.__randomize_interval_task()
         self.__automatic_backup()
         if args.no_tasks:
@@ -315,6 +317,12 @@ class Scheduler:
                 upgrade_subtitles, 'interval', hours=int(settings.general.upgrade_frequency), max_instances=1,
                 coalesce=True, misfire_grace_time=15, id='upgrade_subtitles',
                 name='Upgrade Previously Downloaded Subtitles', replace_existing=True)
+
+    def __mass_sync_task(self):
+        self.aps_scheduler.add_job(
+            mass_sync_subtitles, 'cron', year=in_a_century(), max_instances=1,
+            coalesce=True, misfire_grace_time=15, id='mass_sync_subtitles',
+            name='Mass Sync All Subtitles', replace_existing=True)
 
     def __randomize_interval_task(self):
         for job in self.aps_scheduler.get_jobs():
