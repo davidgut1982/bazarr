@@ -294,6 +294,13 @@ class OpenRouterTranslatorService:
                     show_message(f"Translation failed: {error}")
                     return None
 
+                elif status == "partial":
+                    hide_progress(id=f'translate_progress_{self.dest_srt_file}')
+                    error = job_status.get("error", message or "Partial translation")
+                    logger.error(f"Translation partially failed: {error}")
+                    show_message(f"Translation failed (partial): {error}")
+                    return None
+
                 elif status == "cancelled":
                     hide_progress(id=f'translate_progress_{self.dest_srt_file}')
                     logger.info("Translation job was cancelled")
