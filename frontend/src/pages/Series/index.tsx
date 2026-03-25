@@ -1,10 +1,12 @@
-import { FunctionComponent, useMemo, useState } from "react";
+import { FunctionComponent, useCallback, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { Anchor, Checkbox, Container, Group, Menu, Progress } from "@mantine/core";
+import { useCombobox } from "@mantine/core";
 import { useDocumentTitle } from "@mantine/hooks";
 import { faBookmark as farBookmark } from "@fortawesome/free-regular-svg-icons";
 import {
   faBookmark,
+  faCheck,
   faHardDrive,
   faLanguage,
   faMagnifyingGlass,
@@ -12,13 +14,15 @@ import {
   faStop,
   faSync,
   faToolbox,
+  faUndo,
   faWrench,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { ColumnDef } from "@tanstack/react-table";
-import { useSeriesModification, useSeriesPagination } from "@/apis/hooks";
+import { uniqBy } from "lodash";
+import { useLanguageProfiles, useSeriesModification, useSeriesPagination } from "@/apis/hooks";
 import { useInstanceName } from "@/apis/hooks/site";
-import { Action, Toolbox } from "@/components";
+import { Action, GroupedSelector, GroupedSelectorOptions, Toolbox } from "@/components";
 import { AudioList } from "@/components/bazarr";
 import LanguageProfileName from "@/components/bazarr/LanguageProfile";
 import { BatchModConfirmModal } from "@/components/forms/BatchModConfirmForm";
@@ -28,6 +32,8 @@ import { MassTranslateModal, WantedItem } from "@/components/forms/MassTranslate
 import { useModals } from "@/modules/modals";
 import ItemView from "@/pages/views/ItemView";
 import { BatchAction, BatchItem } from "@/apis/raw/subtitles";
+import { GetItemId } from "@/utilities";
+import { useSelectorOptions } from "@/utilities/hooks";
 
 const SeriesView: FunctionComponent = () => {
   const mutation = useSeriesModification();
@@ -45,6 +51,87 @@ const SeriesView: FunctionComponent = () => {
   const query = useSeriesPagination(hasActiveFilter);
 
   const [selections, setSelections] = useState<Item.Series[]>([]);
+  const [dirties, setDirties] = useState<Item.Series[]>([]);
+  const { data: profiles } = useLanguageProfiles();
+  const profileOptions = useSelectorOptions(profiles ?? [], (v) => v.name);
+  const combobox = useCombobox();
+
+  const profileOptionsWithAction = useMemo<GroupedSelectorOptions<string>[]>(() => [
+    { group: "Actions", items: [{ label: "Clear", value: "", profileId: null }] },
+    {
+      group: "Profiles",
+      items: profileOptions.options.map((a) => ({
+        value: a.value.profileId.toString(),
+        label: a.label,
+        profileId: a.value.profileId,
+      })),
+    },
+  ], [profileOptions.options]);
+
+  const setProfiles = useCallback(
+    (id: number | null) => {
+      const newItems = selections.map((v) => ({ ...v, profileId: id }));
+      setDirties((dirty) => uniqBy([...newItems, ...dirty], GetItemId));
+    },
+    [selections],
+  );
+
+  const { mutateAsync } = mutation;
+
+  const save = useCallback(() => {
+    const chunkSize = 1000;
+    const form: FormType.ModifyItem = { id: [], profileid: [] };
+    dirties.forEach((v) => {
+      const id = GetItemId(v);
+      if (id) {
+        form.id.push(id);
+        form.profileid.push(v.profileId);
+      }
+    });
+    const mutateInChunks = async (
+      ids: number[],
+      profileIds: (number | null)[],
+    ) => {
+      if (ids.length === 0) return;
+      await mutateAsync({ id: ids.slice(0, chunkSize), profileid: profileIds.slice(0, chunkSize) });
+      await mutateInChunks(ids.slice(chunkSize), profileIds.slice(chunkSize));
+    };
+    return mutateInChunks(form.id, form.profileid);
+  }, [dirties, mutateAsync]);
+
+  const profileToolbar = useMemo(() => {
+    if (selections.length === 0 && dirties.length === 0) return undefined;
+    return (
+      <Group gap="xs">
+        <GroupedSelector
+          onClick={() => combobox.openDropdown()}
+          onDropdownClose={() => combobox.resetSelectedOption()}
+          placeholder="Change Profile"
+          withCheckIcon={false}
+          options={profileOptionsWithAction}
+          disabled={selections.length === 0}
+          comboboxProps={{
+            store: combobox,
+            onOptionSubmit: (value) => setProfiles(value ? +value : null),
+          }}
+        />
+        {dirties.length > 0 && (
+          <>
+            <Toolbox.Button icon={faUndo} onClick={() => setDirties([])}>
+              Cancel
+            </Toolbox.Button>
+            <Toolbox.MutateButton
+              icon={faCheck}
+              promise={save}
+              onSuccess={() => setDirties([])}
+            >
+              Save
+            </Toolbox.MutateButton>
+          </>
+        )}
+      </Group>
+    );
+  }, [selections, dirties, combobox, profileOptionsWithAction, setProfiles, save]);
 
   const columns = useMemo<ColumnDef<Item.Series>[]>(
     () => [
@@ -296,6 +383,7 @@ const SeriesView: FunctionComponent = () => {
         enableRowSelection
         onSelectionChanged={setSelections}
         selectionToolbar={selectionToolbar}
+        profileToolbar={profileToolbar}
       ></ItemView>
     </Container>
   );
