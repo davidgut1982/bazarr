@@ -5,7 +5,7 @@ import { useDocumentTitle } from "@mantine/hooks";
 import { ColumnDef } from "@tanstack/react-table";
 import { useSeries, useSeriesModification } from "@/apis/hooks";
 import { useInstanceName } from "@/apis/hooks/site";
-import { BatchSyncItem } from "@/apis/raw/subtitles";
+import { BatchItem } from "@/apis/raw/subtitles";
 import { Toolbox } from "@/components";
 import { QueryOverlay } from "@/components/async";
 import { AudioList } from "@/components/bazarr";
@@ -82,7 +82,7 @@ const SeriesMassEditor: FunctionComponent = () => {
         icon={faSync}
         disabled={selections.length === 0}
         onClick={() => {
-          const items: BatchSyncItem[] = selections.map((s) => ({
+          const items: BatchItem[] = selections.map((s) => ({
             type: "series" as const,
             sonarrSeriesId: s.sonarrSeriesId,
           }));

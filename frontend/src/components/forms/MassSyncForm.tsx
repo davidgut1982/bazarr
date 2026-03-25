@@ -10,23 +10,23 @@ import {
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
-import { useBatchSync, useSystemSettings } from "@/apis/hooks";
+import { useBatchAction, useSystemSettings } from "@/apis/hooks";
 import {
-  BatchSyncItem,
-  BatchSyncOptions,
+  BatchItem,
+  BatchOptions,
 } from "@/apis/raw/subtitles";
 import { useModals, withModal } from "@/modules/modals";
 
 interface MassSyncFormProps {
-  items: BatchSyncItem[];
+  items: BatchItem[];
 }
 
 const MassSyncForm: FunctionComponent<MassSyncFormProps> = ({ items }) => {
   const { data: settings } = useSystemSettings();
-  const { mutateAsync, isPending } = useBatchSync();
+  const { mutateAsync, isPending } = useBatchAction();
   const modals = useModals();
 
-  const form = useForm<BatchSyncOptions>({
+  const form = useForm<BatchOptions>({
     initialValues: {
       max_offset_seconds: settings?.subsync.max_offset_seconds ?? 60,
       no_fix_framerate: settings?.subsync.no_fix_framerate ?? true,
@@ -44,7 +44,11 @@ const MassSyncForm: FunctionComponent<MassSyncFormProps> = ({ items }) => {
     }
 
     try {
-      const result = await mutateAsync({ items, options: values });
+      const result = await mutateAsync({
+        items,
+        action: "sync",
+        options: values,
+      });
 
       notifications.show({
         title: "Mass Sync Queued",

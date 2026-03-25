@@ -11,8 +11,8 @@ import {
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
 import { isObject } from "lodash";
-import { useBatchTranslate, useSystemSettings } from "@/apis/hooks";
-import { BatchTranslateItem } from "@/apis/raw/subtitles";
+import { useBatchAction, useSystemSettings } from "@/apis/hooks";
+import { BatchItem } from "@/apis/raw/subtitles";
 import { Selector } from "@/components/inputs";
 import { useModals, withModal } from "@/modules/modals";
 import { useSelectorOptions } from "@/utilities";
@@ -157,7 +157,7 @@ interface TranslationConfig {
 
 const MassTranslateForm: FunctionComponent<Props> = ({ items, onComplete }) => {
   const settings = useSystemSettings();
-  const { mutateAsync, isPending } = useBatchTranslate();
+  const { mutateAsync, isPending } = useBatchAction();
   const modals = useModals();
 
   const { data: languages } = useEnabledLanguages();
@@ -243,7 +243,7 @@ const MassTranslateForm: FunctionComponent<Props> = ({ items, onComplete }) => {
   }) => {
     if (!values.sourceLanguage || !values.targetLanguage) return;
 
-    const batchItems: BatchTranslateItem[] = items.map((item) => {
+    const batchItems: BatchItem[] = items.map((item) => {
       if (item.type === "episode") {
         return {
           type: "episode" as const,
@@ -263,7 +263,7 @@ const MassTranslateForm: FunctionComponent<Props> = ({ items, onComplete }) => {
     });
 
     try {
-      const result = await mutateAsync(batchItems);
+      const result = await mutateAsync({ items: batchItems, action: "translate" });
 
       if (result.queued > 0) {
         notifications.show({
