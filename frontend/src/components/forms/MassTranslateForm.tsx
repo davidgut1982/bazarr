@@ -276,7 +276,14 @@ const MassTranslateForm: FunctionComponent<Props> = ({ items, onComplete }) => {
     });
 
     try {
-      const result = await mutateAsync({ items: batchItems, action: "translate" });
+      const result = await mutateAsync({
+        items: batchItems,
+        action: "translate",
+        options: {
+          from_lang: values.sourceLanguage!.code2,
+          to_lang: values.targetLanguage!.code2,
+        },
+      });
 
       if (result.queued > 0) {
         notifications.show({

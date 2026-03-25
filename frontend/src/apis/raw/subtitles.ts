@@ -30,6 +30,8 @@ export interface BatchOptions {
   no_fix_framerate?: boolean;
   gss?: boolean;
   force_resync?: boolean;
+  from_lang?: string;
+  to_lang?: string;
 }
 
 export interface BatchResponse {
