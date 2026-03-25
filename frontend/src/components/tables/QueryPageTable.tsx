@@ -78,7 +78,7 @@ export default function QueryPageTable<T extends object>(props: Props<T>) {
 
           gotoPage(page);
         }}
-        onPageSizeChange={fetchAll ? setLocalPageSize : undefined}
+        onPageSizeChange={setLocalPageSize}
       ></PageControl>
     </LoadingProvider>
   );

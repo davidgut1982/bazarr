@@ -45,12 +45,7 @@ const SeriesView: FunctionComponent = () => {
   const [audioLanguages, setAudioLanguages] = useState<string[]>([]);
   const [excludeLanguages, setExcludeLanguages] = useState<string[]>([]);
 
-  const hasActiveFilter =
-    search.length > 0 ||
-    audioLanguages.length > 0 ||
-    excludeLanguages.length > 0;
-
-  const query = useSeriesPagination(hasActiveFilter);
+  const query = useSeriesPagination(true);
 
   const [selections, setSelections] = useState<Item.Series[]>([]);
   const [dirties, setDirties] = useState<Item.Series[]>([]);

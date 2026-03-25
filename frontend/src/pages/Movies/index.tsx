@@ -44,12 +44,7 @@ const MovieView: FunctionComponent = () => {
   const [audioLanguages, setAudioLanguages] = useState<string[]>([]);
   const [excludeLanguages, setExcludeLanguages] = useState<string[]>([]);
 
-  const hasActiveFilter =
-    search.length > 0 ||
-    audioLanguages.length > 0 ||
-    excludeLanguages.length > 0;
-
-  const query = useMoviesPagination(hasActiveFilter);
+  const query = useMoviesPagination(true);
 
   const [selections, setSelections] = useState<Item.Movie[]>([]);
   const [dirties, setDirties] = useState<Item.Movie[]>([]);
