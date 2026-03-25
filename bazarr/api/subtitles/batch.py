@@ -2,7 +2,10 @@
 
 import logging
 from flask_restx import Resource, Namespace, fields
+from sqlalchemy import and_, or_
 
+from app.config import settings
+from app.database import TableHistory, TableHistoryMovie, TableEpisodes, TableMovies, database, select
 from app.jobs_queue import jobs_queue
 from subtitles.mass_operations import mass_batch_operation, VALID_ACTIONS
 from ..utils import authenticate
@@ -105,3 +108,54 @@ class BatchOperation(Resource):
         )
 
         return {'queued': len(items), 'skipped': 0, 'errors': [], 'job_id': job_id}, 200
+
+
+def get_upgradable_media_ids():
+    """Return sets of radarrIds and sonarrSeriesIds that have upgradable subtitles."""
+    if not settings.general.upgrade_subs:
+        return {'movies': [], 'series': []}
+
+    from subtitles.upgrade import get_queries_condition_parameters
+    minimum_timestamp, query_actions = get_queries_condition_parameters()
+
+    # Movies with upgradable subs
+    movie_results = database.execute(
+        select(TableHistoryMovie.radarrId)
+        .distinct()
+        .join(TableMovies, TableHistoryMovie.radarrId == TableMovies.radarrId)
+        .where(and_(
+            TableHistoryMovie.action.in_(query_actions),
+            TableHistoryMovie.timestamp > minimum_timestamp,
+            or_(
+                and_(TableHistoryMovie.score.is_(None), TableHistoryMovie.action == 6),
+                TableHistoryMovie.score < 117
+            )
+        ))
+    ).all()
+    movie_ids = [r.radarrId for r in movie_results]
+
+    # Series with upgradable subs
+    series_results = database.execute(
+        select(TableHistory.sonarrSeriesId)
+        .distinct()
+        .join(TableEpisodes, TableHistory.sonarrEpisodeId == TableEpisodes.sonarrEpisodeId)
+        .where(and_(
+            TableHistory.action.in_(query_actions),
+            TableHistory.timestamp > minimum_timestamp,
+            or_(
+                and_(TableHistory.score.is_(None), TableHistory.action == 6),
+                TableHistory.score < 357
+            )
+        ))
+    ).all()
+    series_ids = [r.sonarrSeriesId for r in series_results]
+
+    return {'movies': movie_ids, 'series': series_ids}
+
+
+@api_ns_batch.route('subtitles/upgradable')
+class UpgradableMedia(Resource):
+    @authenticate
+    def get(self):
+        """Return movie and series IDs that have upgradable subtitles"""
+        return get_upgradable_media_ids(), 200
