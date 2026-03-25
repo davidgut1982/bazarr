@@ -95,6 +95,7 @@ def _collect_subtitle_items(items, action, options):
 
     all_items = []
     total_skipped = 0
+    target_lang = options.get('to_lang') if action == 'translate' else None
 
     # Collect episode subtitles
     should_collect_episodes = (items is None and settings.general.use_sonarr) or series_ids or episode_ids
@@ -107,6 +108,7 @@ def _collect_subtitle_items(items, action, options):
             max_offset=max_offset,
             gss=gss,
             no_fix_framerate=no_fix_framerate,
+            target_lang=target_lang,
         )
         all_items.extend(ep_items)
         total_skipped += ep_skipped
@@ -121,6 +123,7 @@ def _collect_subtitle_items(items, action, options):
             max_offset=max_offset,
             gss=gss,
             no_fix_framerate=no_fix_framerate,
+            target_lang=target_lang,
         )
         all_items.extend(mov_items)
         total_skipped += mov_skipped
@@ -129,7 +132,8 @@ def _collect_subtitle_items(items, action, options):
 
 
 def _collect_episodes(series_ids=None, episode_ids=None, action='sync',
-                      force_resync=False, max_offset='60', gss=True, no_fix_framerate=True):
+                      force_resync=False, max_offset='60', gss=True, no_fix_framerate=True,
+                      target_lang=None):
     """Collect episode subtitles from the database."""
     query = select(
         TableEpisodes.sonarrEpisodeId,
@@ -158,6 +162,13 @@ def _collect_episodes(series_ids=None, episode_ids=None, action='sync',
     for ep in episodes:
         subtitles = _parse_subtitles_column(ep.subtitles)
         video_path = path_mappings.path_replace(ep.path)
+
+        # For translate: check if target language already exists
+        if action == 'translate' and target_lang:
+            existing_langs = {lang_str.split(':')[0] for lang_str, _ in subtitles}
+            if target_lang in existing_langs:
+                skipped += 1
+                continue
 
         for lang_string, sub_path in subtitles:
             lang_info = languages_from_colon_seperated_string(lang_string)
@@ -195,7 +206,8 @@ def _collect_episodes(series_ids=None, episode_ids=None, action='sync',
 
 
 def _collect_movies(movie_ids=None, action='sync', force_resync=False,
-                    max_offset='60', gss=True, no_fix_framerate=True):
+                    max_offset='60', gss=True, no_fix_framerate=True,
+                    target_lang=None):
     """Collect movie subtitles from the database."""
     query = select(
         TableMovies.radarrId,
@@ -218,6 +230,13 @@ def _collect_movies(movie_ids=None, action='sync', force_resync=False,
     for movie in movies:
         subtitles = _parse_subtitles_column(movie.subtitles)
         video_path = path_mappings.path_replace_movie(movie.path)
+
+        # For translate: check if target language already exists
+        if action == 'translate' and target_lang:
+            existing_langs = {lang_str.split(':')[0] for lang_str, _ in subtitles}
+            if target_lang in existing_langs:
+                skipped += 1
+                continue
 
         for lang_string, sub_path in subtitles:
             lang_info = languages_from_colon_seperated_string(lang_string)
