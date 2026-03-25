@@ -25,7 +25,7 @@ from subtitles.indexer.movies import movies_full_scan_subtitles
 from subtitles.indexer.series import series_full_scan_subtitles
 from subtitles.wanted import wanted_search_missing_subtitles_series, wanted_search_missing_subtitles_movies
 from subtitles.upgrade import upgrade_subtitles
-from subtitles.mass_sync import mass_sync_subtitles
+from subtitles.mass_operations import mass_batch_operation
 from utilities.cache import cache_maintenance
 from utilities.health import check_health
 from utilities.backup import backup_to_zip
@@ -320,7 +320,7 @@ class Scheduler:
 
     def __mass_sync_task(self):
         self.aps_scheduler.add_job(
-            mass_sync_subtitles, 'cron', year=in_a_century(), max_instances=1,
+            mass_batch_operation, 'cron', year=in_a_century(), max_instances=1,
             coalesce=True, misfire_grace_time=15, id='mass_sync_subtitles',
             name='Mass Sync All Subtitles', replace_existing=True)
 
