@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  No tracking · Provider priority · OpenSubtitles.org web scraper · AI translation via OpenRouter (300+ LLMs) · API key encryption · batch translation · mass subtitle sync · advanced table filters · security hardening · Python 3.14 · navy + amber dark theme
+  No tracking · Provider priority · OpenSubtitles.org web scraper · AI translation via OpenRouter (300+ LLMs) · API key encryption · batch translation · mass subtitle sync · 11 bulk operations · advanced table filters · security hardening · Python 3.14 · navy + amber dark theme
 </p>
 
 ---
@@ -56,6 +56,27 @@ Bazarr+ adds two entry points for bulk sync:
 - **Mass Edit pages**: a "Sync Subtitles" button for both Movies and Series editors, so you can select specific items and sync their subtitles in bulk
 
 Both use the existing ffsubsync engine. Already-synced subtitles are skipped by default (with a force re-sync option). Configurable max offset, Golden-Section Search, and framerate correction settings.
+
+### Bulk Operations
+Select multiple movies or series from the library pages and apply operations in batch. Available from the toolbar that appears when items are selected, or from the System Tasks page for library-wide runs. Confirmation is required for operations on 100+ items. Up to 10,000 items per batch.
+
+**Subtitle modifications** (applied to all existing subtitles of selected items):
+- **Sync** -- align subtitle timing to audio using ffsubsync, with configurable max offset (1-600s), Golden-Section Search, framerate correction, and force re-sync
+- **OCR Fixes** -- correct common optical character recognition errors
+- **Common Fixes** -- apply standard subtitle formatting and whitespace corrections
+- **Remove Hearing Impaired** -- strip `[music]`, `(doorbell rings)`, and similar HI annotations
+- **Remove Style Tags** -- remove `<i>`, `<b>`, `<font>` and other formatting tags
+- **Fix Uppercase** -- convert ALL CAPS subtitles to proper case
+- **Reverse RTL** -- fix right-to-left punctuation for Arabic, Hebrew, and similar languages
+- **Translate** -- batch translate subtitles using any configured translator engine (Google, Gemini, Lingarr, or OpenRouter with 30+ LLMs)
+
+**Media operations** (search and scan actions for selected items):
+- **Scan Disk** -- rescan selected items for on-disk subtitle files
+- **Search Missing** -- search all configured providers for missing subtitles
+- **Upgrade** -- replace low-scoring subtitles with better matches from providers
+
+**Profile management:**
+- **Bulk profile assignment** -- select multiple movies or series and assign a language profile to all of them at once
 
 ### No Tracking / No Telemetry
 Upstream Bazarr ships two analytics systems that phone home to Google: a GA4 property (`G-3820T18GE3`) in `bazarr/utilities/analytics.py` that reports your Bazarr version, Python version, Sonarr/Radarr versions, OS, subtitle provider usage, every download action, and languages searched, plus a legacy Universal Analytics tracker (`UA-86466078-1`) in the SubZero library dependency. Bazarr+ has removed both entirely. No usage data leaves your server.
@@ -113,6 +134,7 @@ docker pull ghcr.io/lavx/ai-subtitle-translator:latest
 | **Translate from Missing Menu** | ❌ Not available | ✅ Action menu on missing subs with source language picker |
 | **Batch Translation** | ❌ Not available | ✅ Translate entire series/libraries from Wanted pages |
 | **Mass Subtitle Sync** | ❌ [Rejected](https://bazarr.featureupvote.com/suggestions/172013/mass-sync-all-subtitles) (249 votes) | ✅ Bulk sync from Tasks page or Mass Edit, skips already-synced |
+| **Bulk Operations** | ❌ One-at-a-time only | ✅ 11 batch actions: sync, translate, OCR fixes, common fixes, remove HI, remove tags, fix uppercase, reverse RTL, scan disk, search missing, upgrade (up to 10k items) |
 | **Dedicated Translator Settings** | ❌ Not available | ✅ 4-zone page with pricing, cost estimates, status panel |
 | **No Tracking** | GA4 + legacy UA phone home to Google | ✅ All telemetry removed, nothing phones home |
 | **Security Hardening** | MD5, no CSRF/SSRF/rate limiting | ✅ PBKDF2 (600k iter), CSRF, SSRF, brute-force, 4 more |
