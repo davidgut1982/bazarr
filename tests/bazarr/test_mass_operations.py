@@ -725,6 +725,112 @@ class TestTranslateSkipsExistingLang:
         assert skipped == 1
 
 
+class TestTranslateSourceLanguageFilter:
+    """Test that batch translate only queues subtitles matching the requested source language."""
+
+    def _make_episode(self, ep_id=1, series_id=10, path='/video/ep1.mkv',
+                      subtitles="[['en', '/subs/ep1.en.srt'], ['fr', '/subs/ep1.fr.srt']]"):
+        ep = MagicMock()
+        ep.sonarrEpisodeId = ep_id
+        ep.sonarrSeriesId = series_id
+        ep.path = path
+        ep.subtitles = subtitles
+        return ep
+
+    def _make_movie(self, radarr_id=10, path='/video/movie.mkv',
+                    subtitles="[['en', '/subs/movie.en.srt'], ['fr', '/subs/movie.fr.srt']]"):
+        movie = MagicMock()
+        movie.radarrId = radarr_id
+        movie.path = path
+        movie.subtitles = subtitles
+        return movie
+
+    @patch('bazarr.subtitles.mass_operations.languages_from_colon_seperated_string')
+    @patch('bazarr.subtitles.mass_operations.os.path.isfile', return_value=True)
+    @patch('bazarr.subtitles.mass_operations.path_mappings')
+    @patch('bazarr.subtitles.mass_operations.database')
+    @patch('bazarr.subtitles.mass_operations.settings')
+    def test_translate_only_queues_source_language_episodes(self, mock_settings, mock_db,
+                                                            mock_path_map, mock_isfile, mock_lang):
+        from bazarr.subtitles.mass_operations import _collect_subtitle_items
+
+        mock_settings.subsync.max_offset_seconds = 60
+        mock_settings.subsync.gss = True
+        mock_settings.subsync.no_fix_framerate = True
+        mock_settings.general.use_sonarr = False
+        mock_settings.general.use_radarr = False
+        mock_path_map.path_replace.side_effect = lambda x: x
+        mock_lang.return_value = {'language': 'en', 'forced': False, 'hi': False}
+
+        # Episode has both EN and FR subtitles
+        episode = self._make_episode()
+        mock_db.execute.return_value.all.return_value = [episode]
+
+        items = [{'type': 'episode', 'sonarrEpisodeId': 1}]
+        # Request EN->HU translation: only EN subtitle should be queued
+        collected, skipped = _collect_subtitle_items(items, 'translate', {'from_lang': 'en', 'to_lang': 'hu'})
+
+        assert len(collected) == 1
+        assert collected[0]['srt_lang'] == 'en'
+        assert skipped == 1  # FR subtitle skipped
+
+    @patch('bazarr.subtitles.mass_operations.languages_from_colon_seperated_string')
+    @patch('bazarr.subtitles.mass_operations.os.path.isfile', return_value=True)
+    @patch('bazarr.subtitles.mass_operations.path_mappings')
+    @patch('bazarr.subtitles.mass_operations.database')
+    @patch('bazarr.subtitles.mass_operations.settings')
+    def test_translate_only_queues_source_language_movies(self, mock_settings, mock_db,
+                                                          mock_path_map, mock_isfile, mock_lang):
+        from bazarr.subtitles.mass_operations import _collect_subtitle_items
+
+        mock_settings.subsync.max_offset_seconds = 60
+        mock_settings.subsync.gss = True
+        mock_settings.subsync.no_fix_framerate = True
+        mock_settings.general.use_sonarr = False
+        mock_settings.general.use_radarr = False
+        mock_path_map.path_replace_movie.side_effect = lambda x: x
+        mock_lang.return_value = {'language': 'en', 'forced': False, 'hi': False}
+
+        # Movie has both EN and FR subtitles
+        movie = self._make_movie()
+        mock_db.execute.return_value.all.return_value = [movie]
+
+        items = [{'type': 'movie', 'radarrId': 10}]
+        # Request EN->HU: only EN should be queued
+        collected, skipped = _collect_subtitle_items(items, 'translate', {'from_lang': 'en', 'to_lang': 'hu'})
+
+        assert len(collected) == 1
+        assert collected[0]['srt_lang'] == 'en'
+        assert skipped == 1  # FR skipped
+
+    @patch('bazarr.subtitles.mass_operations.languages_from_colon_seperated_string')
+    @patch('bazarr.subtitles.mass_operations.os.path.isfile', return_value=True)
+    @patch('bazarr.subtitles.mass_operations.path_mappings')
+    @patch('bazarr.subtitles.mass_operations.database')
+    @patch('bazarr.subtitles.mass_operations.settings')
+    def test_translate_without_source_lang_queues_all(self, mock_settings, mock_db,
+                                                       mock_path_map, mock_isfile, mock_lang):
+        from bazarr.subtitles.mass_operations import _collect_subtitle_items
+
+        mock_settings.subsync.max_offset_seconds = 60
+        mock_settings.subsync.gss = True
+        mock_settings.subsync.no_fix_framerate = True
+        mock_settings.general.use_sonarr = False
+        mock_settings.general.use_radarr = False
+        mock_path_map.path_replace.side_effect = lambda x: x
+        mock_lang.return_value = {'language': 'en', 'forced': False, 'hi': False}
+
+        episode = self._make_episode()
+        mock_db.execute.return_value.all.return_value = [episode]
+
+        items = [{'type': 'episode', 'sonarrEpisodeId': 1}]
+        # No from_lang specified: all subtitles should be queued
+        collected, skipped = _collect_subtitle_items(items, 'translate', {'to_lang': 'hu'})
+
+        assert len(collected) == 2
+        assert skipped == 0
+
+
 class TestTranslateDefaultOptions:
     """Test translate action uses defaults when options omit from_lang/to_lang."""
 

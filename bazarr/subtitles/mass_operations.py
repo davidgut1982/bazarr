@@ -103,6 +103,7 @@ def _collect_subtitle_items(items, action, options):
     all_items = []
     total_skipped = 0
     target_lang = options.get('to_lang') if action == 'translate' else None
+    source_lang = options.get('from_lang') if action == 'translate' else None
 
     # Collect episode subtitles
     should_collect_episodes = (items is None and settings.general.use_sonarr) or series_ids or episode_ids
@@ -116,6 +117,7 @@ def _collect_subtitle_items(items, action, options):
             gss=gss,
             no_fix_framerate=no_fix_framerate,
             target_lang=target_lang,
+            source_lang=source_lang,
         )
         all_items.extend(ep_items)
         total_skipped += ep_skipped
@@ -131,6 +133,7 @@ def _collect_subtitle_items(items, action, options):
             gss=gss,
             no_fix_framerate=no_fix_framerate,
             target_lang=target_lang,
+            source_lang=source_lang,
         )
         all_items.extend(mov_items)
         total_skipped += mov_skipped
@@ -140,7 +143,7 @@ def _collect_subtitle_items(items, action, options):
 
 def _collect_episodes(series_ids=None, episode_ids=None, action='sync',
                       force_resync=False, max_offset='60', gss=True, no_fix_framerate=True,
-                      target_lang=None):
+                      target_lang=None, source_lang=None):
     """Collect episode subtitles from the database."""
     query = select(
         TableEpisodes.sonarrEpisodeId,
@@ -184,6 +187,12 @@ def _collect_episodes(series_ids=None, episode_ids=None, action='sync',
                 skipped += 1
                 continue
 
+            # For translate: only queue subtitles matching the requested source language
+            sub_lang = lang_string.split(':')[0]
+            if action == 'translate' and source_lang and sub_lang != source_lang:
+                skipped += 1
+                continue
+
             mapped_sub_path = path_mappings.path_replace(sub_path)
             if not os.path.isfile(mapped_sub_path):
                 skipped += 1
@@ -198,7 +207,7 @@ def _collect_episodes(series_ids=None, episode_ids=None, action='sync',
             items.append({
                 'video_path': video_path,
                 'srt_path': mapped_sub_path,
-                'srt_lang': lang_string.split(':')[0],
+                'srt_lang': sub_lang,
                 'forced': lang_info['forced'],
                 'hi': lang_info['hi'],
                 'sonarr_series_id': ep.sonarrSeriesId,
@@ -214,7 +223,7 @@ def _collect_episodes(series_ids=None, episode_ids=None, action='sync',
 
 def _collect_movies(movie_ids=None, action='sync', force_resync=False,
                     max_offset='60', gss=True, no_fix_framerate=True,
-                    target_lang=None):
+                    target_lang=None, source_lang=None):
     """Collect movie subtitles from the database."""
     query = select(
         TableMovies.radarrId,
@@ -252,6 +261,12 @@ def _collect_movies(movie_ids=None, action='sync', force_resync=False,
                 skipped += 1
                 continue
 
+            # For translate: only queue subtitles matching the requested source language
+            sub_lang = lang_string.split(':')[0]
+            if action == 'translate' and source_lang and sub_lang != source_lang:
+                skipped += 1
+                continue
+
             mapped_sub_path = path_mappings.path_replace_movie(sub_path)
             if not os.path.isfile(mapped_sub_path):
                 skipped += 1
@@ -266,7 +281,7 @@ def _collect_movies(movie_ids=None, action='sync', force_resync=False,
             items.append({
                 'video_path': video_path,
                 'srt_path': mapped_sub_path,
-                'srt_lang': lang_string.split(':')[0],
+                'srt_lang': sub_lang,
                 'forced': lang_info['forced'],
                 'hi': lang_info['hi'],
                 'sonarr_series_id': None,
