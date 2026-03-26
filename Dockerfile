@@ -114,7 +114,7 @@ EXPOSE 6767
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:6767/api/system/health || exit 1
+    CMD curl -f http://localhost:6767/api/system/ping || exit 1
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["python", "bazarr.py", "--no-update", "--config", "/config"]
