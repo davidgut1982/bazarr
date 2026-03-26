@@ -2,7 +2,7 @@
 
 import logging
 from flask_restx import Resource, Namespace, fields
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, func
 
 from app.config import settings
 from app.database import TableHistory, TableHistoryMovie, TableEpisodes, TableMovies, database, select
@@ -125,18 +125,35 @@ class BatchOperation(Resource):
 
 
 def get_upgradable_media_ids():
-    """Return sets of radarrIds and sonarrSeriesIds that have upgradable subtitles."""
+    """Return sets of radarrIds and sonarrSeriesIds that have upgradable subtitles.
+
+    Uses the same latest-row-per-video/language logic as upgrade.py to avoid
+    false positives from old history entries that have already been superseded.
+    """
     if not settings.general.upgrade_subs:
         return {'movies': [], 'series': []}
 
     from subtitles.upgrade import get_queries_condition_parameters
     minimum_timestamp, query_actions = get_queries_condition_parameters()
 
-    # Movies with upgradable subs
+    # Movies: only consider the latest history row per (video_path, language)
+    max_movie_ts = select(
+        TableHistoryMovie.video_path,
+        TableHistoryMovie.language,
+        func.max(TableHistoryMovie.timestamp).label('timestamp')
+    ).group_by(
+        TableHistoryMovie.video_path, TableHistoryMovie.language
+    ).distinct().subquery()
+
     movie_results = database.execute(
         select(TableHistoryMovie.radarrId)
         .distinct()
         .join(TableMovies, TableHistoryMovie.radarrId == TableMovies.radarrId)
+        .join(max_movie_ts, onclause=and_(
+            TableHistoryMovie.video_path == max_movie_ts.c.video_path,
+            TableHistoryMovie.language == max_movie_ts.c.language,
+            TableHistoryMovie.timestamp == max_movie_ts.c.timestamp,
+        ))
         .where(and_(
             TableHistoryMovie.action.in_(query_actions),
             TableHistoryMovie.timestamp > minimum_timestamp,
@@ -148,11 +165,24 @@ def get_upgradable_media_ids():
     ).all()
     movie_ids = [r.radarrId for r in movie_results]
 
-    # Series with upgradable subs
+    # Series: only consider the latest history row per (video_path, language)
+    max_episode_ts = select(
+        TableHistory.video_path,
+        TableHistory.language,
+        func.max(TableHistory.timestamp).label('timestamp')
+    ).group_by(
+        TableHistory.video_path, TableHistory.language
+    ).distinct().subquery()
+
     series_results = database.execute(
         select(TableHistory.sonarrSeriesId)
         .distinct()
         .join(TableEpisodes, TableHistory.sonarrEpisodeId == TableEpisodes.sonarrEpisodeId)
+        .join(max_episode_ts, onclause=and_(
+            TableHistory.video_path == max_episode_ts.c.video_path,
+            TableHistory.language == max_episode_ts.c.language,
+            TableHistory.timestamp == max_episode_ts.c.timestamp,
+        ))
         .where(and_(
             TableHistory.action.in_(query_actions),
             TableHistory.timestamp > minimum_timestamp,
