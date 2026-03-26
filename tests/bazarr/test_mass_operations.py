@@ -411,6 +411,34 @@ class TestCollectSubtitleItems:
         assert skipped == 1
 
     @patch('bazarr.subtitles.mass_operations.languages_from_colon_seperated_string')
+    @patch('bazarr.subtitles.mass_operations.os.path.isfile', return_value=True)
+    @patch('bazarr.subtitles.mass_operations.path_mappings')
+    @patch('bazarr.subtitles.mass_operations._get_synced_episode_paths', return_value=set())
+    @patch('bazarr.subtitles.mass_operations._get_synced_movie_paths', return_value=set())
+    @patch('bazarr.subtitles.mass_operations.database')
+    @patch('bazarr.subtitles.mass_operations.settings')
+    def test_forced_subs_allowed_for_mod_actions(self, mock_settings, mock_db, mock_synced_mov,
+                                                  mock_synced_ep, mock_path_map, mock_isfile, mock_lang):
+        """Forced subtitles should be processed by mod actions like OCR_fixes, not skipped."""
+        from bazarr.subtitles.mass_operations import _collect_subtitle_items
+
+        mock_settings.subsync.max_offset_seconds = 60
+        mock_settings.subsync.gss = True
+        mock_settings.subsync.no_fix_framerate = True
+        mock_path_map.path_replace.side_effect = lambda x: x
+        mock_lang.return_value = {'language': 'en', 'forced': True, 'hi': False}
+
+        episode = self._make_episode(subtitles="[['en:forced', '/subs/ep1.en.forced.srt']]")
+        mock_db.execute.return_value.all.return_value = [episode]
+
+        items_list = [{'type': 'episode', 'sonarrEpisodeId': 1}]
+        items, skipped = _collect_subtitle_items(items_list, action='OCR_fixes', options={})
+
+        assert len(items) == 1
+        assert skipped == 0
+        assert items[0]['forced'] is True
+
+    @patch('bazarr.subtitles.mass_operations.languages_from_colon_seperated_string')
     @patch('bazarr.subtitles.mass_operations.os.path.isfile', return_value=False)
     @patch('bazarr.subtitles.mass_operations.path_mappings')
     @patch('bazarr.subtitles.mass_operations._get_synced_episode_paths', return_value=set())

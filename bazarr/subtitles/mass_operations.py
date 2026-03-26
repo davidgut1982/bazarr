@@ -183,7 +183,8 @@ def _collect_episodes(series_ids=None, episode_ids=None, action='sync',
         for lang_string, sub_path in subtitles:
             lang_info = languages_from_colon_seperated_string(lang_string)
 
-            if lang_info['forced']:
+            # Forced subs can't be synced or translated, but mods are fine
+            if lang_info['forced'] and action in ('sync', 'translate'):
                 skipped += 1
                 continue
 
@@ -257,7 +258,8 @@ def _collect_movies(movie_ids=None, action='sync', force_resync=False,
         for lang_string, sub_path in subtitles:
             lang_info = languages_from_colon_seperated_string(lang_string)
 
-            if lang_info['forced']:
+            # Forced subs can't be synced or translated, but mods are fine
+            if lang_info['forced'] and action in ('sync', 'translate'):
                 skipped += 1
                 continue
 
