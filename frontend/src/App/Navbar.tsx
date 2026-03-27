@@ -87,6 +87,42 @@ function useIsActive(parent: string, route: RouteObject) {
   );
 }
 
+// Section grouping configuration.
+// Routes are matched by their path property.
+const sectionGroups = [
+  { label: "Media", paths: ["series", "movies"] },
+  { label: "Management", paths: ["history", "wanted", "blacklist"] },
+  { label: "System", paths: ["settings", "system"] },
+];
+
+function groupRoutes(routes: CustomRouteObject[]) {
+  // Filter to visible nav items (have a path, not hidden, not index-only)
+  const navItems = routes.filter(
+    (r) => r.path !== undefined && !r.hidden && !r.path.includes(":") && r.name,
+  );
+
+  const groups: { label: string; items: CustomRouteObject[] }[] = [];
+
+  for (const section of sectionGroups) {
+    const items = section.paths
+      .map((p) => navItems.find((r) => r.path === p))
+      .filter((r): r is CustomRouteObject => r !== undefined);
+
+    if (items.length > 0) {
+      groups.push({ label: section.label, items });
+    }
+  }
+
+  // Catch any remaining items not in a defined group
+  const groupedPaths = new Set(sectionGroups.flatMap((s) => s.paths));
+  const ungrouped = navItems.filter((r) => !groupedPaths.has(r.path ?? ""));
+  if (ungrouped.length > 0) {
+    groups.push({ label: "Other", items: ungrouped });
+  }
+
+  return groups;
+}
+
 const AppNavbar: FunctionComponent = () => {
   const [selection, select] = useState<string | null>(null);
 
@@ -97,20 +133,35 @@ const AppNavbar: FunctionComponent = () => {
     select(null);
   }, [pathname]);
 
+  // The top-level route (path "/") contains the nav items as children.
+  // useRouteItems returns the full routes array, and the nameless "/" route
+  // renders its children directly. We need to find the app route's children.
+  const navRoutes = useMemo(() => {
+    const appRoute = routes.find((r) => r.path === "/");
+    return appRoute?.children ?? routes;
+  }, [routes]);
+
+  const groups = useMemo(() => groupRoutes(navRoutes), [navRoutes]);
+
   return (
-    <AppShell.Navbar p="xs" className={styles.nav}>
+    <AppShell.Navbar className={styles.nav}>
       <Selection.Provider value={{ selection, select }}>
         <AppShell.Section
           grow
           style={{ overflowY: "auto", scrollbarWidth: "none" }}
         >
           <Stack gap={0}>
-            {routes.map((route, idx) => (
-              <RouteItem
-                key={BuildKey("nav", idx)}
-                parent="/"
-                route={route}
-              ></RouteItem>
+            {groups.map((group) => (
+              <div key={group.label}>
+                <div className={styles.groupLabel}>{group.label}</div>
+                {group.items.map((route, idx) => (
+                  <RouteItem
+                    key={BuildKey("nav", group.label, idx)}
+                    parent="/"
+                    route={route}
+                  />
+                ))}
+              </div>
             ))}
           </Stack>
         </AppShell.Section>
@@ -146,7 +197,7 @@ const RouteItem: FunctionComponent<{
             parent={link}
             key={BuildKey(link, "nav", idx)}
             route={child}
-          ></RouteItem>
+          />
         ))}
       </Stack>
     );
@@ -177,7 +228,7 @@ const RouteItem: FunctionComponent<{
                 select(link);
               }
             }}
-          ></NavbarItem>
+          />
           <Collapse hidden={children.length === 0} in={isOpen}>
             {elements}
           </Collapse>
@@ -193,7 +244,7 @@ const RouteItem: FunctionComponent<{
         link={link}
         icon={icon}
         badge={badge}
-      ></NavbarItem>
+      />
     );
   }
 };
@@ -250,9 +301,6 @@ const NavbarItem: FunctionComponent<NavbarItemProps> = ({
       <Text
         ref={ref}
         inline
-        p="xs"
-        size="sm"
-        fw={primary ? "bold" : "normal"}
         className={styles.text}
         span
       >
@@ -260,7 +308,7 @@ const NavbarItem: FunctionComponent<NavbarItemProps> = ({
           <FontAwesomeIcon
             className={styles.icon}
             icon={icon}
-          ></FontAwesomeIcon>
+          />
         )}
         {name}
         {!shouldHideBadge && (

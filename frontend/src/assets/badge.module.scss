@@ -1,74 +1,89 @@
-@use "sass:color";
-
 @layer mantine {
   .root {
-    background-color: color.adjust(bazarr.$color-brand-6, $alpha: -0.8);
+    border-radius: 5px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    transition: background 120ms ease, border-color 120ms ease;
 
-    &[data-variant="warning"] {
-      color: #ff6b6b;
-      background-color: transparent;
-      border: 1px dashed #ff6b6b;
+    // Default variant (ghost): neutral for audio tracks and general use
+    background: rgba(255, 255, 255, 0.05);
+    color: #a9aabb;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.12);
     }
 
+    // Highlight variant (teal): available subtitles
     &[data-variant="highlight"] {
-      color: color.adjust(bazarr.$color-highlight-2, $lightness: 100%);
-      background-color: color.adjust(bazarr.$color-highlight-5, $alpha: -0.8);
+      background: rgba(34, 184, 207, 0.12);
+      color: #66d9e8;
+      border: 1px solid rgba(34, 184, 207, 0.18);
+
+      &:hover {
+        background: rgba(34, 184, 207, 0.17);
+        border-color: rgba(34, 184, 207, 0.23);
+      }
     }
 
+    // Warning variant (amber): upgradeable subtitles
+    &[data-variant="warning"] {
+      background: rgba(230, 138, 0, 0.12);
+      color: #ffd54f;
+      border: 1px solid rgba(230, 138, 0, 0.18);
+
+      &:hover {
+        background: rgba(230, 138, 0, 0.17);
+        border-color: rgba(230, 138, 0, 0.23);
+      }
+    }
+
+    // Disabled variant (ghost dim): embedded/disabled subtitles
     &[data-variant="disabled"] {
-      color: color.adjust(bazarr.$color-disabled-0, $lightness: 100%);
-      background-color: color.adjust(bazarr.$color-disabled-7, $alpha: -0.8);
+      background: rgba(255, 255, 255, 0.03);
+      color: #6c6d85;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.06);
+        border-color: rgba(255, 255, 255, 0.08);
+      }
     }
 
+    // Missing variant: missing subtitles
+    &[data-variant="missing"] {
+      background: rgba(255, 107, 107, 0.06);
+      color: #ff8787;
+      border: 1px dashed rgba(255, 107, 107, 0.4);
+
+      &:hover {
+        background: rgba(255, 107, 107, 0.11);
+        border-color: rgba(255, 107, 107, 0.5);
+      }
+    }
+
+    // Preserve passthrough for Mantine built-in variants used elsewhere
     &[data-variant="light"],
     &[data-variant="outline"] {
       color: unset;
       background: unset;
       background-color: unset;
+      border: unset;
     }
 
     &[data-variant="gradient"] {
       color: #fff;
+      border: unset;
     }
 
     &[data-variant="transparent"] {
       color: unset;
-    }
-
-    @include mantine.light {
-      color: bazarr.$color-brand-6;
-      background-color: color.adjust(bazarr.$color-brand-3, $alpha: -0.8);
-
-      &[data-variant="warning"] {
-        color: #e03131;
-        background-color: transparent;
-        border: 1px dashed #e03131;
-      }
-
-      &[data-variant="disabled"] {
-        color: color.adjust(bazarr.$color-disabled-6, $lightness: -100%);
-        background-color: color.adjust(bazarr.$color-disabled-4, $alpha: -0.8);
-      }
-
-      &[data-variant="highlight"] {
-        color: color.adjust(bazarr.$color-highlight-6, $lightness: -100%);
-        background-color: color.adjust(bazarr.$color-highlight-5, $alpha: -0.8);
-      }
-
-      &[data-variant="light"],
-      &[data-variant="outline"] {
-        color: unset;
-        background: unset;
-        background-color: unset;
-      }
-
-      &[data-variant="gradient"] {
-        color: #fff;
-      }
-
-      &[data-variant="transparent"] {
-        color: unset;
-      }
+      background: unset;
+      border: unset;
     }
   }
 

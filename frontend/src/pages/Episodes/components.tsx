@@ -39,7 +39,7 @@ export const Subtitle: FunctionComponent<Props> = ({
     if (opened && (missing || !disabled)) {
       return "highlight";
     } else if (missing) {
-      return "warning";
+      return "missing";
     } else if (disabled) {
       return "disabled";
     }

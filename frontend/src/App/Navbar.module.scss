@@ -1,46 +1,39 @@
-.anchor {
-  border-color: var(--mantine-color-gray-5);
-  text-decoration: none;
+.nav {
+  padding: 8px;
+  background-color: var(--bz-surface-ground);
+  border-right: 1px solid var(--bz-border-divider);
+}
 
-  @include mantine.dark {
-    border-color: var(--mantine-color-dark-5);
+.groupLabel {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bz-text-disabled);
+  padding: 0 10px;
+  margin-bottom: 6px;
+
+  &:not(:first-child) {
+    margin-top: 16px;
   }
+}
+
+.anchor {
+  display: block;
+  text-decoration: none;
+  border-radius: var(--bz-radius-sm);
+  transition: background var(--bz-duration-normal) var(--bz-ease-standard);
 
   &.active {
-    border-left: 2px solid bazarr.$color-brand-4;
-    background-color: var(--mantine-color-gray-1);
+    background-color: rgba(230, 138, 0, 0.10);
 
-    @include mantine.dark {
-      border-left: 2px solid bazarr.$color-brand-5;
-      background-color: var(--mantine-color-dark-8);
+    .text {
+      color: var(--bz-text-primary);
     }
   }
 
-  &.hover {
-    background-color: var(--mantine-color-gray-0);
-
-    @include mantine.dark {
-      background-color: var(--mantine-color-dark-7);
-    }
-  }
-}
-
-.badge {
-  margin-left: auto;
-  text-decoration: none;
-  box-shadow: var(--mantine-shadow-xs);
-}
-
-.icon {
-  width: 1.4rem;
-  margin-right: var(--mantine-spacing-xs);
-}
-
-.nav {
-  background-color: var(--mantine-color-gray-2);
-
-  @include mantine.dark {
-    background-color: var(--mantine-color-dark-8);
+  &.hover:not(.active) {
+    background-color: var(--bz-hover-bg);
   }
 }
 
@@ -48,9 +41,24 @@
   display: inline-flex;
   align-items: center;
   width: 100%;
-  color: var(--mantine-color-gray-8);
+  padding: 7px 10px;
+  font-size: 13px;
+  font-weight: 450;
+  color: var(--bz-text-tertiary);
+}
 
-  @include mantine.dark {
-    color: var(--mantine-color-gray-5);
-  }
+.icon {
+  width: 1.4rem;
+  margin-right: var(--mantine-spacing-xs);
+}
+
+.badge {
+  margin-left: auto;
+  text-decoration: none;
+  background-color: rgba(230, 138, 0, 0.15) !important;
+  color: #ffca28 !important;
+  border-radius: var(--bz-radius-sm);
+  font-size: 10px;
+  font-weight: 600;
+  box-shadow: none;
 }
