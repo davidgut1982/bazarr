@@ -55,6 +55,18 @@
       }
     }
 
+    // HI subs variant (warm): hearing impaired subtitles
+    &[data-variant="hi"] {
+      background: rgba(179, 107, 0, 0.10);
+      color: #ffd54f;
+      border: 1px solid rgba(179, 107, 0, 0.18);
+
+      &:hover {
+        background: rgba(179, 107, 0, 0.15);
+        border-color: rgba(179, 107, 0, 0.23);
+      }
+    }
+
     // Missing variant: missing subtitles
     &[data-variant="missing"] {
       background: rgba(255, 107, 107, 0.06);

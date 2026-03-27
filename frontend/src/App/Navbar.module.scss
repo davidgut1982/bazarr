@@ -1,6 +1,6 @@
 .nav {
   padding: 8px;
-  background-color: var(--bz-surface-ground);
+  background-color: var(--bz-surface-raised);
   border-right: 1px solid var(--bz-border-divider);
 }
 
@@ -26,9 +26,27 @@
 
   &.active {
     background-color: rgba(230, 138, 0, 0.10);
+    position: relative;
+
+    &::before {
+      content: "";
+      position: absolute;
+      left: 2px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 3px;
+      height: 16px;
+      border-radius: 2px;
+      background: #e68a00;
+    }
 
     .text {
       color: var(--bz-text-primary);
+    }
+
+    .icon {
+      color: #e68a00;
+      opacity: 1;
     }
   }
 
@@ -48,8 +66,9 @@
 }
 
 .icon {
-  width: 1.4rem;
+  width: 1rem;
   margin-right: var(--mantine-spacing-xs);
+  opacity: 0.7;
 }
 
 .badge {

@@ -30,7 +30,7 @@
     cursor: pointer;
 
     &:hover {
-      background-color: var(--bz-hover-bg);
+      background-color: rgba(255, 255, 255, 0.025);
     }
   }
 
@@ -46,7 +46,7 @@
     cursor: pointer;
 
     &:hover {
-      background-color: var(--bz-hover-bg);
+      background-color: rgba(255, 255, 255, 0.025);
     }
   }
 }
