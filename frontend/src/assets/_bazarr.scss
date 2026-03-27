@@ -86,49 +86,34 @@ $header-height: 64px;
   }
 }
 
-// Grain texture overlay
+// Grain texture overlay (z-index above content, pointer-events:none)
 body::before {
   content: "";
   position: fixed;
   inset: 0;
-  z-index: 0;
+  z-index: 10000;
   pointer-events: none;
-  opacity: 0.035;
-  mix-blend-mode: soft-light;
+  opacity: 0.07;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   background-repeat: repeat;
   background-size: 256px 256px;
 }
 
-// Ambient atmospheric glow
+// Ambient atmospheric glow (z-index above content backgrounds, below grain)
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 15% 10%, rgba(230, 138, 0, 0.08) 0%, transparent 55%),
+    radial-gradient(ellipse at 85% 90%, rgba(26, 138, 138, 0.05) 0%, transparent 55%);
+}
+
 #root {
   position: relative;
   z-index: 1;
-  isolation: isolate;
-
-  &::before {
-    content: "";
-    position: fixed;
-    top: -20%;
-    left: -10%;
-    width: 60%;
-    height: 60%;
-    background: radial-gradient(ellipse, rgba(230, 138, 0, 0.045) 0%, transparent 70%);
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  &::after {
-    content: "";
-    position: fixed;
-    bottom: -20%;
-    right: -15%;
-    width: 50%;
-    height: 50%;
-    background: radial-gradient(ellipse, rgba(26, 138, 138, 0.025) 0%, transparent 70%);
-    pointer-events: none;
-    z-index: 0;
-  }
 }
 
 :root[data-mantine-color-scheme="dark"] {
@@ -226,6 +211,7 @@ body::before {
 
   .mantine-Menu-item {
     border-radius: var(--bz-radius-sm);
+    color: var(--bz-text-primary);
     transition: background var(--bz-duration-normal) var(--bz-ease-standard);
 
     &:hover,

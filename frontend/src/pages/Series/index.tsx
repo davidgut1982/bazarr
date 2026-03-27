@@ -237,9 +237,9 @@ const SeriesView: FunctionComponent = () => {
           return (
             <Progress.Root
               key={title}
-              size="sm"
+              size="lg"
               radius="xl"
-              style={{ minWidth: 80, background: "rgba(255,255,255,0.05)" }}
+              style={{ minWidth: 80, background: "var(--bz-hover-bg)" }}
             >
               <Tooltip label={label} withArrow>
                 <Progress.Section
@@ -249,9 +249,25 @@ const SeriesView: FunctionComponent = () => {
                       : (1.0 - episodeMissingCount / episodeFileCount) * 100.0
                   }
                   color={episodeMissingCount === 0 ? "brand" : "yellow"}
-                  style={{ borderRadius: "var(--mantine-radius-xl)" }}
-                />
+                  style={{ borderRadius: "var(--bz-radius-xl)" }}
+                >
+                  <Progress.Label>{label}</Progress.Label>
+                </Progress.Section>
               </Tooltip>
+              {episodeMissingCount === episodeFileCount && (
+                <Progress.Label
+                  styles={{
+                    label: {
+                      position: "absolute",
+                      top: "3px",
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                    },
+                  }}
+                >
+                  {label}
+                </Progress.Label>
+              )}
             </Progress.Root>
           );
         },
