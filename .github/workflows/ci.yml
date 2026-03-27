@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master, development]
     paths:
       - frontend/**
       - bazarr/**
@@ -14,7 +14,7 @@ on:
       - dev-requirements.txt
       - .github/workflows/ci.yml
   pull_request:
-    branches: [main]
+    branches: [master, development]
 
 env:
   ROOT_DIRECTORY: .

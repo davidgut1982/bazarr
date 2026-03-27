@@ -3,11 +3,11 @@ import {
   Anchor,
   AppShell,
   Avatar,
-  Badge,
   Burger,
   Divider,
   Group,
   Menu,
+  Text,
   useComputedColorScheme,
   useMantineColorScheme,
 } from "@mantine/core";
@@ -66,17 +66,19 @@ const AppHeader: FunctionComponent = () => {
             <Group gap={6} wrap="nowrap">
               <Avatar
                 alt="brand"
-                size={32}
-                src={`${Environment.baseUrl}/images/logo_no_orb64.png`}
+                size={40}
+                src={`${Environment.baseUrl}/images/logo128.png`}
               ></Avatar>
-              <Badge size="lg" radius="sm" variant="gradient" gradient={{ from: "brand.5", to: "brand.6", deg: 135 }} visibleFrom="sm" style={{ cursor: "pointer" }}>
-                Bazarr+
-              </Badge>
+              <Text fw={800} fz="xl" c={dark ? "gray.5" : "gray.8"} visibleFrom="sm" style={{ cursor: "pointer", lineHeight: 1 }}>
+                Bazarr<Text component="span" fw={900} fz="xl" c="#E8910C" style={{ verticalAlign: "top", fontSize: "0.7em", lineHeight: 1, position: "relative", top: "-0.15em" }}>+</Text>
+              </Text>
             </Group>
           </Anchor>
         </Group>
-        <Group gap="xs" justify="right" wrap="nowrap">
+        <div style={{ flex: 1, maxWidth: 500 }}>
           <Search></Search>
+        </div>
+        <Group gap="xs" justify="right" wrap="nowrap">
           <Action
             label="Change Theme"
             tooltip={{ position: "left", openDelay: 2000 }}

@@ -176,12 +176,14 @@ function ItemView<T extends Item.Base>({
   return (
     <Stack gap={0}>
       <Toolbox>
-        {selectionToolbar ? (
-          <Box>{selectionToolbar}</Box>
-        ) : null}
-        {profileToolbar ? (
-          <Box>{profileToolbar}</Box>
-        ) : null}
+        <Group gap="xs">
+          {selectionToolbar ? (
+            <Box>{selectionToolbar}</Box>
+          ) : null}
+          {profileToolbar ? (
+            <Box>{profileToolbar}</Box>
+          ) : null}
+        </Group>
         <Group gap="xs">
           {hasAnyFilterControl && (
             <Tooltip
@@ -197,11 +199,12 @@ function ItemView<T extends Item.Base>({
                 disabled={activeFilterCount === 0}
               >
                 <ActionIcon
-                  variant={filtersOpen ? "filled" : "subtle"}
-                  color={activeFilterCount > 0 ? "blue" : "gray"}
+                  variant="gradient"
+                  gradient={{ from: "brand.5", to: "brand.6", deg: 135 }}
                   size="lg"
                   onClick={() => setFiltersOpen((v) => !v)}
                   aria-label="Toggle filters"
+                  style={{ opacity: filtersOpen ? 1 : 0.9 }}
                 >
                   <FontAwesomeIcon icon={faFilter} />
                 </ActionIcon>

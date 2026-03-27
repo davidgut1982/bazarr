@@ -85,6 +85,52 @@
       background: unset;
       border: unset;
     }
+
+    // Light mode overrides
+    @include mantine.light {
+      background: rgba(0, 0, 0, 0.05);
+      color: #495057;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+
+      &[data-variant="warning"] {
+        background: rgba(230, 138, 0, 0.1);
+        color: #995c00;
+        border: 1px solid rgba(230, 138, 0, 0.2);
+      }
+
+      &[data-variant="disabled"] {
+        background: rgba(0, 0, 0, 0.03);
+        color: #adb5bd;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+      }
+
+      &[data-variant="highlight"] {
+        background: rgba(34, 184, 207, 0.1);
+        color: #0c8599;
+        border: 1px solid rgba(34, 184, 207, 0.2);
+      }
+
+      &[data-variant="missing"] {
+        background: rgba(255, 107, 107, 0.06);
+        color: #e03131;
+        border: 1px dashed rgba(255, 107, 107, 0.4);
+      }
+
+      &[data-variant="light"],
+      &[data-variant="outline"] {
+        color: unset;
+        background: unset;
+      }
+
+      &[data-variant="gradient"] {
+        color: #fff;
+      }
+
+      &[data-variant="transparent"] {
+        color: unset;
+        background: unset;
+      }
+    }
   }
 
   .label {
