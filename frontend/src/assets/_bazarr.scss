@@ -211,6 +211,49 @@ body::before {
   --bz-hover-bg-emphasis: rgba(0, 0, 0, 0.07);
 }
 
+// Global dropdown/menu/combobox styling
+:global {
+  .mantine-Menu-dropdown,
+  .mantine-Combobox-dropdown,
+  .mantine-Select-dropdown,
+  .mantine-MultiSelect-dropdown,
+  .mantine-Autocomplete-dropdown {
+    background: var(--bz-surface-card);
+    border: 1px solid var(--bz-border-card);
+    border-radius: var(--bz-radius-lg);
+    box-shadow: var(--bz-shadow-float);
+  }
+
+  .mantine-Menu-item {
+    border-radius: var(--bz-radius-sm);
+    transition: background var(--bz-duration-normal) var(--bz-ease-standard);
+
+    &:hover,
+    &[data-hovered] {
+      background: var(--bz-hover-bg);
+    }
+  }
+
+  .mantine-Combobox-option {
+    border-radius: var(--bz-radius-sm);
+    transition: background var(--bz-duration-normal) var(--bz-ease-standard);
+
+    &:hover,
+    &[data-combobox-selected],
+    &[data-hovered] {
+      background: var(--bz-hover-bg);
+    }
+  }
+
+  .mantine-Menu-label {
+    color: var(--bz-text-disabled);
+  }
+
+  .mantine-Menu-divider {
+    border-color: var(--bz-border-divider);
+  }
+}
+
 // Reduced motion support
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
