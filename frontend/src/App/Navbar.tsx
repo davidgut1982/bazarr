@@ -312,7 +312,7 @@ const NavbarItem: FunctionComponent<NavbarItemProps> = ({
         )}
         {name}
         {!shouldHideBadge && (
-          <Badge className={styles.badge} radius="xs">
+          <Badge className={styles.badge} variant="filled" radius="xs">
             {badge}
           </Badge>
         )}
