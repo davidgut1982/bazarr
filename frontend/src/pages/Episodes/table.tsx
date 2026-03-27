@@ -19,6 +19,7 @@ import { useModals } from "@/modules/modals";
 import { BuildKey, filterSubtitleBy } from "@/utilities";
 import { useProfileItemsToLanguages } from "@/utilities/languages";
 import { Subtitle } from "./components";
+import tableStyles from "@/components/tables/BaseTable.module.scss";
 
 interface Props {
   episodes: Item.Episode[] | null;
@@ -146,6 +147,13 @@ const Table = forwardRef<TableInstance<Item.Episode> | null, Props>(
         {
           header: "Episode",
           accessorKey: "episode",
+          cell: ({
+            row: {
+              original: { episode },
+            },
+          }) => {
+            return <span className={tableStyles.episodeNumber}>{episode}</span>;
+          },
         },
         {
           header: "Title",
@@ -157,7 +165,7 @@ const Table = forwardRef<TableInstance<Item.Episode> | null, Props>(
           }) => {
             return (
               <TextPopover text={sceneName}>
-                <Text className="table-primary">{title}</Text>
+                <Text className={`table-primary ${tableStyles.episodeTitle}`}>{title}</Text>
               </TextPopover>
             );
           },
@@ -186,6 +194,7 @@ const Table = forwardRef<TableInstance<Item.Episode> | null, Props>(
                 <Action
                   label="Manual Search"
                   disabled={disabled}
+                  className={tableStyles.actionIcon}
                   onClick={() => {
                     modals.openContextModal(EpisodeSearchModal, {
                       item: row.original,
@@ -198,6 +207,7 @@ const Table = forwardRef<TableInstance<Item.Episode> | null, Props>(
                 <Action
                   label="History"
                   disabled={disabled}
+                  className={tableStyles.actionIcon}
                   onClick={() => {
                     modals.openContextModal(
                       EpisodeHistoryModal,

@@ -100,8 +100,6 @@ export default function BaseTable<T extends object>(props: BaseTableProps<T>) {
     <Box className={styles.container}>
       <Table
         className={styles.table}
-        highlightOnHover
-        striped={tableStyles?.striped ?? true}
       >
         <Table.Thead hidden={tableStyles?.hideHeader}>
           {instance.getHeaderGroups().map((headerGroup) => (
