@@ -15,6 +15,7 @@ import { AudioList } from "@/components/bazarr";
 import Language from "@/components/bazarr/Language";
 import { WantedItem } from "@/components/forms/MassTranslateForm";
 import WantedView from "@/pages/views/WantedView";
+import tableStyles from "@/components/tables/BaseTable.module.scss";
 import { BuildKey } from "@/utilities";
 
 const WantedMoviesView: FunctionComponent = () => {
@@ -115,7 +116,7 @@ const WantedMoviesView: FunctionComponent = () => {
         }) => {
           const target = `/movies/${radarrId}`;
           return (
-            <Anchor component={Link} to={target}>
+            <Anchor className={`table-primary ${tableStyles.episodeTitle}`} component={Link} to={target}>
               {title}
             </Anchor>
           );

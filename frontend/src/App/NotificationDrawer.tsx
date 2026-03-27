@@ -139,7 +139,7 @@ const NotificationDrawer: FunctionComponent<NotificationDrawerProps> = ({
       )}
 
       {!jobsLoading && jobsError && (
-        <Card withBorder padding="md" radius="sm">
+        <Card withBorder padding="md" radius="md">
           <Text c="red.6" size="sm">
             Failed to load jobs.
           </Text>
@@ -254,7 +254,7 @@ const NotificationDrawer: FunctionComponent<NotificationDrawerProps> = ({
                               <Card
                                 key={`job-${job?.job_id}-${job?.status}`}
                                 withBorder
-                                radius="md"
+                                radius="lg"
                                 padding="xs"
                               >
                                 <Group
@@ -268,8 +268,8 @@ const NotificationDrawer: FunctionComponent<NotificationDrawerProps> = ({
                                       position="right"
                                     >
                                       <RingProgress
-                                        size={status === "running" ? 60 : 42}
-                                        thickness={status === "running" ? 6 : 4}
+                                        size={status === "running" ? 72 : 52}
+                                        thickness={status === "running" ? 7 : 5}
                                         sections={[
                                           {
                                             value:
@@ -295,8 +295,8 @@ const NotificationDrawer: FunctionComponent<NotificationDrawerProps> = ({
                                             ta="center"
                                             size={
                                               status === "running"
-                                                ? "xs"
-                                                : "9px"
+                                                ? "sm"
+                                                : "xs"
                                             }
                                             fw={700}
                                             c={
@@ -499,7 +499,7 @@ const NotificationDrawer: FunctionComponent<NotificationDrawerProps> = ({
             )}
           </>
         ) : (
-          <Card withBorder padding="md" radius="sm">
+          <Card withBorder padding="md" radius="md">
             <Text size="sm" c="var(--bz-text-tertiary)" mb="xs">
               Jobs
             </Text>

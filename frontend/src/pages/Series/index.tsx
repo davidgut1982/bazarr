@@ -237,7 +237,7 @@ const SeriesView: FunctionComponent = () => {
           return (
             <Progress.Root
               key={title}
-              size="lg"
+              size="xl"
               radius="xl"
               style={{ minWidth: 80, background: "var(--bz-hover-bg)" }}
             >
@@ -251,7 +251,11 @@ const SeriesView: FunctionComponent = () => {
                   color={episodeMissingCount === 0 ? "brand" : "yellow"}
                   style={{ borderRadius: "var(--bz-radius-xl)" }}
                 >
-                  <Progress.Label>{label}</Progress.Label>
+                  <Progress.Label
+                    style={{ fontSize: "0.75rem", fontWeight: 600 }}
+                  >
+                    {label}
+                  </Progress.Label>
                 </Progress.Section>
               </Tooltip>
               {episodeMissingCount === episodeFileCount && (
@@ -259,9 +263,11 @@ const SeriesView: FunctionComponent = () => {
                   styles={{
                     label: {
                       position: "absolute",
-                      top: "3px",
+                      top: "50%",
                       left: "50%",
-                      transform: "translateX(-50%)",
+                      transform: "translate(-50%, -50%)",
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
                     },
                   }}
                 >
