@@ -122,6 +122,7 @@ body::after {
   --bz-surface-raised: #1a1a2e;
   --bz-surface-card: #22223a;
   --bz-surface-card-hover: #2a2a45;
+  --bz-surface-overlay: #2a2a45;
   --bz-border-subtle: #33334d;
   --bz-stat-processing: #ffca28;
   --bz-stat-queued: #4dabf7;
@@ -156,6 +157,11 @@ body::after {
   --bz-duration-fast: 120ms;
   --bz-duration-normal: 150ms;
   --bz-duration-slow: 250ms;
+  --bz-duration-card: 300ms;
+  --bz-duration-page: 200ms;
+
+  /* Stagger tokens */
+  --bz-stagger-delay: 40ms;
 
   /* Hover tokens */
   --bz-hover-bg: rgba(255, 255, 255, 0.04);
@@ -184,6 +190,7 @@ body::after {
   --bz-surface-raised: #f1f3f5;
   --bz-surface-card: #ffffff;
   --bz-surface-card-hover: #f8f9fa;
+  --bz-surface-overlay: #ffffff;
 
   --bz-ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --bz-ease-enter: cubic-bezier(0, 0, 0.2, 1);
@@ -191,9 +198,86 @@ body::after {
   --bz-duration-fast: 120ms;
   --bz-duration-normal: 150ms;
   --bz-duration-slow: 250ms;
+  --bz-duration-card: 300ms;
+  --bz-duration-page: 200ms;
+  --bz-stagger-delay: 40ms;
 
   --bz-hover-bg: rgba(0, 0, 0, 0.04);
   --bz-hover-bg-emphasis: rgba(0, 0, 0, 0.07);
+}
+
+// Global Paper/Card styling
+:global {
+  .mantine-Paper-root {
+    @include dark {
+      border-radius: var(--bz-radius-lg);
+
+      &[data-with-border] {
+        border-color: var(--bz-border-card);
+      }
+    }
+  }
+
+  .mantine-Card-root {
+    @include dark {
+      background: var(--bz-surface-card);
+      border-radius: var(--bz-radius-lg);
+      border: 1px solid var(--bz-border-card);
+      box-shadow: none;
+      transition: background var(--bz-duration-normal) var(--bz-ease-standard),
+                  border-color var(--bz-duration-normal) var(--bz-ease-standard);
+
+      &:hover {
+        border-color: var(--bz-border-hover);
+      }
+    }
+  }
+
+  // Tabs styling
+  .mantine-Tabs-tab {
+    @include dark {
+      transition: background var(--bz-duration-normal) var(--bz-ease-standard),
+                  color var(--bz-duration-normal) var(--bz-ease-standard),
+                  border-color var(--bz-duration-normal) var(--bz-ease-standard);
+    }
+  }
+
+  // Switch styling
+  .mantine-Switch-track {
+    transition: background-color var(--bz-duration-normal) var(--bz-ease-standard),
+                border-color var(--bz-duration-normal) var(--bz-ease-standard);
+  }
+
+  // Checkbox styling
+  .mantine-Checkbox-input {
+    transition: background-color var(--bz-duration-normal) var(--bz-ease-standard),
+                border-color var(--bz-duration-normal) var(--bz-ease-standard);
+  }
+
+  // Anchor/link styling
+  .mantine-Anchor-root {
+    transition: color var(--bz-duration-normal) var(--bz-ease-standard);
+  }
+
+  // Tooltip styling
+  .mantine-Tooltip-tooltip {
+    @include dark {
+      background: var(--bz-surface-overlay);
+      border: 1px solid var(--bz-border-card);
+      border-radius: var(--bz-radius-sm);
+      color: var(--bz-text-primary);
+    }
+  }
+
+  // Popover styling
+  .mantine-Popover-dropdown {
+    @include dark {
+      background: var(--bz-surface-overlay);
+      border: 1px solid var(--bz-border-card);
+      border-radius: var(--bz-radius-lg);
+      box-shadow: var(--bz-shadow-float);
+    }
+  }
 }
 
 // Global dropdown/menu/combobox styling
@@ -237,6 +321,59 @@ body::after {
 
   .mantine-Menu-divider {
     border-color: var(--bz-border-divider);
+  }
+}
+
+// Card reveal entry animation
+@keyframes bz-card-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// Page section fade-in
+@keyframes bz-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+// Apply card reveal to Mantine Cards and bordered Papers in dark mode
+:global {
+  .mantine-Card-root {
+    @include dark {
+      animation: bz-card-reveal var(--bz-duration-card) var(--bz-ease-enter) both;
+    }
+  }
+
+  // Stagger cards inside Stack/SimpleGrid containers
+  .mantine-Stack-root,
+  .mantine-SimpleGrid-root {
+    @include dark {
+      > .mantine-Card-root,
+      > .mantine-Paper-root[data-with-border] {
+        animation: bz-card-reveal var(--bz-duration-card) var(--bz-ease-enter) both;
+
+        @for $i from 1 through 6 {
+          &:nth-child(#{$i}) {
+            animation-delay: calc(#{$i - 1} * var(--bz-stagger-delay));
+          }
+        }
+
+        // Items beyond 6th appear without extra stagger
+        &:nth-child(n + 7) {
+          animation-delay: calc(5 * var(--bz-stagger-delay));
+        }
+      }
+    }
   }
 }
 

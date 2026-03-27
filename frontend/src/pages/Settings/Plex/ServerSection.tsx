@@ -132,7 +132,7 @@ const ServerSection = () => {
   }
 
   return (
-    <Paper withBorder radius="md" p="lg" className={styles.serverSection}>
+    <Paper withBorder p="lg" className={styles.serverSection}>
       <Stack gap="lg">
         <Title order={4}>Plex Servers</Title>
 

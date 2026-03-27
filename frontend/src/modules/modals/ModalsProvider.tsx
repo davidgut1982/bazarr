@@ -10,7 +10,7 @@ const DefaultModalProps: MantineModalsProviderProps["modalProps"] = {
   radius: "lg",
   styles: {
     content: {
-      background: "var(--bz-surface-card)",
+      background: "var(--bz-surface-overlay)",
       border: "1px solid var(--bz-border-card)",
     },
     header: {

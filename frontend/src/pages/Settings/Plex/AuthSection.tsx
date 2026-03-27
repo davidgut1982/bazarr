@@ -100,7 +100,7 @@ const AuthSection = () => {
 
   if (isPolling && !pinData?.authenticated) {
     return (
-      <Paper withBorder radius="md" p="lg" className={styles.authSection}>
+      <Paper withBorder p="lg" className={styles.authSection}>
         <Stack gap="md">
           <Title order={4}>Plex OAuth</Title>
           <Stack gap="sm">
@@ -133,7 +133,7 @@ const AuthSection = () => {
 
   if (!isAuthenticated) {
     return (
-      <Paper withBorder radius="md" p="lg" className={styles.authSection}>
+      <Paper withBorder p="lg" className={styles.authSection}>
         <Stack gap="md">
           <Title order={4}>Plex OAuth</Title>
           <Stack gap="sm">
@@ -167,7 +167,7 @@ const AuthSection = () => {
 
   // Authenticated state
   return (
-    <Paper withBorder radius="md" p="lg" className={styles.authSection}>
+    <Paper withBorder p="lg" className={styles.authSection}>
       <Stack gap="md">
         <Title order={4}>Plex OAuth</Title>
         <Alert color="brand" variant="light" className={styles.authAlert}>

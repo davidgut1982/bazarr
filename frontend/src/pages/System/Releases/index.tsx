@@ -116,7 +116,7 @@ const ReleaseCard: FunctionComponent<ReleaseInfo> = ({
   repo,
 }) => {
   return (
-    <Card shadow="md" p="lg">
+    <Card p="lg">
       <Group>
         {repo && <Badge color="grape">{repo}</Badge>}
         <Text fw="bold">{name}</Text>

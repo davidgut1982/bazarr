@@ -330,7 +330,7 @@ const SettingsTranslatorView: FunctionComponent = () => {
       >
         <Stack gap="md" mt="md">
           {/* Zone 2: Connection Card */}
-          <Paper withBorder radius="md" p="md">
+          <Paper withBorder p="md">
             <SimpleGrid cols={{ base: 1, sm: 3 }}>
               <div>
                 <Text
@@ -390,7 +390,7 @@ const SettingsTranslatorView: FunctionComponent = () => {
           </Paper>
 
           {/* Zone 3: Model & Tuning Card */}
-          <Paper withBorder radius="md" p="md">
+          <Paper withBorder p="md">
             <Stack gap="xs">
               <AIModelSelector />
               <FreeModelWarning />

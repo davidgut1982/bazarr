@@ -120,17 +120,17 @@ const Layout: FunctionComponent<Props> = (props) => {
             {(styles) => (
               <Box
                 pos="sticky"
-                bottom={0}
-                py="sm"
-                px="md"
+                bottom={16}
                 style={{
                   ...styles,
                   zIndex: 100,
-                  borderTop: "1px solid var(--bz-border-subtle)",
-                  backgroundColor: "var(--bz-surface-base)",
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  paddingRight: 24,
+                  pointerEvents: "none",
                 }}
               >
-                <Group justify="flex-end">
+                <Group justify="flex-end" style={{ pointerEvents: "auto" }}>
                   <div
                     aria-live="polite"
                     role="status"

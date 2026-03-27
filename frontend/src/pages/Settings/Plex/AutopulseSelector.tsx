@@ -121,7 +121,6 @@ const AutopulseSelector: FunctionComponent<AutopulseSelectorProps> = (
         <Card
           withBorder
           p="md"
-          radius="md"
           mt="md"
           className={styles.configCard}
         >
