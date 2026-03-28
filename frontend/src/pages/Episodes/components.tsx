@@ -81,7 +81,7 @@ export const Subtitle: FunctionComponent<Props> = ({
   return (
     <SubtitleToolsMenu
       menu={{
-        trigger: "hover",
+        trigger: "click",
         onOpen: () => setOpen(true),
         onClose: () => setOpen(false),
       }}
