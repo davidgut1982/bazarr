@@ -60,7 +60,6 @@ class BatchOperation(Resource):
     })
 
     @authenticate
-    @api_ns_batch.doc(body=post_request_model)
     @api_ns_batch.response(200, 'Success', post_response_model)
     @api_ns_batch.response(400, 'Bad Request')
     @api_ns_batch.response(401, 'Not Authenticated')
@@ -159,7 +158,7 @@ def get_upgradable_media_ids():
             TableHistoryMovie.timestamp > minimum_timestamp,
             or_(
                 and_(TableHistoryMovie.score.is_(None), TableHistoryMovie.action == 6),
-                TableHistoryMovie.score < 117
+                TableHistoryMovie.score < TableHistoryMovie.score_out_of - 3
             )
         ))
     ).all()
@@ -188,7 +187,7 @@ def get_upgradable_media_ids():
             TableHistory.timestamp > minimum_timestamp,
             or_(
                 and_(TableHistory.score.is_(None), TableHistory.action == 6),
-                TableHistory.score < 357
+                TableHistory.score < TableHistory.score_out_of - 3
             )
         ))
     ).all()

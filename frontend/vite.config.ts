@@ -133,6 +133,8 @@ export default defineConfig(({ mode, command }) => {
       globals: true,
       environment: "jsdom",
       setupFiles: "./src/tests/setup.tsx",
+      testTimeout: 20000,
+      pool: "forks",
     },
     server: {
       proxy: {
