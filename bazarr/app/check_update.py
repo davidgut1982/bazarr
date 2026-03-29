@@ -29,7 +29,7 @@ MICROSERVICE_REPOS = [
 
 def deprecated_python_version():
     # return True if Python version is deprecated
-    return sys.version_info.major == 2 or (sys.version_info.major == 3 and sys.version_info.minor < 8)
+    return sys.version_info.major == 2 or (sys.version_info.major == 3 and sys.version_info.minor < 10)
 
 
 def _fetch_repo_releases(repo, label=None):
