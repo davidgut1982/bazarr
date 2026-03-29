@@ -131,7 +131,13 @@ const ServerSection = () => {
       handleInitialization();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, savedSelectedServer, servers.length, selectedServer, isSaved]);
+  }, [
+    isAuthenticated,
+    savedSelectedServer,
+    servers.length,
+    selectedServer,
+    isSaved,
+  ]);
   if (!isAuthenticated) {
     return null;
   }
