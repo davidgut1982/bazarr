@@ -106,6 +106,7 @@ const JobRow: FunctionComponent<JobRowProps> = ({ job }) => {
       1000;
     durationStr = formatDuration(durationSec);
   } else if (job.status === "processing" && job.startedAt) {
+    // eslint-disable-next-line react-hooks/purity
     const elapsed = (Date.now() - new Date(job.startedAt).getTime()) / 1000;
     durationStr = `${formatDuration(elapsed)}...`;
   }
