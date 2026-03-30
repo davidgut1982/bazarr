@@ -403,8 +403,18 @@ class OpenSubtitlesProvider(ProviderRetryMixin, OpenSubtitlesScraperMixin, Provi
 
     def initialize(self):
         if self.use_web_scraper:
-            # Skip authentication for scraper mode
-            logger.debug("Web scraper mode - skipping authentication")
+            # Verify scraper service is reachable before searching
+            try:
+                base_url = self.scraper_service_url.rstrip('/')
+                if not base_url.startswith(('http://', 'https://')):
+                    base_url = f'http://{base_url}'
+                resp = requests.get(f'{base_url}/health', timeout=5)
+                resp.raise_for_status()
+                logger.info("Scraper service at %s is healthy", self.scraper_service_url)
+            except Exception as e:
+                raise ServiceUnavailable(
+                    f'OpenSubtitles scraper at {self.scraper_service_url} is not reachable: {e}'
+                )
             self.server = None
             self.token = None
             return
