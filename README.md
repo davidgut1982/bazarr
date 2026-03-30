@@ -86,6 +86,22 @@ docker pull ghcr.io/lavx/ai-subtitle-translator:latest
 
 ---
 
+### Screenshots
+
+| Series with batch actions | Mass translate dialog |
+|:---:|:---:|
+| ![Series Batch Actions](screenshot/series-batch-actions.png "Series list with batch toolbar and subtitle tools") | ![Mass Translate](screenshot/mass-translate.png "Mass translate dialog with model and language selection") |
+
+| Series detail with fanart | Subtitle viewer |
+|:---:|:---:|
+| ![Series Detail](screenshot/series-detail.png "Series detail page with fanart bleed and episode list") | ![Subtitle Viewer](screenshot/subtitle-viewer.png "Read-only subtitle viewer with cue table") |
+
+| AI Translator settings |
+|:---:|
+| ![Translator Settings](screenshot/translator-settings-v2.png "AI Translator settings with connection, model tuning, and job queue") |
+
+---
+
 <details>
 <summary><strong>Feature Details</strong></summary>
 
@@ -165,22 +181,6 @@ Dockerfile uses `python:3.14-slim-bookworm`. Upstream supports Python 3.8-3.13 a
 
 </details>
 
-<details>
-<summary><strong>Screenshots</strong></summary>
-
-| Series overview | Series detail with translate menu |
-|:---:|:---:|
-| ![Series Overview](/screenshot/series-overview.png?raw=true "Series overview with audio badges") | ![Translate Menu](/screenshot/series-translate-menu.png?raw=true "Translate from subtitle action menu") |
-
-| AI Translator settings with live status | Mass Translate dialog |
-|:---:|:---:|
-| ![Translator Settings](/screenshot/translator-settings.png?raw=true "AI Translator settings with job queue") | ![Mass Translate](/screenshot/mass-translate-dialog.png?raw=true "Mass Translate with model and language selection") |
-
-| Wanted page with advanced filters |
-|:---:|
-| ![Wanted Filters](/screenshot/wanted-filters.png?raw=true "Wanted page with include/exclude audio and subtitle filters") |
-
-</details>
 
 <details>
 <summary><strong>Installation and Configuration</strong></summary>
