@@ -18,13 +18,17 @@ export function usePrompt(
 
   const handleStay = useCallback(() => {
     modals.closeAll();
-    blocker.reset?.();
+    if (blocker.state === "blocked") {
+      blocker.reset?.();
+    }
     requestAnimationFrame(() => previousFocus.current?.focus());
   }, [blocker]);
 
   const handleDiscard = useCallback(() => {
     modals.closeAll();
-    blocker.proceed?.();
+    if (blocker.state === "blocked") {
+      blocker.proceed?.();
+    }
   }, [blocker]);
 
   const handleSaveAndLeave = useCallback(async () => {
@@ -32,7 +36,9 @@ export function usePrompt(
       await onSaveAndLeave();
     }
     modals.closeAll();
-    blocker.proceed?.();
+    if (blocker.state === "blocked") {
+      blocker.proceed?.();
+    }
   }, [blocker, onSaveAndLeave]);
 
   useEffect(() => {
