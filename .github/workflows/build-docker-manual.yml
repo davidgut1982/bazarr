@@ -201,11 +201,16 @@ jobs:
               if [ -z "$CUSTOM_TAG" ]; then
                 CUSTOM_TAG="custom-${SHORT_SHA}"
               fi
-              FORK_VERSION="${CUSTOM_TAG}"
-              
+              # Use version_tag for display if provided, otherwise custom tag
+              if [ -n "${{ inputs.version_tag }}" ]; then
+                FORK_VERSION="${{ inputs.version_tag }}"
+              else
+                FORK_VERSION="${CUSTOM_TAG}"
+              fi
+
               TAGS="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${CUSTOM_TAG}"
               TAGS="${TAGS},${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${SHORT_SHA}"
-              
+
               echo "display_version=${FORK_VERSION}" >> $GITHUB_OUTPUT
               ;;
           esac
