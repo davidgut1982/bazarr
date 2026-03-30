@@ -47,9 +47,10 @@ def get_announcements_to_file(job_id=None, startup=False, wait_for_completion=Fa
 
     try:
         r = requests.get(
-            url="https://cdn.jsdelivr.net/gh/LavX/bazarr-binaries@latest/announcements.json",
+            url="https://cdn.jsdelivr.net/gh/LavX/bazarr-binaries@master/announcements.json",
             timeout=30
         )
+        r.raise_for_status()
     except Exception:
         try:
             logging.exception("Error trying to get announcements from jsdelivr.net, falling back to Github.")
@@ -57,15 +58,14 @@ def get_announcements_to_file(job_id=None, startup=False, wait_for_completion=Fa
                 url="https://raw.githubusercontent.com/LavX/bazarr-binaries/refs/heads/master/announcements.json",
                 timeout=30
             )
+            r.raise_for_status()
         except Exception:
             logging.exception("Error trying to get announcements from Github.")
             return
-    else:
-        with open(os.path.join(args.config_dir, 'config', 'announcements.json'), 'wb') as f:
-            f.write(r.content)
-    finally:
-        if not startup:
-            jobs_queue.update_job_name(job_id=job_id, new_job_name="Updated Announcements File")
+    with open(os.path.join(args.config_dir, 'config', 'announcements.json'), 'wb') as f:
+        f.write(r.content)
+    if not startup:
+        jobs_queue.update_job_name(job_id=job_id, new_job_name="Updated Announcements File")
 
 
 def get_online_announcements():
