@@ -90,6 +90,10 @@ class BazarrClient {
         this.bIsAuthenticated = false;
         setAuthenticated(false);
         return;
+      case 409:
+      case 412:
+        // Handled by the caller (subtitle editor save-as / ETag conflict)
+        return;
     }
     LOG("error", "A error has occurred", code);
 

@@ -95,6 +95,10 @@ export const Subtitle: FunctionComponent<Props> = ({
           navigate(
             `/subtitles/preview/episode/${episodeId}/${encodeURIComponent(buildLanguageKey(subtitle))}`,
           );
+        } else if (action === "edit") {
+          navigate(
+            `/subtitles/edit/episode/${episodeId}/${encodeURIComponent(buildLanguageKey(subtitle))}`,
+          );
         } else if (action === "search") {
           await download.mutateAsync({
             seriesId,

@@ -3,11 +3,18 @@
 import ast
 import hashlib
 import os
+import sys
+import tempfile
 
 from flask import make_response, jsonify, request
 from flask_restx import Resource, Namespace
 
+from app.config import settings
 from app.database import TableEpisodes, TableMovies, TableShows, database, select
+from app.event_handler import event_stream
+from subtitles.indexer.movies import store_subtitles_movie
+from subtitles.indexer.series import store_subtitles
+from utilities.helper import get_target_folder
 from utilities.path_mappings import path_mappings
 
 from ..utils import authenticate
@@ -33,6 +40,8 @@ FORMAT_MAP = {
     '.mpl': 'mpl',
     '.txt': 'txt',
 }
+
+FORMAT_TO_EXT = {v: k for k, v in FORMAT_MAP.items()}
 
 
 def resolve_subtitle_path(media_type, media_id, language_code):
@@ -95,16 +104,57 @@ def resolve_subtitle_path(media_type, media_id, language_code):
                 entry = item
                 break
 
-    if entry is None:
-        return f'No subtitle found for language "{language_code}"', 404
+    if entry is not None:
+        language = entry[0]
+        subtitle_path = entry[1]
 
-    language = entry[0]
-    subtitle_path = entry[1]
-
-    if media_type == 'episode':
-        subtitle_path = path_mappings.path_replace(subtitle_path)
+        if media_type == 'episode':
+            subtitle_path = path_mappings.path_replace(subtitle_path)
+        else:
+            subtitle_path = path_mappings.path_replace_movie(subtitle_path)
     else:
-        subtitle_path = path_mappings.path_replace_movie(subtitle_path)
+        # Language not in DB (not in the media's language profile, or indexer
+        # hasn't run yet). Try to find the file on disk by constructing the
+        # expected path from the video filename.
+        video_path = row.path
+        if media_type == 'episode':
+            video_path = path_mappings.path_replace(video_path)
+        else:
+            video_path = path_mappings.path_replace_movie(video_path)
+
+        video_name = os.path.splitext(os.path.basename(video_path))[0]
+        video_dir = os.path.dirname(video_path)
+        language = language_code
+
+        # Try common subtitle extensions
+        found = False
+        lang_base = language_code.split(':')[0]  # "en:hi" -> "en"
+        suffix = lang_base
+        if ':hi' in language_code:
+            suffix += '.hi'
+        elif ':forced' in language_code:
+            suffix += '.forced'
+
+        for ext in ['.srt', '.ass', '.ssa', '.vtt', '.sub', '.smi', '.mpl', '.txt']:
+            candidate = os.path.join(video_dir, f'{video_name}.{suffix}{ext}')
+            if os.path.isfile(candidate):
+                subtitle_path = candidate
+                found = True
+                break
+
+        # Also check get_target_folder in case subtitles are in a subfolder
+        if not found:
+            target_folder = get_target_folder(video_path)
+            if target_folder and target_folder != video_dir:
+                for ext in ['.srt', '.ass', '.ssa', '.vtt', '.sub', '.smi', '.mpl', '.txt']:
+                    candidate = os.path.join(target_folder, f'{video_name}.{suffix}{ext}')
+                    if os.path.isfile(candidate):
+                        subtitle_path = candidate
+                        found = True
+                        break
+
+        if not found:
+            return f'No subtitle found for language "{language_code}"', 404
 
     ext = os.path.splitext(subtitle_path)[1].lower()
     if ext not in SUBTITLE_EXTENSIONS:
@@ -169,12 +219,57 @@ def generate_etag(path):
     return hashlib.md5(tag_input.encode()).hexdigest()
 
 
+def _get_media_metadata(media_type, media_id):
+    """Get media metadata without requiring a subtitle to exist."""
+    if media_type == 'episode':
+        row = database.execute(
+            select(TableEpisodes.path, TableEpisodes.sonarrSeriesId, TableEpisodes.title)
+            .where(TableEpisodes.sonarrEpisodeId == media_id)
+        ).first()
+        if row:
+            series_row = database.execute(
+                select(TableShows.title).where(TableShows.sonarrSeriesId == row.sonarrSeriesId)
+            ).first()
+            return {
+                'mediaTitle': series_row.title if series_row else None,
+                'mediaId': row.sonarrSeriesId,
+                'episodeTitle': row.title,
+            }
+    elif media_type == 'movie':
+        row = database.execute(
+            select(TableMovies.title, TableMovies.radarrId)
+            .where(TableMovies.radarrId == media_id)
+        ).first()
+        if row:
+            return {
+                'mediaTitle': row.title,
+                'mediaId': row.radarrId,
+            }
+    return None
+
+
 def _get_subtitle_content(media_type, media_id, language_code):
     """Shared handler for episode and movie subtitle content."""
     result = resolve_subtitle_path(media_type, media_id, language_code)
 
-    # Error tuple
+    # Error tuple: subtitle not found for this language
     if isinstance(result[1], int):
+        # For 404 (subtitle doesn't exist), still return media metadata so the editor
+        # can show the media title and start in create-new mode
+        if result[1] == 404:
+            metadata = _get_media_metadata(media_type, media_id)
+            if metadata:
+                response_data = {
+                    'exists': False,
+                    'content': '',
+                    'encoding': 'utf-8',
+                    'format': 'srt',
+                    'language': language_code,
+                    'size': 0,
+                    'lastModified': 0,
+                }
+                response_data.update(metadata)
+                return make_response(jsonify(response_data))
         return result[0], result[1]
 
     subtitle_path, language, metadata = result
@@ -212,11 +307,89 @@ def _get_subtitle_content(media_type, media_id, language_code):
     return response
 
 
+def _save_subtitle_content(media_type, media_id, language_code):
+    """Shared handler for saving edited subtitle content."""
+    result = resolve_subtitle_path(media_type, media_id, language_code)
+    if isinstance(result[1], int):
+        return result[0], result[1]
+
+    subtitle_path, language, metadata = result
+
+    # Optimistic locking via ETag (optional but recommended)
+    if_match = request.headers.get('If-Match')
+    if if_match:
+        current_etag = generate_etag(subtitle_path)
+        if if_match.strip('"') != current_etag:
+            return 'Subtitle file has been modified since last read', 412
+
+    data = request.get_json()
+    if not data or 'content' not in data:
+        return 'Request body must include "content" field', 400
+
+    content = data['content']
+    encoding = data.get('encoding', 'utf-8')
+
+    if not isinstance(content, str):
+        return '"content" must be a string', 400
+
+    try:
+        encoded = content.encode(encoding)
+    except (UnicodeEncodeError, LookupError) as e:
+        return f'Failed to encode content with encoding "{encoding}": {e}', 400
+
+    if len(encoded) > MAX_FILE_SIZE:
+        return f'Content too large ({len(encoded)} bytes, max {MAX_FILE_SIZE})', 413
+
+    subtitle_dir = os.path.dirname(subtitle_path)
+
+    try:
+        fd, tmp_path = tempfile.mkstemp(dir=subtitle_dir)
+        try:
+            os.write(fd, encoded)
+        finally:
+            os.close(fd)
+
+        os.replace(tmp_path, subtitle_path)
+    except FileNotFoundError:
+        return 'Subtitle file or directory not found', 404
+    except PermissionError:
+        return 'Permission denied when writing subtitle file', 409
+    except OSError as e:
+        if e.errno == 28:  # ENOSPC
+            return 'No space left on device', 507
+        raise
+
+    if settings.general.chmod_enabled:
+        try:
+            chmod_value = int(settings.general.chmod, 8)
+            os.chmod(subtitle_path, chmod_value)
+        except Exception:
+            pass
+
+    # Force re-scan subtitles from disk (no cache) so the DB picks up the changes
+    if media_type == 'episode':
+        store_subtitles(path_mappings.path_replace_reverse(subtitle_path), subtitle_path, use_cache=False)
+        event_stream(type='series', payload=metadata['mediaId'])
+        event_stream(type='episode', payload=media_id)
+    else:
+        store_subtitles_movie(path_mappings.path_replace_reverse_movie(subtitle_path), subtitle_path, use_cache=False)
+        event_stream(type='movie', payload=media_id)
+
+    new_etag = generate_etag(subtitle_path)
+    response = make_response('', 204)
+    response.headers['ETag'] = f'"{new_etag}"'
+    return response
+
+
 @api_ns_subtitle_content.route('episodes/<int:sonarrEpisodeId>/subtitles/<language>/content')
 class EpisodeSubtitleContent(Resource):
     @authenticate
     def get(self, sonarrEpisodeId, language):
         return _get_subtitle_content('episode', sonarrEpisodeId, language)
+
+    @authenticate
+    def put(self, sonarrEpisodeId, language):
+        return _save_subtitle_content('episode', sonarrEpisodeId, language)
 
 
 @api_ns_subtitle_content.route('movies/<int:radarrId>/subtitles/<language>/content')
@@ -224,3 +397,140 @@ class MovieSubtitleContent(Resource):
     @authenticate
     def get(self, radarrId, language):
         return _get_subtitle_content('movie', radarrId, language)
+
+    @authenticate
+    def put(self, radarrId, language):
+        return _save_subtitle_content('movie', radarrId, language)
+
+
+def _create_subtitle(media_type, media_id):
+    """Shared handler for creating a new subtitle file."""
+    data = request.get_json()
+    if not data:
+        return 'Request body must be JSON', 400
+
+    content = data.get('content')
+    language = data.get('language')
+    fmt = data.get('format')
+
+    if not content or not isinstance(content, str):
+        return '"content" is required and must be a string', 400
+    import re
+    if not language or not isinstance(language, str) or not re.match(r'^[a-zA-Z]{2,3}$', language):
+        return '"language" is required and must be a 2-3 letter code (e.g., en, hu, jpn)', 400
+    if not fmt or not isinstance(fmt, str):
+        return '"format" is required and must be a string', 400
+
+    ext = FORMAT_TO_EXT.get(fmt)
+    if not ext:
+        return f'Unsupported format: {fmt}', 400
+
+    forced = bool(data.get('forced', False))
+    hi = bool(data.get('hi', False))
+
+    if forced and hi:
+        return 'A subtitle cannot be both forced and HI', 400
+
+    # Look up the media to get the video file path
+    if media_type == 'episode':
+        row = database.execute(
+            select(TableEpisodes.path)
+            .where(TableEpisodes.sonarrEpisodeId == media_id)
+        ).first()
+    elif media_type == 'movie':
+        row = database.execute(
+            select(TableMovies.path)
+            .where(TableMovies.radarrId == media_id)
+        ).first()
+    else:
+        return 'Invalid media type', 400
+
+    if not row:
+        return 'Media not found', 404
+
+    if media_type == 'episode':
+        video_path = path_mappings.path_replace(row.path)
+    else:
+        video_path = path_mappings.path_replace_movie(row.path)
+
+    # Build the subtitle filename
+    video_name = os.path.splitext(os.path.basename(video_path))[0]
+    suffix = language
+    if hi:
+        suffix += '.hi'
+    elif forced:
+        suffix += '.forced'
+    subtitle_filename = f'{video_name}.{suffix}{ext}'
+
+    # Determine target directory
+    target_folder = get_target_folder(video_path)
+    if target_folder is None:
+        target_folder = os.path.dirname(video_path)
+
+    subtitle_path = os.path.join(target_folder, subtitle_filename)
+
+    # Check for existing file
+    if os.path.isfile(subtitle_path):
+        return 'Subtitle file already exists', 409
+
+    # Encode content
+    encoded = content.encode('utf-8')
+    if len(encoded) > MAX_FILE_SIZE:
+        return f'Content too large ({len(encoded)} bytes, max {MAX_FILE_SIZE})', 413
+
+    # Write atomically
+    try:
+        fd, tmp_path = tempfile.mkstemp(dir=target_folder)
+        try:
+            os.write(fd, encoded)
+        finally:
+            os.close(fd)
+
+        os.replace(tmp_path, subtitle_path)
+    except FileNotFoundError:
+        return 'Target directory not found', 404
+    except PermissionError:
+        return 'Permission denied when writing subtitle file', 409
+    except OSError as e:
+        if e.errno == 28:  # ENOSPC
+            return 'No space left on device', 507
+        raise
+
+    # Apply chmod if configured
+    if settings.general.chmod_enabled:
+        try:
+            chmod_value = int(settings.general.chmod, 8)
+            os.chmod(subtitle_path, chmod_value)
+        except Exception:
+            pass
+
+    # Force re-scan subtitles from disk (no cache) so the DB picks up the new file
+    if media_type == 'episode':
+        store_subtitles(path_mappings.path_replace_reverse(subtitle_path), subtitle_path, use_cache=False)
+        event_stream(type='episode', payload=media_id)
+    else:
+        store_subtitles_movie(path_mappings.path_replace_reverse_movie(subtitle_path), subtitle_path, use_cache=False)
+        event_stream(type='movie', payload=media_id)
+
+    # Build language with modifiers
+    language_with_modifiers = language
+    if hi:
+        language_with_modifiers += ':hi'
+    elif forced:
+        language_with_modifiers += ':forced'
+
+    return {'path': subtitle_path, 'language': language_with_modifiers}, 201
+
+
+@api_ns_subtitle_content.route('episodes/<int:sonarrEpisodeId>/subtitles')
+class EpisodeSubtitleCreate(Resource):
+    @authenticate
+    def post(self, sonarrEpisodeId):
+        return _create_subtitle('episode', sonarrEpisodeId)
+
+
+@api_ns_subtitle_content.route('movies/<int:radarrId>/subtitles')
+class MovieSubtitleCreate(Resource):
+    @authenticate
+    def post(self, radarrId):
+        return _create_subtitle('movie', radarrId)
