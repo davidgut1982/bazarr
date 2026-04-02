@@ -54,7 +54,7 @@ export function createAddCue(afterIndex: number, cue: Cue): CueOperation {
       out.splice(afterIndex + 1, 0, cue);
       return out;
     },
-    inverse(_cues) {
+    inverse() {
       return createDeleteCues([afterIndex + 1]);
     },
   };
@@ -156,7 +156,7 @@ export function createSplitCue(
       out.splice(index, 1, first, second);
       return out;
     },
-    inverse(cues) {
+    inverse() {
       // The cues array here is the state BEFORE this operation was applied,
       // so we need to merge the two cues that resulted from the split.
       // But inverse is called on the state before apply, so we use the
@@ -249,6 +249,7 @@ export type DocumentAction =
   | { type: "UNDO" }
   | { type: "REDO" }
   | { type: "LOAD"; cues: Cue[] }
+  | { type: "MARK_DIRTY" }
   | { type: "MARK_SAVED" };
 
 function affectedCueIds(before: Cue[], after: Cue[]): string[] {

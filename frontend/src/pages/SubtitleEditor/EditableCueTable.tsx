@@ -1,8 +1,8 @@
 import { Fragment, ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import type { Cue } from "./types";
+import { formatDuration,formatTimestamp } from "./CueTable";
 import type { CueWarning, GhostCue } from "./document";
-import { formatTimestamp, formatDuration } from "./CueTable";
+import type { Cue } from "./types";
 
 // ---- Tag rendering (copied from CueTable since not exported) ----
 

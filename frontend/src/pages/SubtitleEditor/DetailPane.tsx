@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useImperativeHandle, forwardRef } from "react";
+import React, { forwardRef,useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { Cue } from "./types";
 
 export interface DetailPaneHandle {
@@ -133,6 +133,7 @@ const DetailPane = forwardRef<DetailPaneHandle, DetailPaneProps>(function Detail
       setStartDraft(formatTimestamp(cue.startMs));
       setEndDraft(formatTimestamp(cue.endMs));
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cue?.startMs, cue?.endMs, cue?.id]);
 
   // Sync text when it changes externally (e.g. AI translate, sync, use reference)
@@ -144,6 +145,7 @@ const DetailPane = forwardRef<DetailPaneHandle, DetailPaneProps>(function Detail
         setTextDraft(cue.text);
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cue?.text, cue?.id]);
 
   const wrapSelection = useCallback((prefix: string, suffix: string) => {

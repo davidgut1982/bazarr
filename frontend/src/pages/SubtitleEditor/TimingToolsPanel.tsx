@@ -1,10 +1,10 @@
 import {
+  type CSSProperties,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
 } from "react";
 import { showNotification } from "@mantine/notifications";
 import { Environment } from "@/utilities/env";

@@ -1,13 +1,13 @@
 import {
+  type CSSProperties,
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
   useRef,
   useState,
-  useEffect,
-  useCallback,
-  useImperativeHandle,
-  forwardRef,
-  type CSSProperties,
 } from "react";
-import { faPlay, faPause, faVideoSlash, faBackward, faForward } from "@fortawesome/free-solid-svg-icons";
+import { faBackward, faForward,faPause, faPlay, faVideoSlash } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { Environment } from "@/utilities/env";
 
@@ -37,7 +37,7 @@ interface VideoPreviewProps {
   audioTrack?: number;
 }
 
-function formatTime(ms: number): string {
+export function formatTime(ms: number): string {
   const totalSec = Math.floor(ms / 1000);
   const h = Math.floor(totalSec / 3600);
   const m = Math.floor((totalSec % 3600) / 60);
@@ -67,7 +67,7 @@ const videoWrapperStyle: CSSProperties = {
 };
 
 // Convert subtitle text with tags into safe display HTML
-function renderSubtitleHtml(text: string): string {
+export function renderSubtitleHtml(text: string): string {
   // Strip ASS override tags like {\i1}, {\b1}, {\an8}, {\pos(x,y)}, etc.
   let html = text.replace(/\{\\[^}]*\}/g, "");
   // Allow basic HTML formatting tags, escape everything else
@@ -289,7 +289,7 @@ const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(function 
         );
       })
       .catch(() => setDirectPlay(false));
-  }, [hasMedia, mediaType, mediaId, apiKey]);
+  }, [hasMedia, mediaType, mediaId, apiKey, onAudioTracksLoaded]);
 
   // For transcoded mode, track the seek offset in the ffmpeg ?t= param
   const [seekOffsetSec, setSeekOffsetSec] = useState(0);
@@ -400,6 +400,7 @@ const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(function 
         setCurrentMs(currentTimeMs);
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTimeMs, seekId, hasMedia, directPlay]);
 
   // Sync volume and playback rate
@@ -415,8 +416,8 @@ const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(function 
     const audio = audioRef.current;
     if (!video) return;
     if (video.paused) {
-      video.play().catch(() => {});
-      if (audio && useExternalAudio) audio.play().catch(() => {});
+      video.play().catch(() => { /* ignored */ });
+      if (audio && useExternalAudio) audio.play().catch(() => { /* ignored */ });
     } else {
       video.pause();
       if (audio && useExternalAudio) audio.pause();
@@ -496,7 +497,7 @@ const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(function 
       setCurrentMs(absoluteMs);
       onTimeUpdate(absoluteMs);
     }
-  }, [onPlayStateChange, stopTimeReporting, onTimeUpdate, nativeSeek]);
+  }, [onPlayStateChange, stopTimeReporting, onTimeUpdate, nativeSeek, useExternalAudio]);
 
   const handleLoadedMetadata = useCallback(() => {
     const video = videoRef.current;
@@ -509,10 +510,10 @@ const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(function 
       // Auto-play if user was playing before the seek (transcode mode only)
       if (autoPlayAfterSeekRef.current) {
         autoPlayAfterSeekRef.current = false;
-        video.play().catch(() => {});
+        video.play().catch(() => { /* ignored */ });
       }
     }
-  }, [volume, directPlay, useExternalAudio]);
+  }, [volume, useExternalAudio, nativeSeek]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -529,7 +530,7 @@ const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(function 
         seekRelative(5000);
       }
     },
-    [togglePlayPause],
+    [togglePlayPause, seekRelative],
   );
 
   // No media placeholder
@@ -592,7 +593,7 @@ const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(function 
                     : seekOffsetSecRef.current + video.currentTime;
                 }
                 if (isPlayingRef.current) {
-                  audio.play().catch(() => {});
+                  audio.play().catch(() => { /* ignored */ });
                 }
               }
             }}

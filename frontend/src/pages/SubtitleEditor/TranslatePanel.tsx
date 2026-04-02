@@ -1,19 +1,19 @@
 import {
+  type CSSProperties,
   useCallback,
   useEffect,
   useMemo,
   useState,
-  type CSSProperties,
 } from "react";
+import { faSpinner,faTimes } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faTimes, faSpinner } from "@fortawesome/free-solid-svg-icons";
-import {
-  useTranslatorStatus,
-  useTranslatorJob,
-  useCancelTranslatorJob,
-  useTranslatorModels,
-} from "@/apis/hooks/translator";
 import { useLanguages } from "@/apis/hooks/languages";
+import {
+  useCancelTranslatorJob,
+  useTranslatorJob,
+  useTranslatorModels,
+  useTranslatorStatus,
+} from "@/apis/hooks/translator";
 import client from "@/apis/raw/client";
 
 interface TranslatePanelProps {
@@ -223,7 +223,7 @@ export default function TranslatePanel({
   const { data: serverLanguages } = useLanguages();
   const cancelJob = useCancelTranslatorJob();
 
-  const isTranslatorAvailable =
+  const _isTranslatorAvailable =
     translatorStatus?.healthy === true &&
     translatorStatus?.config?.apiKeyConfigured === true;
 
@@ -248,6 +248,11 @@ export default function TranslatePanel({
   );
 
   // React to job status changes
+  const effectiveSource = translateSource === "auto"
+    ? (referenceCues && referenceCues.length > 0 ? "reference" : "editor")
+    : translateSource;
+  const useRefCues = effectiveSource === "reference" && referenceCues && referenceCues.length > 0;
+
   useEffect(() => {
     if (phase !== "translating" || !jobData) return;
 
@@ -263,7 +268,7 @@ export default function TranslatePanel({
         }
         setTranslatedLines(map);
         // Only set reference when translating from editor cues, not from loaded reference
-        if (!useRef) {
+        if (!useRefCues) {
           onSetReference(map);
         }
         setPhase("completed");
@@ -283,16 +288,12 @@ export default function TranslatePanel({
       onTranslatingChange?.(false);
       setJobId("");
     }
-  }, [phase, jobData]);
+  }, [phase, jobData, onSetReference, onTranslatingChange, useRefCues]);
 
-  const effectiveSource = translateSource === "auto"
-    ? (referenceCues && referenceCues.length > 0 ? "reference" : "editor")
-    : translateSource;
-  const useRef = effectiveSource === "reference" && referenceCues && referenceCues.length > 0;
 
   const handleSubmit = useCallback(async () => {
     if (!targetLanguage) return;
-    const sourceLines = useRef
+    const sourceLines = useRefCues
       ? referenceCues!.map((r, i) => ({ position: i, line: r.text }))
       : cues.map((cue, i) => ({ position: i, line: cue.text }));
     if (sourceLines.length === 0) return;
@@ -333,12 +334,13 @@ export default function TranslatePanel({
       setPhase("failed");
       onTranslatingChange?.(false);
       setErrorMsg(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (err as any)?.response?.data?.error ||
           (err as Error).message ||
           "Failed to submit translation job.",
       );
     }
-  }, [cues, referenceCues, useRef, sourceLanguage, targetLanguage, mediaTitle, languageOptions]);
+  }, [cues, referenceCues, useRefCues, sourceLanguage, targetLanguage, mediaTitle, languageOptions, onTranslatingChange]);
 
   const handleCancel = useCallback(() => {
     if (jobId) {
@@ -352,7 +354,7 @@ export default function TranslatePanel({
     if (translatedLines.size === 0 || applied) return;
     setApplied(true);
     onApplyTranslation(translatedLines);
-  }, [translatedLines, onApplyTranslation]);
+  }, [translatedLines, onApplyTranslation, applied]);
 
   const handleReset = useCallback(() => {
     setPhase("idle");
@@ -433,7 +435,7 @@ export default function TranslatePanel({
         <span style={styles.label}>Source</span>
         <div style={{ display: "flex", gap: 2, flex: 1 }}>
           {([
-            { value: "auto" as const, label: "Auto" },
+            { value: "auto" as const, label: "Auto", disabled: false },
             { value: "reference" as const, label: "Reference", disabled: !referenceCues || referenceCues.length === 0 },
             { value: "editor" as const, label: "Editor cues", disabled: cues.length === 0 },
           ] as const).map((opt) => (
@@ -508,8 +510,8 @@ export default function TranslatePanel({
 
       {/* Cue count */}
       <div style={styles.statusText}>
-        {useRef ? referenceCues!.length : cues.length} cues to translate
-        {useRef ? " (from reference)" : " (editor cues)"}
+        {useRefCues ? referenceCues!.length : cues.length} cues to translate
+        {useRefCues ? " (from reference)" : " (editor cues)"}
       </div>
 
       {/* Progress section */}
@@ -535,7 +537,7 @@ export default function TranslatePanel({
       {/* Success */}
       {phase === "completed" && (
         <div style={styles.successText}>
-          Translation complete. {translatedLines.size}/{useRef ? referenceCues!.length : cues.length} lines translated.
+          Translation complete. {translatedLines.size}/{useRefCues ? referenceCues!.length : cues.length} lines translated.
         </div>
       )}
 
@@ -546,12 +548,12 @@ export default function TranslatePanel({
             type="button"
             style={{
               ...styles.btnPrimary,
-              ...((useRef ? referenceCues!.length === 0 : cues.length === 0) || !targetLanguage
+              ...((useRefCues ? referenceCues!.length === 0 : cues.length === 0) || !targetLanguage
                 ? { opacity: 0.5, cursor: "not-allowed" }
                 : {}),
             }}
             disabled={
-              (useRef ? referenceCues!.length === 0 : cues.length === 0) ||
+              (useRefCues ? referenceCues!.length === 0 : cues.length === 0) ||
               !targetLanguage
             }
             onClick={handleSubmit}

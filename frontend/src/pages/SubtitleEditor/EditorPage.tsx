@@ -1,70 +1,70 @@
 import {
+  useCallback,
+  useEffect,
+  useMemo,
   useReducer,
   useRef,
   useState,
-  useMemo,
-  useCallback,
-  useEffect,
 } from "react";
-import { Link, useParams, useBlocker, useNavigate } from "react-router";
-import { showNotification } from "@mantine/notifications";
-import { useQueryClient } from "@tanstack/react-query";
-import { QueryKeys } from "@/apis/queries/keys";
+import { Link, useBlocker, useNavigate,useParams } from "react-router";
 import {
   Alert,
   Anchor,
   Badge,
   Breadcrumbs,
+  Button,
   Center,
   Group,
   Loader,
   Menu,
   Modal,
-  Button,
+  Select,
   Stack,
   Text,
-  Select,
 } from "@mantine/core";
+import { showNotification } from "@mantine/notifications";
+import { useQueryClient } from "@tanstack/react-query";
 import { useLanguages } from "@/apis/hooks/languages";
 import {
   useSubtitleContent,
-  useSubtitleSave,
   useSubtitleCreate,
+  useSubtitleSave,
 } from "@/apis/hooks/subtitles";
+import { QueryKeys } from "@/apis/queries/keys";
 import api from "@/apis/raw";
 import client from "@/apis/raw/client";
+import { Environment } from "@/utilities/env";
+import DetailPane, { type DetailPaneHandle } from "./DetailPane";
 import {
-  subtitleDocumentReducer,
-  createInitialDocumentState,
+  computeCueWarnings,
   createAddCue,
   createDeleteCues,
   createEditText,
   createEditTiming,
-  createSplitCue,
+  createInitialDocumentState,
   createMergeCues,
-  computeCueWarnings,
-  detectGaps,
-  DEFAULT_QC_PRESET,
+  createSplitCue,
   type CueWarning,
+  DEFAULT_QC_PRESET,
+  detectGaps,
   type QCPreset,
+  subtitleDocumentReducer,
 } from "./document";
-import { getParser, detectFormat } from "./parsers";
-import { getSerializer } from "./serializers";
-import type { Cue, SubtitleFormat, ParseResult } from "./types";
-import { Environment } from "@/utilities/env";
-import EditorToolbar from "./EditorToolbar";
 import EditableCueTable from "./EditableCueTable";
-import DetailPane, { type DetailPaneHandle } from "./DetailPane";
-import type { VideoPreviewHandle } from "./VideoPreview";
-import SearchReplace from "./SearchReplace";
+import EditorToolbar from "./EditorToolbar";
 import JumpToCue from "./JumpToCue";
-import ShortcutSheet from "./ShortcutSheet";
+import { detectFormat,getParser } from "./parsers";
 import QCPanel from "./QCPanel";
+import SearchReplace from "./SearchReplace";
+import { getSerializer } from "./serializers";
+import ShortcutSheet from "./ShortcutSheet";
+import StatusBar from "./StatusBar";
 import TimingToolsPanel from "./TimingToolsPanel";
 import TranslatePanel from "./TranslatePanel";
+import type { Cue, ParseResult,SubtitleFormat } from "./types";
+import type { VideoPreviewHandle } from "./VideoPreview";
 import VideoPreview from "./VideoPreview";
 import WaveformTimeline from "./WaveformTimeline";
-import StatusBar from "./StatusBar";
 
 export default function EditorPage() {
   const { mediaType, mediaId, language } = useParams();
@@ -164,7 +164,7 @@ export default function EditorPage() {
         localStorage.removeItem(autoSaveKey);
       }
     } catch { localStorage.removeItem(autoSaveKey!); }
-  }, [autoSaveKey, loadedRef.current]);
+  }, [autoSaveKey]);
 
   const handleRecoverDraft = useCallback(() => {
     if (!recoveryAvailable) return;
@@ -228,7 +228,7 @@ export default function EditorPage() {
       .then((data) => {
         if (data?.subtitles) setAvailableSubtitles(data.subtitles);
       })
-      .catch(() => {});
+      .catch(() => { /* ignored */ });
   }, [mediaType, mediaId]);
 
 
@@ -320,7 +320,7 @@ export default function EditorPage() {
   const cursorPosRef = useRef<number>(0);
   const detailPaneRef = useRef<DetailPaneHandle>(null);
   const videoPreviewRef = useRef<VideoPreviewHandle>(null);
-  const [videoPlaying, setVideoPlaying] = useState(false);
+  const [_videoPlaying, setVideoPlaying] = useState(false);
   const [userSeekMs, setUserSeekMs] = useState<number | null>(null);
   const [seekCounter, setSeekCounter] = useState(0);
   const [playbackTimeMs, setPlaybackTimeMs] = useState(0);
@@ -386,6 +386,7 @@ export default function EditorPage() {
             showNotification({ message: "Subtitle created", color: "green", autoClose: 2000 });
           },
           onError: (err) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const status = (err as any)?.response?.status;
             const msg = status === 409
               ? "Subtitle file already exists for this language."
@@ -418,6 +419,7 @@ export default function EditorPage() {
             showNotification({ message: "Saved", color: "green", autoClose: 2000 });
           },
           onError: (err) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const status = (err as any)?.response?.status;
             if (status === 412) {
               // ETag mismatch: file was modified externally.
@@ -457,7 +459,7 @@ export default function EditorPage() {
         },
       );
     }
-  }, [mediaType, mediaId, language, format, encoding, isNewSubtitle, buildParseResult, saveMutation, createMutation, autoSaveKey, selectedIndex, docState.cues, parseResult?.metadata, queryClient]);
+  }, [mediaType, mediaId, language, format, encoding, isNewSubtitle, saveMutation, createMutation, autoSaveKey, selectedIndex, docState.cues, parseResult?.metadata, queryClient]);
 
   // Subtitle language switcher
   const [pendingLangSwitch, setPendingLangSwitch] = useState<string | null>(null);
@@ -470,15 +472,24 @@ export default function EditorPage() {
     }
   }, [language, mediaType, mediaId, docState.dirty, navigate]);
 
+  // Navigate after save completes (dirty becomes false while pendingLangSwitch is set)
+  const pendingSaveNavRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (pendingSaveNavRef.current && !docState.dirty) {
+      const target = pendingSaveNavRef.current;
+      pendingSaveNavRef.current = null;
+      requestAnimationFrame(() => {
+        navigate(`/subtitles/edit/${mediaType}/${mediaId}/${target}`, { replace: true });
+      });
+    }
+  }, [docState.dirty, mediaType, mediaId, navigate]);
+
   const handleSwitchSave = useCallback(() => {
     if (!pendingLangSwitch) return;
-    handleSave();
+    pendingSaveNavRef.current = pendingLangSwitch;
     setPendingLangSwitch(null);
-    // Delay to let save mutation complete and dirty clear
-    setTimeout(() => {
-      navigate(`/subtitles/edit/${mediaType}/${mediaId}/${pendingLangSwitch}`, { replace: true });
-    }, 1000);
-  }, [pendingLangSwitch, handleSave, mediaType, mediaId, navigate]);
+    handleSave();
+  }, [pendingLangSwitch, handleSave]);
 
   const handleSwitchDrop = useCallback(() => {
     if (!pendingLangSwitch) return;
@@ -520,6 +531,7 @@ export default function EditorPage() {
           });
         },
         onError: (err) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const status = (err as any)?.response?.status;
           if (status === 409) {
             // File already exists, ask to overwrite
@@ -717,6 +729,7 @@ export default function EditorPage() {
         }
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [handleSave, handleUpload, handleDownload, selectedIndex, multiSelect, docState.cues],
   );
 
@@ -841,7 +854,7 @@ export default function EditorPage() {
     setSeekCounter((c) => c + 1);
   }, [docState.cues]);
 
-  const handleReloadAfterSync = useCallback(() => {
+  const _handleReloadAfterSync = useCallback(() => {
     if (!mediaType || !mediaId || !language) return;
     queryClient
       .invalidateQueries({
@@ -1024,6 +1037,7 @@ export default function EditorPage() {
           const resp = await client.axios.get(`/translator/jobs/${jobResult.jobId}`);
           const job = resp.data;
           if (job.status === "completed" || job.status === "partial") {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const lines = (job.result as any)?.lines;
             if (lines?.[0]?.line) {
               dispatch({ type: "APPLY_OP", op: createEditText(targetIdx, lines[0].line) });

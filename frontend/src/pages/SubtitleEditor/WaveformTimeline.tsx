@@ -1,10 +1,10 @@
 import {
+  type CSSProperties,
+  useCallback,
+  useEffect,
+  useMemo,
   useRef,
   useState,
-  useEffect,
-  useCallback,
-  useMemo,
-  type CSSProperties,
 } from "react";
 import WaveSurfer from "wavesurfer.js";
 // @ts-expect-error - wavesurfer.js moduleResolution mismatch
@@ -26,7 +26,7 @@ interface WaveformTimelineProps {
   audioTrack?: number;
 }
 
-function formatMs(ms: number): string {
+export function formatMs(ms: number): string {
   const totalSec = Math.floor(ms / 1000);
   const m = Math.floor(totalSec / 60);
   const s = totalSec % 60;
@@ -62,7 +62,7 @@ const zoomBtnStyle: CSSProperties = {
   fontSize: 11,
 };
 
-function cueColor(index: number, selectedIndex: number): string {
+export function cueColor(index: number, selectedIndex: number): string {
   if (index === selectedIndex) return "rgba(230, 138, 0, 0.45)";
   return "rgba(230, 138, 0, 0.15)";
 }
@@ -80,6 +80,7 @@ export default function WaveformTimeline({
 }: WaveformTimelineProps) {
   const waveformRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const regionsRef = useRef<any>(null);
   const [zoom, setZoom] = useState(50);
   const [ready, setReady] = useState(false);
@@ -171,6 +172,7 @@ export default function WaveformTimeline({
       setReady(false);
       setLoading(true);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [peaksUrl]);
 
   // Sync zoom
@@ -203,6 +205,7 @@ export default function WaveformTimeline({
         resize: true,
       });
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [regionKey, ready]);
 
   // Region event handlers
@@ -210,12 +213,14 @@ export default function WaveformTimeline({
     const regions = regionsRef.current;
     if (!regions) return;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleClick = (region: any, e: Event) => {
       e.stopPropagation();
       const idx = cues.findIndex((c) => c.id === region.id);
       if (idx >= 0) onSelect(idx);
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleUpdate = (region: any) => {
       if (!onTimingChange) return;
       const idx = cues.findIndex((c) => c.id === region.id);

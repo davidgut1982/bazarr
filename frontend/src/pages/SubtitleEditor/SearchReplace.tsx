@@ -1,11 +1,11 @@
 import {
+  type CSSProperties,
+  type KeyboardEvent,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
-  type KeyboardEvent,
 } from "react";
 
 interface SearchReplaceProps {

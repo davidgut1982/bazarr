@@ -1,15 +1,15 @@
-import { useCallback, useMemo, type CSSProperties } from "react";
-import type { Cue } from "./types";
+import { type CSSProperties,useCallback, useMemo } from "react";
 import {
-  type QCPreset,
-  type CueWarning,
-  QC_PRESETS,
   computeCueWarnings,
+  createDeleteCues,
   createEditText,
   createEditTiming,
-  createDeleteCues,
   type CueOperation,
+  type CueWarning,
+  QC_PRESETS,
+  type QCPreset,
 } from "./document";
+import type { Cue } from "./types";
 
 interface QCPanelProps {
   open: boolean;

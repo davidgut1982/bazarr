@@ -1,11 +1,11 @@
 import type { ParseResult, SubtitleFormat } from "@/pages/SubtitleEditor/types";
-import { srtSerializer } from "./srt";
 import { assSerializer } from "./ass";
-import { vttSerializer } from "./vtt";
-import { subSerializer } from "./sub";
-import { smiSerializer } from "./smi";
-import { txtSerializer } from "./txt";
 import { mplSerializer } from "./mpl";
+import { smiSerializer } from "./smi";
+import { srtSerializer } from "./srt";
+import { subSerializer } from "./sub";
+import { txtSerializer } from "./txt";
+import { vttSerializer } from "./vtt";
 
 export interface SubtitleSerializer {
   serialize(result: ParseResult): string;
