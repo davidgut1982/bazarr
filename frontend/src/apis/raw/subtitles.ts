@@ -134,7 +134,10 @@ class SubtitlesApi extends BaseApi {
     const base = mediaType === "episode" ? "episodes" : "movies";
     const url = `/${base}/${mediaId}/subtitles/${encodeURIComponent(language)}/content`;
     const response = await client.axios.get<SubtitleContentResponse>(url);
-    return { data: response.data, etag: response.headers["etag"] as string | undefined };
+    return {
+      data: response.data,
+      etag: response.headers["etag"] as string | undefined,
+    };
   }
 
   async saveContent(
@@ -151,7 +154,11 @@ class SubtitlesApi extends BaseApi {
     if (etag) {
       headers["If-Match"] = etag;
     }
-    const response = await client.axios.put(url, { content, encoding }, { headers });
+    const response = await client.axios.put(
+      url,
+      { content, encoding },
+      { headers },
+    );
     return { etag: response.headers["etag"] as string | undefined };
   }
 
@@ -166,7 +173,10 @@ class SubtitlesApi extends BaseApi {
   ) {
     const base = mediaType === "episode" ? "episodes" : "movies";
     const url = `/${base}/${mediaId}/subtitles`;
-    const response = await client.axios.post<{ path: string; language: string }>(url, {
+    const response = await client.axios.post<{
+      path: string;
+      language: string;
+    }>(url, {
       content,
       language,
       format,

@@ -19,7 +19,11 @@ interface TimingToolsPanelProps {
   mediaId?: number;
   language?: string;
   onApplyBatch: (ops: CueOperation[]) => void;
-  onGetContent: () => { content: string; format: string; encoding: string } | null;
+  onGetContent: () => {
+    content: string;
+    format: string;
+    encoding: string;
+  } | null;
   onApplySyncedContent: (content: string) => void;
   onClose: () => void;
 }
@@ -242,7 +246,8 @@ function BulkShiftTab({
   }, [offsetStr, cues, scopeSelected, selectedIndices, onApplyBatch]);
 
   const parsedOffset = parseTimecodeMs(offsetStr);
-  const canApply = parsedOffset !== null && parsedOffset !== 0 && cues.length > 0;
+  const canApply =
+    parsedOffset !== null && parsedOffset !== 0 && cues.length > 0;
   const affectedCount = scopeSelected ? selectedIndices.size : cues.length;
 
   return (
@@ -264,7 +269,16 @@ function BulkShiftTab({
       </div>
       <div style={styles.row}>
         <span style={styles.label}>Scope</span>
-        <label style={{ fontSize: 12, color: "var(--bz-text-primary)", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+        <label
+          style={{
+            fontSize: 12,
+            color: "var(--bz-text-primary)",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+          }}
+        >
           <input
             type="radio"
             name="shift-scope"
@@ -274,7 +288,19 @@ function BulkShiftTab({
           />
           All cues ({cues.length})
         </label>
-        <label style={{ fontSize: 12, color: selectedIndices.size > 0 ? "var(--bz-text-primary)" : "var(--bz-text-disabled)", cursor: selectedIndices.size > 0 ? "pointer" : "default", display: "flex", alignItems: "center", gap: 4 }}>
+        <label
+          style={{
+            fontSize: 12,
+            color:
+              selectedIndices.size > 0
+                ? "var(--bz-text-primary)"
+                : "var(--bz-text-disabled)",
+            cursor: selectedIndices.size > 0 ? "pointer" : "default",
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+          }}
+        >
           <input
             type="radio"
             name="shift-scope"
@@ -288,11 +314,14 @@ function BulkShiftTab({
       </div>
       {parsedOffset !== null && parsedOffset !== 0 && (
         <div style={styles.preview}>
-          {parsedOffset > 0 ? "+" : ""}{parsedOffset}ms applied to {affectedCount} cue{affectedCount !== 1 ? "s" : ""}
+          {parsedOffset > 0 ? "+" : ""}
+          {parsedOffset}ms applied to {affectedCount} cue
+          {affectedCount !== 1 ? "s" : ""}
         </div>
       )}
       <div style={styles.hint}>
-        Enter milliseconds (e.g. 500, -1200) or timecode (e.g. 00:00:01.500, -00:00:02.000)
+        Enter milliseconds (e.g. 500, -1200) or timecode (e.g. 00:00:01.500,
+        -00:00:02.000)
       </div>
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
         <button
@@ -342,8 +371,7 @@ function LinearCorrectionTab({
     if (!bothValid) return null;
     const currentMs1 = cues[idx1].startMs;
     const currentMs2 = cues[idx2].startMs;
-    const scale =
-      (correct2Ms! - correct1Ms!) / (currentMs2 - currentMs1);
+    const scale = (correct2Ms! - correct1Ms!) / (currentMs2 - currentMs1);
     const offset = correct1Ms! - currentMs1 * scale;
     return { scale, offset };
   }, [bothValid, cues, idx1, idx2, correct1Ms, correct2Ms]);
@@ -377,7 +405,13 @@ function LinearCorrectionTab({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <div style={{ fontSize: 11, color: "var(--bz-text-tertiary)", marginBottom: 2 }}>
+      <div
+        style={{
+          fontSize: 11,
+          color: "var(--bz-text-tertiary)",
+          marginBottom: 2,
+        }}
+      >
         Pick two reference points. Set each to its correct time, then apply.
       </div>
 
@@ -402,9 +436,7 @@ function LinearCorrectionTab({
           value={correct1}
           onChange={(e) => setCorrect1(e.target.value)}
           placeholder={
-            point1Valid
-              ? msToTimecode(cues[idx1].startMs)
-              : "HH:MM:SS.mmm"
+            point1Valid ? msToTimecode(cues[idx1].startMs) : "HH:MM:SS.mmm"
           }
           style={styles.input}
           spellCheck={false}
@@ -441,9 +473,7 @@ function LinearCorrectionTab({
           value={correct2}
           onChange={(e) => setCorrect2(e.target.value)}
           placeholder={
-            point2Valid
-              ? msToTimecode(cues[idx2].startMs)
-              : "HH:MM:SS.mmm"
+            point2Valid ? msToTimecode(cues[idx2].startMs) : "HH:MM:SS.mmm"
           }
           style={styles.input}
           spellCheck={false}
@@ -485,7 +515,11 @@ function AutoSyncTab({
   mediaType?: string;
   mediaId?: number;
   language?: string;
-  onGetContent: () => { content: string; format: string; encoding: string } | null;
+  onGetContent: () => {
+    content: string;
+    format: string;
+    encoding: string;
+  } | null;
   onApplySyncedContent: (content: string) => void;
 }) {
   const [maxOffset, setMaxOffset] = useState("120");
@@ -503,7 +537,11 @@ function AutoSyncTab({
 
     const editorData = onGetContent();
     if (!editorData) {
-      showNotification({ title: "Sync", message: "No content to sync", color: "yellow" });
+      showNotification({
+        title: "Sync",
+        message: "No content to sync",
+        color: "yellow",
+      });
       return;
     }
 
@@ -534,7 +572,11 @@ function AutoSyncTab({
 
       const submitResult = await submitResp.json();
       if (!submitResp.ok || !submitResult.jobKey) {
-        showNotification({ title: "Sync Failed", message: submitResult.message || "Failed to start sync", color: "red" });
+        showNotification({
+          title: "Sync Failed",
+          message: submitResult.message || "Failed to start sync",
+          color: "red",
+        });
         setSyncing(false);
         return;
       }
@@ -555,21 +597,35 @@ function AutoSyncTab({
 
           if (pollResult.status === "completed" && pollResult.content) {
             onApplySyncedContent(pollResult.content);
-            showNotification({ message: "Sync complete, cues updated", color: "green", autoClose: 3000 });
+            showNotification({
+              message: "Sync complete, cues updated",
+              color: "green",
+              autoClose: 3000,
+            });
             setProgressMsg("");
             setSyncing(false);
             return;
           }
 
           if (pollResult.status === "failed") {
-            showNotification({ title: "Sync Failed", message: pollResult.message || "ffsubsync error", color: "red", autoClose: 5000 });
+            showNotification({
+              title: "Sync Failed",
+              message: pollResult.message || "ffsubsync error",
+              color: "red",
+              autoClose: 5000,
+            });
             setProgressMsg("");
             setSyncing(false);
             return;
           }
 
           if (pollResult.status === "not_found") {
-            showNotification({ title: "Sync", message: "Sync job lost. It may have completed or been cleaned up.", color: "yellow" });
+            showNotification({
+              title: "Sync",
+              message:
+                "Sync job lost. It may have completed or been cleaned up.",
+              color: "yellow",
+            });
             setProgressMsg("");
             setSyncing(false);
             return;
@@ -583,23 +639,52 @@ function AutoSyncTab({
         }
       }
 
-      showNotification({ title: "Sync", message: "Timed out waiting for sync", color: "yellow" });
+      showNotification({
+        title: "Sync",
+        message: "Timed out waiting for sync",
+        color: "yellow",
+      });
     } catch (err) {
-      showNotification({ title: "Sync Failed", message: (err as Error).message || "Network error", color: "red" });
+      showNotification({
+        title: "Sync Failed",
+        message: (err as Error).message || "Network error",
+        color: "red",
+      });
     } finally {
       setSyncing(false);
       setProgressMsg("");
     }
-  }, [canSync, mediaType, mediaId, maxOffset, gss, noFixFramerate, vad, onGetContent, onApplySyncedContent]);
+  }, [
+    canSync,
+    mediaType,
+    mediaId,
+    maxOffset,
+    gss,
+    noFixFramerate,
+    vad,
+    onGetContent,
+    onApplySyncedContent,
+  ]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <div style={{ fontSize: 11, padding: "4px 8px", borderRadius: 4, background: "rgba(245, 158, 11, 0.15)", color: "#f59e0b", marginBottom: 2 }}>
-        Experimental: results may vary depending on audio quality and subtitle timing.
+      <div
+        style={{
+          fontSize: 11,
+          padding: "4px 8px",
+          borderRadius: 4,
+          background: "rgba(245, 158, 11, 0.15)",
+          color: "#f59e0b",
+          marginBottom: 2,
+        }}
+      >
+        Experimental: results may vary depending on audio quality and subtitle
+        timing.
       </div>
       <div style={styles.hint}>
         Runs ffsubsync on the server to align this subtitle to the audio track.
-        Synced cues will be loaded into the editor (save manually to write to disk).
+        Synced cues will be loaded into the editor (save manually to write to
+        disk).
       </div>
 
       <div style={styles.row}>
@@ -688,19 +773,23 @@ function AutoSyncTab({
       {/* Progress */}
       {syncing && (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div style={{
-            height: 6,
-            borderRadius: 3,
-            background: "var(--bz-surface-base)",
-            overflow: "hidden",
-          }}>
-            <div style={{
-              height: "100%",
+          <div
+            style={{
+              height: 6,
               borderRadius: 3,
-              background: "var(--mantine-color-brand-5)",
-              width: "100%",
-              animation: "pulse 1.5s ease-in-out infinite",
-            }} />
+              background: "var(--bz-surface-base)",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                borderRadius: 3,
+                background: "var(--mantine-color-brand-5)",
+                width: "100%",
+                animation: "pulse 1.5s ease-in-out infinite",
+              }}
+            />
           </div>
           <div style={{ fontSize: 11, color: "var(--bz-text-secondary)" }}>
             {progressMsg}
@@ -756,7 +845,13 @@ export default function TimingToolsPanel({
   return (
     <div style={styles.container} onKeyDown={handleKeyDown}>
       <div style={{ display: "flex", alignItems: "center" }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--bz-text-primary)" }}>
+        <span
+          style={{
+            fontSize: 13,
+            fontWeight: 600,
+            color: "var(--bz-text-primary)",
+          }}
+        >
           Timing Tools
         </span>
         <button

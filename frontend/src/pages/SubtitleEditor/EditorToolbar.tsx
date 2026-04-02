@@ -148,7 +148,11 @@ export default function EditorToolbar({
               <FontAwesomeIcon icon={faDownload} />
             </ActionIcon>
           </Tooltip>
-          <Tooltip label="Save As (different language)" position="bottom" withArrow>
+          <Tooltip
+            label="Save As (different language)"
+            position="bottom"
+            withArrow
+          >
             <ActionIcon
               size="sm"
               variant="subtle"
@@ -228,7 +232,11 @@ export default function EditorToolbar({
 
         {/* Cue ops */}
         <Group gap={4} wrap="nowrap">
-          <Tooltip label="Add Cue (Ctrl+Shift+Enter)" position="bottom" withArrow>
+          <Tooltip
+            label="Add Cue (Ctrl+Shift+Enter)"
+            position="bottom"
+            withArrow
+          >
             <ActionIcon
               size="sm"
               variant="subtle"
@@ -250,7 +258,11 @@ export default function EditorToolbar({
               <FontAwesomeIcon icon={faScissors} />
             </ActionIcon>
           </Tooltip>
-          <Tooltip label="Merge Cues (Ctrl+Shift+M)" position="bottom" withArrow>
+          <Tooltip
+            label="Merge Cues (Ctrl+Shift+M)"
+            position="bottom"
+            withArrow
+          >
             <ActionIcon
               size="sm"
               variant="subtle"
@@ -278,7 +290,11 @@ export default function EditorToolbar({
 
         {/* Reference + AI ops */}
         <Group gap={4} wrap="nowrap">
-          <Tooltip label="Reference Subtitle (Ctrl+Shift+R)" position="bottom" withArrow>
+          <Tooltip
+            label="Reference Subtitle (Ctrl+Shift+R)"
+            position="bottom"
+            withArrow
+          >
             <ActionIcon
               size="sm"
               variant="subtle"
@@ -289,7 +305,11 @@ export default function EditorToolbar({
               <FontAwesomeIcon icon={faBook} />
             </ActionIcon>
           </Tooltip>
-          <Tooltip label="AI Translate (Ctrl+Shift+T)" position="bottom" withArrow>
+          <Tooltip
+            label="AI Translate (Ctrl+Shift+T)"
+            position="bottom"
+            withArrow
+          >
             <ActionIcon
               size="sm"
               variant="subtle"
@@ -308,7 +328,15 @@ export default function EditorToolbar({
 
       {/* Right side: filters, shortcuts, badges */}
       <Group gap="xs" wrap="nowrap">
-        <Tooltip label={bookmarkCount > 0 ? `Show bookmarked only (${bookmarkCount})` : "No bookmarks (Ctrl+B to bookmark)"} position="bottom" withArrow>
+        <Tooltip
+          label={
+            bookmarkCount > 0
+              ? `Show bookmarked only (${bookmarkCount})`
+              : "No bookmarks (Ctrl+B to bookmark)"
+          }
+          position="bottom"
+          withArrow
+        >
           <ActionIcon
             size="sm"
             variant="subtle"

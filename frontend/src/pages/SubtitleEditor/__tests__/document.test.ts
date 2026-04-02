@@ -1,4 +1,4 @@
-import { beforeEach,describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   computeCueWarnings,
   createAddCue,
@@ -395,10 +395,7 @@ describe("subtitleDocumentReducer BATCH_OPS", () => {
     const state = createInitialDocumentState(cues);
     const next = applyAction(state, {
       type: "BATCH_OPS",
-      ops: [
-        createEditTiming(0, 6000, 7000),
-        createEditTiming(1, 8000, 9000),
-      ],
+      ops: [createEditTiming(0, 6000, 7000), createEditTiming(1, 8000, 9000)],
     });
     // Third cue (startMs=3500) should now be first
     expect(next.cues[0].startMs).toBe(3500);
@@ -761,7 +758,7 @@ describe("computeCueWarnings", () => {
 
   it("strips HTML tags when checking line length", () => {
     // 30 visible chars + tags should be under 42
-    const text = '<b>a</b>'.repeat(5); // 5 visible chars
+    const text = "<b>a</b>".repeat(5); // 5 visible chars
     const cue = makeCue({ startMs: 0, endMs: 5000, text });
     const result = computeCueWarnings(cue, null, null);
     // Should not trigger line too long for 5 visible chars

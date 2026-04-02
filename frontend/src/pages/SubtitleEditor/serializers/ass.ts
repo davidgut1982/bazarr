@@ -86,11 +86,7 @@ export const assSerializer: SubtitleSerializer = {
     });
 
     return (
-      header +
-      "\n[Events]\n" +
-      EVENTS_FORMAT +
-      "\n" +
-      dialogueLines.join("\n")
+      header + "\n[Events]\n" + EVENTS_FORMAT + "\n" + dialogueLines.join("\n")
     );
   },
 };

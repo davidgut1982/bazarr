@@ -36,7 +36,10 @@ const SHORTCUTS: ShortcutCategory[] = [
   {
     title: "Cues",
     entries: [
-      { keys: ["Ctrl", "Shift", "Enter"], description: "Add cue after current" },
+      {
+        keys: ["Ctrl", "Shift", "Enter"],
+        description: "Add cue after current",
+      },
       { keys: ["Ctrl", "Shift", "S"], description: "Split cue at cursor" },
       { keys: ["Ctrl", "Shift", "M"], description: "Merge selected cues" },
       { keys: ["Ctrl", "Delete"], description: "Delete cue" },
@@ -45,9 +48,18 @@ const SHORTCUTS: ShortcutCategory[] = [
   {
     title: "Timing",
     entries: [
-      { keys: ["Ctrl", "Shift", "\u2190/\u2192"], description: "Nudge start time" },
-      { keys: ["Alt", "Shift", "\u2190/\u2192"], description: "Nudge end time" },
-      { keys: ["Ctrl", "Alt", "\u2190/\u2192"], description: "Move entire cue" },
+      {
+        keys: ["Ctrl", "Shift", "\u2190/\u2192"],
+        description: "Nudge start time",
+      },
+      {
+        keys: ["Alt", "Shift", "\u2190/\u2192"],
+        description: "Nudge end time",
+      },
+      {
+        keys: ["Ctrl", "Alt", "\u2190/\u2192"],
+        description: "Move entire cue",
+      },
       { keys: ["[", "]"], description: "Nudge both (Shift: large)" },
     ],
   },
@@ -209,7 +221,14 @@ export default function ShortcutSheet({ open, onClose }: ShortcutSheetProps) {
                   <span style={descriptionStyle}>{entry.description}</span>
                   <span style={keysContainerStyle}>
                     {entry.keys.map((key, ki) => (
-                      <span key={ki} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                      <span
+                        key={ki}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 3,
+                        }}
+                      >
                         {ki > 0 && <span style={plusStyle}>+</span>}
                         <kbd style={kbdStyle}>{key}</kbd>
                       </span>

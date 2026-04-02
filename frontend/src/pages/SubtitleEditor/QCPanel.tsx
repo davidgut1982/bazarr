@@ -1,4 +1,4 @@
-import { type CSSProperties,useCallback, useMemo } from "react";
+import { type CSSProperties, useCallback, useMemo } from "react";
 import {
   computeCueWarnings,
   createDeleteCues,
@@ -118,9 +118,9 @@ function countEllipsis(cues: Cue[]): number {
 
 function countLongLines(cues: Cue[], maxChars: number): number {
   return cues.filter((c) =>
-    c.text.split("\n").some(
-      (l) => l.replace(/<[^>]*>|\{\\[^}]*\}/g, "").length > maxChars,
-    ),
+    c.text
+      .split("\n")
+      .some((l) => l.replace(/<[^>]*>|\{\\[^}]*\}/g, "").length > maxChars),
   ).length;
 }
 
@@ -159,7 +159,13 @@ function buildOverlapOps(cues: Cue[], minGapMs: number): CueOperation[] {
   for (let i = 1; i < cues.length; i++) {
     if (cues[i].startMs < cues[i - 1].endMs) {
       const newEnd = cues[i].startMs - minGapMs;
-      ops.push(createEditTiming(i - 1, cues[i - 1].startMs, Math.max(cues[i - 1].startMs, newEnd)));
+      ops.push(
+        createEditTiming(
+          i - 1,
+          cues[i - 1].startMs,
+          Math.max(cues[i - 1].startMs, newEnd),
+        ),
+      );
     }
   }
   return ops;
@@ -437,9 +443,8 @@ export default function QCPanel({
   if (!open) return null;
 
   const presetKey =
-    Object.entries(QC_PRESETS).find(
-      ([, p]) => p.name === preset.name,
-    )?.[0] ?? "default";
+    Object.entries(QC_PRESETS).find(([, p]) => p.name === preset.name)?.[0] ??
+    "default";
 
   const fixes: Array<{ id: string; label: string; count: number }> = [
     { id: "hi", label: "Remove HI tags", count: counts.hi },
@@ -490,7 +495,9 @@ export default function QCPanel({
             flexWrap: "wrap",
           }}
         >
-          <span>CPS: {preset.warnCPS}/{preset.maxCPS}</span>
+          <span>
+            CPS: {preset.warnCPS}/{preset.maxCPS}
+          </span>
           <span>Line: {preset.maxCharsPerLine}ch</span>
           <span>Min: {preset.minDurationMs}ms</span>
           <span>Gap: {preset.minGapMs}ms</span>
@@ -503,37 +510,61 @@ export default function QCPanel({
         <div style={summaryRow}>
           {warningSummary.red > 0 && (
             <span
-              style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                cursor: "pointer",
+              }}
               onClick={() => navigateToLevel("red")}
               title="Click to navigate to first error"
             >
               <span style={dotStyle("#EF4444")} />
-              <span style={{ color: "#EF4444" }}>{warningSummary.red} error{warningSummary.red !== 1 ? "s" : ""}</span>
+              <span style={{ color: "#EF4444" }}>
+                {warningSummary.red} error{warningSummary.red !== 1 ? "s" : ""}
+              </span>
             </span>
           )}
           {warningSummary.orange > 0 && (
             <span
-              style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                cursor: "pointer",
+              }}
               onClick={() => navigateToLevel("orange")}
               title="Click to navigate to first warning"
             >
               <span style={dotStyle("#F97316")} />
-              <span style={{ color: "#F97316" }}>{warningSummary.orange} warn</span>
+              <span style={{ color: "#F97316" }}>
+                {warningSummary.orange} warn
+              </span>
             </span>
           )}
           {warningSummary.yellow > 0 && (
             <span
-              style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                cursor: "pointer",
+              }}
               onClick={() => navigateToLevel("yellow")}
               title="Click to navigate to first notice"
             >
               <span style={dotStyle("#EAB308")} />
-              <span style={{ color: "#EAB308" }}>{warningSummary.yellow} notice{warningSummary.yellow !== 1 ? "s" : ""}</span>
+              <span style={{ color: "#EAB308" }}>
+                {warningSummary.yellow} notice
+                {warningSummary.yellow !== 1 ? "s" : ""}
+              </span>
             </span>
           )}
-          {warningSummary.red === 0 && warningSummary.orange === 0 && warningSummary.yellow === 0 && (
-            <span style={{ color: "#22c55e" }}>All clear</span>
-          )}
+          {warningSummary.red === 0 &&
+            warningSummary.orange === 0 &&
+            warningSummary.yellow === 0 && (
+              <span style={{ color: "#22c55e" }}>All clear</span>
+            )}
         </div>
       </div>
 
@@ -546,7 +577,9 @@ export default function QCPanel({
           <div key={fix.id} style={fixRowStyle}>
             <span>{fix.label}</span>
             <span style={fixCountStyle}>
-              {fix.count > 0 ? `${fix.count} cue${fix.count !== 1 ? "s" : ""}` : "none"}
+              {fix.count > 0
+                ? `${fix.count} cue${fix.count !== 1 ? "s" : ""}`
+                : "none"}
             </span>
             <button
               type="button"

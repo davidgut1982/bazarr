@@ -5,7 +5,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { faSpinner,faTimes } from "@fortawesome/free-solid-svg-icons";
+import { faSpinner, faTimes } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useLanguages } from "@/apis/hooks/languages";
 import {
@@ -206,15 +206,17 @@ export default function TranslatePanel({
   referenceLanguage,
   onClose,
 }: TranslatePanelProps) {
-  const [translateSource, setTranslateSource] = useState<"auto" | "reference" | "editor">("auto");
+  const [translateSource, setTranslateSource] = useState<
+    "auto" | "reference" | "editor"
+  >("auto");
   const [sourceLanguage, setSourceLanguage] = useState("");
   const [targetLanguage, setTargetLanguage] = useState("");
   const [phase, setPhase] = useState<TranslatePhase>("idle");
   const [jobId, setJobId] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
-  const [translatedLines, setTranslatedLines] = useState<
-    Map<number, string>
-  >(new Map());
+  const [translatedLines, setTranslatedLines] = useState<Map<number, string>>(
+    new Map(),
+  );
 
   const [applied, setApplied] = useState(false);
 
@@ -248,10 +250,16 @@ export default function TranslatePanel({
   );
 
   // React to job status changes
-  const effectiveSource = translateSource === "auto"
-    ? (referenceCues && referenceCues.length > 0 ? "reference" : "editor")
-    : translateSource;
-  const useRefCues = effectiveSource === "reference" && referenceCues && referenceCues.length > 0;
+  const effectiveSource =
+    translateSource === "auto"
+      ? referenceCues && referenceCues.length > 0
+        ? "reference"
+        : "editor"
+      : translateSource;
+  const useRefCues =
+    effectiveSource === "reference" &&
+    referenceCues &&
+    referenceCues.length > 0;
 
   useEffect(() => {
     if (phase !== "translating" || !jobData) return;
@@ -289,7 +297,6 @@ export default function TranslatePanel({
       setJobId("");
     }
   }, [phase, jobData, onSetReference, onTranslatingChange, useRefCues]);
-
 
   const handleSubmit = useCallback(async () => {
     if (!targetLanguage) return;
@@ -340,7 +347,16 @@ export default function TranslatePanel({
           "Failed to submit translation job.",
       );
     }
-  }, [cues, referenceCues, useRefCues, sourceLanguage, targetLanguage, mediaTitle, languageOptions, onTranslatingChange]);
+  }, [
+    cues,
+    referenceCues,
+    useRefCues,
+    sourceLanguage,
+    targetLanguage,
+    mediaTitle,
+    languageOptions,
+    onTranslatingChange,
+  ]);
 
   const handleCancel = useCallback(() => {
     if (jobId) {
@@ -377,7 +393,13 @@ export default function TranslatePanel({
     <div style={styles.container}>
       {/* Header row */}
       <div style={{ ...styles.row, justifyContent: "space-between" }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--bz-text-primary)" }}>
+        <span
+          style={{
+            fontSize: 13,
+            fontWeight: 600,
+            color: "var(--bz-text-primary)",
+          }}
+        >
           AI Translate
         </span>
         <button
@@ -406,18 +428,25 @@ export default function TranslatePanel({
             ? availableSubtitles
                 .filter((s) => s.language !== currentLanguage)
                 .map((s) => {
-                  const langName = (serverLanguages ?? []).find((l) => l.code2 === s.language.split(":")[0])?.name ?? s.language;
-                  const modifier = s.language.includes(":") ? ` (${s.language.split(":")[1].toUpperCase()})` : "";
+                  const langName =
+                    (serverLanguages ?? []).find(
+                      (l) => l.code2 === s.language.split(":")[0],
+                    )?.name ?? s.language;
+                  const modifier = s.language.includes(":")
+                    ? ` (${s.language.split(":")[1].toUpperCase()})`
+                    : "";
                   return (
                     <option key={s.language} value={s.language}>
-                      {langName}{modifier} [{s.format}]
+                      {langName}
+                      {modifier} [{s.format}]
                     </option>
                   );
                 })
             : languageOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))
-          }
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
         </select>
         <button
           type="button"
@@ -434,11 +463,21 @@ export default function TranslatePanel({
       <div style={{ ...styles.row, gap: 6 }}>
         <span style={styles.label}>Source</span>
         <div style={{ display: "flex", gap: 2, flex: 1 }}>
-          {([
-            { value: "auto" as const, label: "Auto", disabled: false },
-            { value: "reference" as const, label: "Reference", disabled: !referenceCues || referenceCues.length === 0 },
-            { value: "editor" as const, label: "Editor cues", disabled: cues.length === 0 },
-          ] as const).map((opt) => (
+          {(
+            [
+              { value: "auto" as const, label: "Auto", disabled: false },
+              {
+                value: "reference" as const,
+                label: "Reference",
+                disabled: !referenceCues || referenceCues.length === 0,
+              },
+              {
+                value: "editor" as const,
+                label: "Editor cues",
+                disabled: cues.length === 0,
+              },
+            ] as const
+          ).map((opt) => (
             <button
               key={opt.value}
               type="button"
@@ -451,8 +490,14 @@ export default function TranslatePanel({
                 border: "1px solid var(--bz-border-interactive)",
                 borderRadius: 3,
                 cursor: opt.disabled ? "not-allowed" : "pointer",
-                background: translateSource === opt.value ? "var(--mantine-color-brand-5)" : "var(--bz-surface-raised)",
-                color: translateSource === opt.value ? "#fff" : "var(--bz-text-secondary)",
+                background:
+                  translateSource === opt.value
+                    ? "var(--mantine-color-brand-5)"
+                    : "var(--bz-surface-raised)",
+                color:
+                  translateSource === opt.value
+                    ? "#fff"
+                    : "var(--bz-text-secondary)",
                 opacity: opt.disabled ? 0.4 : 1,
                 fontWeight: translateSource === opt.value ? 600 : 400,
               }}
@@ -463,7 +508,12 @@ export default function TranslatePanel({
         </div>
       </div>
 
-      <div style={{ borderTop: "1px solid var(--bz-border-divider)", margin: "4px 0" }} />
+      <div
+        style={{
+          borderTop: "1px solid var(--bz-border-divider)",
+          margin: "4px 0",
+        }}
+      />
 
       {/* Source language */}
       <div style={styles.row}>
@@ -504,9 +554,7 @@ export default function TranslatePanel({
       </div>
 
       {/* Model info */}
-      {modelUsed && (
-        <div style={styles.statusText}>Model: {modelUsed}</div>
-      )}
+      {modelUsed && <div style={styles.statusText}>Model: {modelUsed}</div>}
 
       {/* Cue count */}
       <div style={styles.statusText}>
@@ -518,9 +566,7 @@ export default function TranslatePanel({
       {phase === "translating" && (
         <>
           <div style={styles.progressBar}>
-            <div
-              style={{ ...styles.progressFill, width: `${progress}%` }}
-            />
+            <div style={{ ...styles.progressFill, width: `${progress}%` }} />
           </div>
           <div style={styles.statusText}>
             {jobMessage ||
@@ -530,14 +576,13 @@ export default function TranslatePanel({
       )}
 
       {/* Error */}
-      {phase === "failed" && (
-        <div style={styles.errorText}>{errorMsg}</div>
-      )}
+      {phase === "failed" && <div style={styles.errorText}>{errorMsg}</div>}
 
       {/* Success */}
       {phase === "completed" && (
         <div style={styles.successText}>
-          Translation complete. {translatedLines.size}/{useRefCues ? referenceCues!.length : cues.length} lines translated.
+          Translation complete. {translatedLines.size}/
+          {useRefCues ? referenceCues!.length : cues.length} lines translated.
         </div>
       )}
 
@@ -548,7 +593,9 @@ export default function TranslatePanel({
             type="button"
             style={{
               ...styles.btnPrimary,
-              ...((useRefCues ? referenceCues!.length === 0 : cues.length === 0) || !targetLanguage
+              ...((useRefCues
+                ? referenceCues!.length === 0
+                : cues.length === 0) || !targetLanguage
                 ? { opacity: 0.5, cursor: "not-allowed" }
                 : {}),
             }}
@@ -568,37 +615,26 @@ export default function TranslatePanel({
             style={{ ...styles.btnPrimary, opacity: 0.7, cursor: "wait" }}
             disabled
           >
-            <FontAwesomeIcon icon={faSpinner} spin />{" "}
-            Submitting...
+            <FontAwesomeIcon icon={faSpinner} spin /> Submitting...
           </button>
         )}
 
         {phase === "translating" && (
-          <button
-            type="button"
-            style={styles.btnDanger}
-            onClick={handleCancel}
-          >
+          <button type="button" style={styles.btnDanger} onClick={handleCancel}>
             Cancel
           </button>
         )}
 
         {phase === "completed" && (
           <>
-            <button
-              type="button"
-              style={styles.btn}
-              onClick={handleReset}
-            >
+            <button type="button" style={styles.btn} onClick={handleReset}>
               Reset
             </button>
             <button
               type="button"
               style={{
                 ...styles.btnSuccess,
-                ...(applied
-                  ? { opacity: 0.5, cursor: "not-allowed" }
-                  : {}),
+                ...(applied ? { opacity: 0.5, cursor: "not-allowed" } : {}),
               }}
               disabled={applied}
               onClick={handleApply}
@@ -609,11 +645,7 @@ export default function TranslatePanel({
         )}
 
         {phase === "failed" && (
-          <button
-            type="button"
-            style={styles.btn}
-            onClick={handleReset}
-          >
+          <button type="button" style={styles.btn} onClick={handleReset}>
             Try Again
           </button>
         )}

@@ -70,9 +70,7 @@ export default function StatusBar({
         <span style={{ color: "#60a5fa" }}>{multiSelectCount} selected</span>
       )}
       {bookmarkCount > 0 && (
-        <span style={{ color: "#fbbf24" }}>
-          {bookmarkCount} bookmarked
-        </span>
+        <span style={{ color: "#fbbf24" }}>{bookmarkCount} bookmarked</span>
       )}
       <span style={{ flex: 1 }} />
       <span>{format.toUpperCase()}</span>

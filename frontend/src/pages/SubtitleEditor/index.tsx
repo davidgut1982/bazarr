@@ -25,7 +25,11 @@ function formatFileSize(bytes: number): string {
 export default function SubtitleEditor() {
   const { mediaType, mediaId, language } = useParams();
 
-  const { data: rawData, isLoading, error } = useSubtitleContent(
+  const {
+    data: rawData,
+    isLoading,
+    error,
+  } = useSubtitleContent(
     mediaType,
     mediaId ? Number(mediaId) : undefined,
     language,

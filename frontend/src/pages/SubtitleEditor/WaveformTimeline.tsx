@@ -89,9 +89,10 @@ export default function WaveformTimeline({
   const seekingFromCue = useRef(false);
 
   const apiKey = Environment.apiKey ?? "";
-  const peaksUrl = mediaType && mediaId
-    ? `${Environment.baseUrl}/api/editor/peaks?mediaType=${mediaType}&mediaId=${mediaId}&audioTrack=${audioTrack}&apikey=${encodeURIComponent(apiKey)}`
-    : null;
+  const peaksUrl =
+    mediaType && mediaId
+      ? `${Environment.baseUrl}/api/editor/peaks?mediaType=${mediaType}&mediaId=${mediaId}&audioTrack=${audioTrack}&apikey=${encodeURIComponent(apiKey)}`
+      : null;
 
   // Initialize wavesurfer once, load peaks separately
   useEffect(() => {
@@ -172,7 +173,7 @@ export default function WaveformTimeline({
       setReady(false);
       setLoading(true);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [peaksUrl]);
 
   // Sync zoom
@@ -184,7 +185,10 @@ export default function WaveformTimeline({
 
   // Build a stable key from cue timings + selected index (ignore text changes)
   const regionKey = useMemo(() => {
-    return cues.map((c) => `${c.id}:${c.startMs}:${c.endMs}`).join("|") + `|sel:${selectedIndex}`;
+    return (
+      cues.map((c) => `${c.id}:${c.startMs}:${c.endMs}`).join("|") +
+      `|sel:${selectedIndex}`
+    );
   }, [cues, selectedIndex]);
 
   // Sync regions with cues (only when timing or selection changes, not on text edits)
@@ -205,7 +209,7 @@ export default function WaveformTimeline({
         resize: true,
       });
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [regionKey, ready]);
 
   // Region event handlers
@@ -231,7 +235,9 @@ export default function WaveformTimeline({
           Math.round(region.start * 1000),
           Math.round(region.end * 1000),
         );
-        setTimeout(() => { updatingFromRegion.current = false; }, 100);
+        setTimeout(() => {
+          updatingFromRegion.current = false;
+        }, 100);
       }
     };
 
@@ -247,16 +253,19 @@ export default function WaveformTimeline({
   // Scroll waveform to selected cue
   useEffect(() => {
     const ws = wsRef.current;
-    if (!ws || !ready || selectedIndex < 0 || selectedIndex >= cues.length) return;
+    if (!ws || !ready || selectedIndex < 0 || selectedIndex >= cues.length)
+      return;
     if (updatingFromRegion.current) return;
 
     const cue = cues[selectedIndex];
     const duration = ws.getDuration();
     if (duration > 0) {
       seekingFromCue.current = true;
-      const progress = Math.min(1, Math.max(0, (cue.startMs / 1000) / duration));
+      const progress = Math.min(1, Math.max(0, cue.startMs / 1000 / duration));
       ws.seekTo(progress);
-      setTimeout(() => { seekingFromCue.current = false; }, 100);
+      setTimeout(() => {
+        seekingFromCue.current = false;
+      }, 100);
     }
   }, [selectedIndex, ready, cues]);
 
@@ -274,18 +283,37 @@ export default function WaveformTimeline({
 
     const duration = ws.getDuration();
     if (duration > 0) {
-      const progress = Math.min(1, Math.max(0, (currentTimeMs / 1000) / duration));
+      const progress = Math.min(
+        1,
+        Math.max(0, currentTimeMs / 1000 / duration),
+      );
       ws.seekTo(progress);
     }
   }, [currentTimeMs, ready]);
 
-  const handleZoomIn = useCallback(() => setZoom((z) => Math.min(500, z + 25)), []);
-  const handleZoomOut = useCallback(() => setZoom((z) => Math.max(10, z - 25)), []);
+  const handleZoomIn = useCallback(
+    () => setZoom((z) => Math.min(500, z + 25)),
+    [],
+  );
+  const handleZoomOut = useCallback(
+    () => setZoom((z) => Math.max(10, z - 25)),
+    [],
+  );
 
   if (!peaksUrl) {
     return (
-      <div style={{ ...containerStyle, height: 40, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ fontSize: 11, color: "var(--bz-text-disabled)" }}>No media loaded for waveform</span>
+      <div
+        style={{
+          ...containerStyle,
+          height: 40,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <span style={{ fontSize: 11, color: "var(--bz-text-disabled)" }}>
+          No media loaded for waveform
+        </span>
       </div>
     );
   }
@@ -316,14 +344,16 @@ export default function WaveformTimeline({
             zIndex: 5,
           }}
         >
-          <div style={{
-            width: 24,
-            height: 24,
-            border: "3px solid rgba(230, 138, 0, 0.3)",
-            borderTop: "3px solid #e68a00",
-            borderRadius: "50%",
-            animation: "waveform-spin 0.8s linear infinite",
-          }} />
+          <div
+            style={{
+              width: 24,
+              height: 24,
+              border: "3px solid rgba(230, 138, 0, 0.3)",
+              borderTop: "3px solid #e68a00",
+              borderRadius: "50%",
+              animation: "waveform-spin 0.8s linear infinite",
+            }}
+          />
           <div style={{ color: "#e68a00", fontSize: 13, fontWeight: 600 }}>
             Loading waveform, please wait...
           </div>
@@ -331,26 +361,56 @@ export default function WaveformTimeline({
         </div>
       )}
       <div style={controlsStyle}>
-        <span style={{
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 11,
-          color: "var(--bz-stat-processing)",
-          fontWeight: 600,
-          minWidth: 60,
-        }}>
+        <span
+          style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 11,
+            color: "var(--bz-stat-processing)",
+            fontWeight: 600,
+            minWidth: 60,
+          }}
+        >
           {formatMs(currentTimeMs ?? 0)}
         </span>
-        <div style={{ width: 1, height: 14, background: "var(--bz-border-interactive)" }} />
-        <button type="button" style={zoomBtnStyle} onClick={handleZoomOut} title="Zoom out">
+        <div
+          style={{
+            width: 1,
+            height: 14,
+            background: "var(--bz-border-interactive)",
+          }}
+        />
+        <button
+          type="button"
+          style={zoomBtnStyle}
+          onClick={handleZoomOut}
+          title="Zoom out"
+        >
           -
         </button>
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "var(--bz-text-tertiary)" }}>
+        <span
+          style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 10,
+            color: "var(--bz-text-tertiary)",
+          }}
+        >
           {zoom}px/s
         </span>
-        <button type="button" style={zoomBtnStyle} onClick={handleZoomIn} title="Zoom in">
+        <button
+          type="button"
+          style={zoomBtnStyle}
+          onClick={handleZoomIn}
+          title="Zoom in"
+        >
           +
         </button>
-        <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--bz-text-disabled)" }}>
+        <span
+          style={{
+            marginLeft: "auto",
+            fontSize: 10,
+            color: "var(--bz-text-disabled)",
+          }}
+        >
           {cues.length} cues
         </span>
       </div>

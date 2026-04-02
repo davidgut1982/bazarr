@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { formatTime, renderSubtitleHtml } from "@/pages/SubtitleEditor/VideoPreview";
-import { cueColor,formatMs } from "@/pages/SubtitleEditor/WaveformTimeline";
+import {
+  formatTime,
+  renderSubtitleHtml,
+} from "@/pages/SubtitleEditor/VideoPreview";
+import { cueColor, formatMs } from "@/pages/SubtitleEditor/WaveformTimeline";
 
 // ---------------------------------------------------------------------------
 // VideoPreview: formatTime
@@ -199,9 +202,7 @@ describe("codec detection logic", () => {
 
   it("returns transcode when video codec is not supported", () => {
     const canPlayNone = () => "";
-    expect(detectPlayMode("hevc", "aac", "mkv", canPlayNone)).toBe(
-      "transcode",
-    );
+    expect(detectPlayMode("hevc", "aac", "mkv", canPlayNone)).toBe("transcode");
   });
 
   it("returns transcode for unknown video codec", () => {
@@ -222,9 +223,7 @@ describe("codec detection logic", () => {
       return "";
     };
     // unknown audio codec means aCodecStr = "", canPlayAudio = false
-    expect(detectPlayMode("h264", "truehd", "mp4", canPlayVideo)).toBe(
-      "remux",
-    );
+    expect(detectPlayMode("h264", "truehd", "mp4", canPlayVideo)).toBe("remux");
   });
 
   it("uses mp4 container for non-webm extensions", () => {

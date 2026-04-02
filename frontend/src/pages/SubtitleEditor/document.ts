@@ -16,10 +16,46 @@ export interface QCPreset {
 }
 
 export const QC_PRESETS: Record<string, QCPreset> = {
-  default: { name: "Default", maxCPS: 25, warnCPS: 18, maxCharsPerLine: 42, maxLines: 2, minDurationMs: 700, maxDurationMs: 7000, minGapMs: 83 },
-  netflix: { name: "Netflix", maxCPS: 20, warnCPS: 17, maxCharsPerLine: 42, maxLines: 2, minDurationMs: 833, maxDurationMs: 7000, minGapMs: 83 },
-  amazon: { name: "Amazon", maxCPS: 25, warnCPS: 20, maxCharsPerLine: 42, maxLines: 2, minDurationMs: 1000, maxDurationMs: 7000, minGapMs: 83 },
-  bbc: { name: "BBC", maxCPS: 20, warnCPS: 16, maxCharsPerLine: 37, maxLines: 2, minDurationMs: 1000, maxDurationMs: 7000, minGapMs: 100 },
+  default: {
+    name: "Default",
+    maxCPS: 25,
+    warnCPS: 18,
+    maxCharsPerLine: 42,
+    maxLines: 2,
+    minDurationMs: 700,
+    maxDurationMs: 7000,
+    minGapMs: 83,
+  },
+  netflix: {
+    name: "Netflix",
+    maxCPS: 20,
+    warnCPS: 17,
+    maxCharsPerLine: 42,
+    maxLines: 2,
+    minDurationMs: 833,
+    maxDurationMs: 7000,
+    minGapMs: 83,
+  },
+  amazon: {
+    name: "Amazon",
+    maxCPS: 25,
+    warnCPS: 20,
+    maxCharsPerLine: 42,
+    maxLines: 2,
+    minDurationMs: 1000,
+    maxDurationMs: 7000,
+    minGapMs: 83,
+  },
+  bbc: {
+    name: "BBC",
+    maxCPS: 20,
+    warnCPS: 16,
+    maxCharsPerLine: 37,
+    maxLines: 2,
+    minDurationMs: 1000,
+    maxDurationMs: 7000,
+    minGapMs: 100,
+  },
 };
 
 export const DEFAULT_QC_PRESET = QC_PRESETS.default;
@@ -108,9 +144,7 @@ export function createEditTiming(
   return {
     type: "EDIT_TIMING",
     apply(cues) {
-      return cues.map((c, i) =>
-        i === index ? { ...c, startMs, endMs } : c,
-      );
+      return cues.map((c, i) => (i === index ? { ...c, startMs, endMs } : c));
     },
     inverse(cues) {
       return createEditTiming(index, cues[index].startMs, cues[index].endMs);
@@ -227,9 +261,7 @@ export interface SubtitleDocumentState {
 
 const MAX_UNDO = 50;
 
-export function createInitialDocumentState(
-  cues: Cue[],
-): SubtitleDocumentState {
+export function createInitialDocumentState(cues: Cue[]): SubtitleDocumentState {
   return {
     cues: [...cues],
     undoStack: [],
@@ -269,7 +301,10 @@ function affectedCueIds(before: Cue[], after: Cue[]): string[] {
   const afterMap = new Map(after.map((c) => [c.id, c]));
   for (const c of before) {
     const a = afterMap.get(c.id);
-    if (a && (a.text !== c.text || a.startMs !== c.startMs || a.endMs !== c.endMs)) {
+    if (
+      a &&
+      (a.text !== c.text || a.startMs !== c.startMs || a.endMs !== c.endMs)
+    ) {
       ids.add(c.id);
     }
   }
@@ -468,8 +503,15 @@ export function computeCueWarnings(
       message: `Duration too short (${durationMs.toFixed(0)}ms, min ${preset.minDurationMs}ms)`,
     };
   }
-  if (lines.some((l) => l.replace(/<[^>]*>|\{\\[^}]*\}/g, "").length > preset.maxCharsPerLine)) {
-    const longest = Math.max(...lines.map((l) => l.replace(/<[^>]*>|\{\\[^}]*\}/g, "").length));
+  if (
+    lines.some(
+      (l) =>
+        l.replace(/<[^>]*>|\{\\[^}]*\}/g, "").length > preset.maxCharsPerLine,
+    )
+  ) {
+    const longest = Math.max(
+      ...lines.map((l) => l.replace(/<[^>]*>|\{\\[^}]*\}/g, "").length),
+    );
     return {
       level: "orange",
       message: `Line too long (${longest} chars, max ${preset.maxCharsPerLine})`,
@@ -492,7 +534,7 @@ export function computeCueWarnings(
   if (durationMs > preset.maxDurationMs) {
     return {
       level: "yellow",
-      message: `Duration too long (${(durationSec).toFixed(1)}s, max ${(preset.maxDurationMs / 1000).toFixed(1)}s)`,
+      message: `Duration too long (${durationSec.toFixed(1)}s, max ${(preset.maxDurationMs / 1000).toFixed(1)}s)`,
     };
   }
   if (

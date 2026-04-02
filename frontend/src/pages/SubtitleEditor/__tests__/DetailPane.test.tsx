@@ -1,10 +1,12 @@
-import { fireEvent,render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import DetailPane from "@/pages/SubtitleEditor/DetailPane";
 import type { Cue } from "@/pages/SubtitleEditor/types";
 
-const noop = () => { /* noop */ };
+const noop = () => {
+  /* noop */
+};
 
 function makeCue(overrides: Partial<Cue> = {}): Cue {
   return {
@@ -30,9 +32,7 @@ describe("DetailPane", () => {
       render(<DetailPane {...defaultProps} />);
 
       expect(
-        screen.getByPlaceholderText(
-          /No cue at current position/,
-        ),
+        screen.getByPlaceholderText(/No cue at current position/),
       ).toBeInTheDocument();
     });
 
@@ -70,7 +70,9 @@ describe("DetailPane", () => {
       const cue = makeCue({ text: "Test subtitle line" });
       render(<DetailPane {...defaultProps} cue={cue} />);
 
-      expect(screen.getByDisplayValue("Test subtitle line")).toBeInTheDocument();
+      expect(
+        screen.getByDisplayValue("Test subtitle line"),
+      ).toBeInTheDocument();
     });
 
     it("shows cue number label", () => {
@@ -150,22 +152,13 @@ describe("DetailPane", () => {
 
     it("shows fallback when referenceText is empty string", () => {
       const cue = makeCue();
-      render(
-        <DetailPane {...defaultProps} cue={cue} referenceText="" />,
-      );
+      render(<DetailPane {...defaultProps} cue={cue} referenceText="" />);
 
-      expect(
-        screen.getByText("No reference for this cue"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("No reference for this cue")).toBeInTheDocument();
     });
 
     it("shows reference in empty state with no cue", () => {
-      render(
-        <DetailPane
-          {...defaultProps}
-          referenceText="Some reference"
-        />,
-      );
+      render(<DetailPane {...defaultProps} referenceText="Some reference" />);
 
       expect(screen.getByText("Some reference")).toBeInTheDocument();
     });
@@ -263,7 +256,9 @@ describe("DetailPane", () => {
         <DetailPane {...defaultProps} cue={cue} onTextChange={onTextChange} />,
       );
 
-      const textarea = screen.getByDisplayValue("Hello world") as HTMLTextAreaElement;
+      const textarea = screen.getByDisplayValue(
+        "Hello world",
+      ) as HTMLTextAreaElement;
 
       // Simulate selecting "world" (index 6 to 11)
       textarea.setSelectionRange(6, 11);
@@ -299,7 +294,9 @@ describe("DetailPane", () => {
         <DetailPane {...defaultProps} cue={cue} onTextChange={onTextChange} />,
       );
 
-      const textarea = screen.getByDisplayValue("Hello world") as HTMLTextAreaElement;
+      const textarea = screen.getByDisplayValue(
+        "Hello world",
+      ) as HTMLTextAreaElement;
       textarea.setSelectionRange(5, 5);
 
       const ellipsisBtn = screen.getByTitle("Ellipsis");

@@ -48,7 +48,11 @@ function shouldUseReference(
   effectiveSource: "reference" | "editor",
   referenceCues: ReferenceCue[] | undefined,
 ): boolean {
-  return effectiveSource === "reference" && !!referenceCues && referenceCues.length > 0;
+  return (
+    effectiveSource === "reference" &&
+    !!referenceCues &&
+    referenceCues.length > 0
+  );
 }
 
 /**
@@ -158,12 +162,16 @@ describe("Translation flow: source selection", () => {
   });
 
   it('"reference" always returns reference', () => {
-    expect(resolveEffectiveSource("reference", makeReferenceCues(3))).toBe("reference");
+    expect(resolveEffectiveSource("reference", makeReferenceCues(3))).toBe(
+      "reference",
+    );
     expect(resolveEffectiveSource("reference", [])).toBe("reference");
   });
 
   it('"editor" always returns editor', () => {
-    expect(resolveEffectiveSource("editor", makeReferenceCues(3))).toBe("editor");
+    expect(resolveEffectiveSource("editor", makeReferenceCues(3))).toBe(
+      "editor",
+    );
     expect(resolveEffectiveSource("editor", undefined)).toBe("editor");
   });
 });
@@ -251,7 +259,9 @@ describe("Translation flow: editor path (update cues in place)", () => {
     const docState = createInitialDocumentState(editorCues);
 
     const actions: any[] = [];
-    const result = applyTranslation(translations, docState, [], (a) => actions.push(a));
+    const result = applyTranslation(translations, docState, [], (a) =>
+      actions.push(a),
+    );
 
     expect(result.fromReference).toBe(false);
     expect(actions).toHaveLength(1);
@@ -314,7 +324,9 @@ describe("Translation flow: onSetReference behavior", () => {
     const translations = makeTranslations(5);
     const docState = createInitialDocumentState(editorCues);
 
-    const result = applyTranslation(translations, docState, refCues, () => { /* noop */ });
+    const result = applyTranslation(translations, docState, refCues, () => {
+      /* noop */
+    });
     expect(result.fromReference).toBe(true);
 
     // Verify that shouldUseReference returns true for this case
@@ -328,7 +340,9 @@ describe("Translation flow: onSetReference behavior", () => {
     const translations = makeTranslations(3);
     const docState = createInitialDocumentState(editorCues);
 
-    const result = applyTranslation(translations, docState, [], () => { /* noop */ });
+    const result = applyTranslation(translations, docState, [], () => {
+      /* noop */
+    });
     expect(result.fromReference).toBe(false);
 
     // Verify onSetReference would be called: shouldUseReference is false
@@ -436,7 +450,9 @@ describe("Translation flow: edge cases", () => {
 
     const docState = createInitialDocumentState(editorCues);
     const actions: any[] = [];
-    const result = applyTranslation(translations, docState, refCues, (a) => actions.push(a));
+    const result = applyTranslation(translations, docState, refCues, (a) =>
+      actions.push(a),
+    );
 
     // translations.size (3) is NOT > cues.length (3), so editor path
     expect(result.fromReference).toBe(false);

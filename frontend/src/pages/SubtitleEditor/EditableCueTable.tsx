@@ -1,6 +1,13 @@
-import { Fragment, ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
+import {
+  Fragment,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { formatDuration,formatTimestamp } from "./CueTable";
+import { formatDuration, formatTimestamp } from "./CueTable";
 import type { CueWarning, GhostCue } from "./document";
 import type { Cue } from "./types";
 
@@ -152,9 +159,9 @@ const WARNING_COLORS: Record<CueWarning["level"], string> = {
 };
 
 const WARNING_SYMBOLS: Record<CueWarning["level"], string> = {
-  red: "\u2716",     // heavy X
-  orange: "\u26A0",  // warning triangle
-  yellow: "\u25CF",  // filled circle
+  red: "\u2716", // heavy X
+  orange: "\u26A0", // warning triangle
+  yellow: "\u25CF", // filled circle
 };
 
 // ---- Grid template ----
@@ -250,8 +257,8 @@ interface EditableCueTableProps {
 }
 
 const HEADER_COLUMNS = [
-  { label: "", align: undefined },           // gutter
-  { label: "", align: "center" as const },   // bookmark
+  { label: "", align: undefined }, // gutter
+  { label: "", align: "center" as const }, // bookmark
   { label: "#", align: "right" as const },
   { label: "START", align: undefined },
   { label: "END", align: undefined },
@@ -397,7 +404,15 @@ export default function EditableCueTable({
         onActivate(selectedIndex);
       }
     },
-    [selectedIndex, cues.length, displayRows, virtualizer, onSelect, onMultiSelect, onActivate],
+    [
+      selectedIndex,
+      cues.length,
+      displayRows,
+      virtualizer,
+      onSelect,
+      onMultiSelect,
+      onActivate,
+    ],
   );
 
   const selectedRowId =
@@ -489,19 +504,66 @@ export default function EditableCueTable({
                     cursor: "pointer",
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "rgba(230,138,0,0.04)";
+                    e.currentTarget.style.backgroundColor =
+                      "rgba(230,138,0,0.04)";
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.01)";
+                    e.currentTarget.style.backgroundColor =
+                      "rgba(255,255,255,0.01)";
                   }}
                 >
                   <div style={{ width: 20 }} />
                   <div role="gridcell" style={{ width: 24 }} />
-                  <div role="gridcell" style={{ ...indexCellStyle, fontStyle: "italic", color: "var(--bz-text-disabled)" }}>+</div>
-                  <div role="gridcell" style={{ ...monoStyle, fontStyle: "italic", color: "var(--bz-text-disabled)" }}>{formatTimestamp(row.ghost.startMs)}</div>
-                  <div role="gridcell" style={{ ...monoStyle, fontStyle: "italic", color: "var(--bz-text-disabled)" }}>{formatTimestamp(row.ghost.endMs)}</div>
-                  <div role="gridcell" style={{ ...durationStyle, fontStyle: "italic", color: "var(--bz-text-disabled)" }}>{formatDuration(row.ghost.endMs - row.ghost.startMs)}</div>
-                  <div role="gridcell" style={{ ...textCellStyle, fontStyle: "italic", color: "var(--bz-text-disabled)" }}>gap detected, click to add cue</div>
+                  <div
+                    role="gridcell"
+                    style={{
+                      ...indexCellStyle,
+                      fontStyle: "italic",
+                      color: "var(--bz-text-disabled)",
+                    }}
+                  >
+                    +
+                  </div>
+                  <div
+                    role="gridcell"
+                    style={{
+                      ...monoStyle,
+                      fontStyle: "italic",
+                      color: "var(--bz-text-disabled)",
+                    }}
+                  >
+                    {formatTimestamp(row.ghost.startMs)}
+                  </div>
+                  <div
+                    role="gridcell"
+                    style={{
+                      ...monoStyle,
+                      fontStyle: "italic",
+                      color: "var(--bz-text-disabled)",
+                    }}
+                  >
+                    {formatTimestamp(row.ghost.endMs)}
+                  </div>
+                  <div
+                    role="gridcell"
+                    style={{
+                      ...durationStyle,
+                      fontStyle: "italic",
+                      color: "var(--bz-text-disabled)",
+                    }}
+                  >
+                    {formatDuration(row.ghost.endMs - row.ghost.startMs)}
+                  </div>
+                  <div
+                    role="gridcell"
+                    style={{
+                      ...textCellStyle,
+                      fontStyle: "italic",
+                      color: "var(--bz-text-disabled)",
+                    }}
+                  >
+                    gap detected, click to add cue
+                  </div>
                 </div>
               );
             }
@@ -603,10 +665,16 @@ export default function EditableCueTable({
                     justifyContent: "center",
                     cursor: "pointer",
                     fontSize: 11,
-                    color: bookmarkedIds.has(cue.id) ? "var(--bz-stat-processing)" : "var(--bz-text-disabled)",
+                    color: bookmarkedIds.has(cue.id)
+                      ? "var(--bz-stat-processing)"
+                      : "var(--bz-text-disabled)",
                     transition: "color 0.15s ease",
                   }}
-                  title={bookmarkedIds.has(cue.id) ? "Remove bookmark" : "Add bookmark"}
+                  title={
+                    bookmarkedIds.has(cue.id)
+                      ? "Remove bookmark"
+                      : "Add bookmark"
+                  }
                 >
                   {bookmarkedIds.has(cue.id) ? "\u2605" : "\u2606"}
                 </div>

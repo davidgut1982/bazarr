@@ -129,7 +129,7 @@ describe("Cue index display", () => {
     expect(container.textContent).toContain("Cue 5/20");
   });
 
-  it('shows dash when cueIndex is -1 (no selection)', () => {
+  it("shows dash when cueIndex is -1 (no selection)", () => {
     const { container } = render(
       <StatusBar {...defaultProps} cueIndex={-1} cueCount={10} />,
     );
@@ -149,16 +149,12 @@ describe("Cue index display", () => {
 // ---------------------------------------------------------------------------
 describe("Dirty indicator", () => {
   it("shows Unsaved when dirty is true", () => {
-    const { container } = render(
-      <StatusBar {...defaultProps} dirty={true} />,
-    );
+    const { container } = render(<StatusBar {...defaultProps} dirty={true} />);
     expect(container.textContent).toContain("Unsaved");
   });
 
   it("does not show Unsaved when dirty is false", () => {
-    const { container } = render(
-      <StatusBar {...defaultProps} dirty={false} />,
-    );
+    const { container } = render(<StatusBar {...defaultProps} dirty={false} />);
     expect(container.textContent).not.toContain("Unsaved");
   });
 });
@@ -206,9 +202,7 @@ describe("Multi-select count", () => {
 // ---------------------------------------------------------------------------
 describe("Format and encoding display", () => {
   it("displays format in uppercase", () => {
-    const { container } = render(
-      <StatusBar {...defaultProps} format="srt" />,
-    );
+    const { container } = render(<StatusBar {...defaultProps} format="srt" />);
     expect(container.textContent).toContain("SRT");
   });
 

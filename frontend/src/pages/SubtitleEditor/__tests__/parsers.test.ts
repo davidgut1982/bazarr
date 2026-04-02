@@ -155,10 +155,9 @@ describe("SRT parser", () => {
   });
 
   it("handles missing sequence numbers (timestamp on first line)", () => {
-    const input = [
-      "00:00:01,000 --> 00:00:02,000",
-      "No sequence number",
-    ].join("\n");
+    const input = ["00:00:01,000 --> 00:00:02,000", "No sequence number"].join(
+      "\n",
+    );
 
     const result = parser.parse(input);
     expect(result.cues).toHaveLength(1);
@@ -180,7 +179,7 @@ describe("SRT parser", () => {
     const input = [
       "1",
       "00:00:01,000 --> 00:00:04,000",
-      "Caf\u00e9 & \"quotes\" <angle>",
+      'Caf\u00e9 & "quotes" <angle>',
     ].join("\n");
 
     const result = parser.parse(input);
@@ -221,11 +220,9 @@ describe("SRT parser", () => {
   });
 
   it("handles large hour values", () => {
-    const input = [
-      "1",
-      "99:59:59,999 --> 100:00:00,000",
-      "Far future",
-    ].join("\n");
+    const input = ["1", "99:59:59,999 --> 100:00:00,000", "Far future"].join(
+      "\n",
+    );
 
     const result = parser.parse(input);
     expect(result.cues[0].startMs).toBe(
@@ -249,11 +246,7 @@ describe("SRT parser", () => {
   });
 
   it("handles timestamp with only two digit milliseconds", () => {
-    const input = [
-      "1",
-      "00:00:01,50 --> 00:00:02,50",
-      "Short ms",
-    ].join("\n");
+    const input = ["1", "00:00:01,50 --> 00:00:02,50", "Short ms"].join("\n");
 
     const result = parser.parse(input);
     // "50" padded to "500"
@@ -298,10 +291,7 @@ describe("VTT parser", () => {
   });
 
   it("returns 0 cues when WEBVTT header is missing", () => {
-    const input = [
-      "00:00:01.000 --> 00:00:04.000",
-      "No header",
-    ].join("\n");
+    const input = ["00:00:01.000 --> 00:00:04.000", "No header"].join("\n");
 
     const result = parser.parse(input);
     expect(result.cues).toHaveLength(0);
@@ -659,9 +649,7 @@ describe("SUB parser", () => {
 
     const result = parser.parse(input);
     expect(result.cues).toHaveLength(3);
-    expect(result.cues[2].startMs).toBe(
-      Math.round((500 / DEFAULT_FPS) * 1000),
-    );
+    expect(result.cues[2].startMs).toBe(Math.round((500 / DEFAULT_FPS) * 1000));
   });
 
   it("skips lines that do not match the frame pattern", () => {
@@ -996,11 +984,9 @@ describe("TXT parser", () => {
   });
 
   it("adjusts end times so each cue ends when the next starts", () => {
-    const input = [
-      "00:00:10:First",
-      "00:00:20:Second",
-      "00:00:30:Third",
-    ].join("\n");
+    const input = ["00:00:10:First", "00:00:20:Second", "00:00:30:Third"].join(
+      "\n",
+    );
 
     const result = parser.parse(input);
     expect(result.cues[0].endMs).toBe(20000);

@@ -168,9 +168,7 @@ describe("VTT serializer", () => {
   });
 
   it("handles multi-line text", () => {
-    const result = makeResult("vtt", [
-      makeCue(0, 1000, "Line one\nLine two"),
-    ]);
+    const result = makeResult("vtt", [makeCue(0, 1000, "Line one\nLine two")]);
     const output = serializer.serialize(result);
     expect(output).toContain("Line one\nLine two");
   });
@@ -231,11 +229,9 @@ describe("ASS serializer", () => {
   ].join("\n");
 
   it("uses custom rawHeader when provided", () => {
-    const result = makeResult(
-      "ass",
-      [makeCue(1000, 4000, "Hello")],
-      { rawHeader: customHeader },
-    );
+    const result = makeResult("ass", [makeCue(1000, 4000, "Hello")], {
+      rawHeader: customHeader,
+    });
     const output = serializer.serialize(result);
     expect(output).toContain("[Script Info]");
     expect(output).toContain("Title: Test Script");
@@ -274,9 +270,7 @@ describe("ASS serializer", () => {
   });
 
   it("converts newlines to \\N in dialogue text", () => {
-    const result = makeResult("ass", [
-      makeCue(0, 1000, "Line one\nLine two"),
-    ]);
+    const result = makeResult("ass", [makeCue(0, 1000, "Line one\nLine two")]);
     const output = serializer.serialize(result);
     expect(output).toContain("Line one\\NLine two");
     // The serialized text should NOT have literal newlines within the dialogue
@@ -378,9 +372,7 @@ describe("SUB serializer", () => {
   });
 
   it("converts newlines to pipe character", () => {
-    const result = makeResult("sub", [
-      makeCue(0, 1000, "Line one\nLine two"),
-    ]);
+    const result = makeResult("sub", [makeCue(0, 1000, "Line one\nLine two")]);
     const output = serializer.serialize(result);
     expect(output).toContain("Line one|Line two");
     expect(output).not.toContain("\nLine two");
@@ -473,9 +465,7 @@ describe("SMI serializer", () => {
   });
 
   it("converts newlines to <br> tags", () => {
-    const result = makeResult("smi", [
-      makeCue(0, 1000, "Line one\nLine two"),
-    ]);
+    const result = makeResult("smi", [makeCue(0, 1000, "Line one\nLine two")]);
     const output = serializer.serialize(result);
     expect(output).toContain("Line one<br>Line two");
   });
@@ -549,9 +539,7 @@ describe("MPL serializer", () => {
   });
 
   it("converts newlines to pipe character", () => {
-    const result = makeResult("mpl", [
-      makeCue(0, 1000, "Line one\nLine two"),
-    ]);
+    const result = makeResult("mpl", [makeCue(0, 1000, "Line one\nLine two")]);
     const output = serializer.serialize(result);
     expect(output).toContain("Line one|Line two");
   });
@@ -570,9 +558,7 @@ describe("MPL serializer", () => {
   });
 
   it("preserves special characters", () => {
-    const result = makeResult("mpl", [
-      makeCue(0, 1000, 'Caf\u00e9 & "test"'),
-    ]);
+    const result = makeResult("mpl", [makeCue(0, 1000, 'Caf\u00e9 & "test"')]);
     const output = serializer.serialize(result);
     expect(output).toContain('Caf\u00e9 & "test"');
   });
@@ -636,9 +622,7 @@ describe("TXT serializer", () => {
   });
 
   it("converts newlines to pipe character", () => {
-    const result = makeResult("txt", [
-      makeCue(0, 1000, "Line one\nLine two"),
-    ]);
+    const result = makeResult("txt", [makeCue(0, 1000, "Line one\nLine two")]);
     const output = serializer.serialize(result);
     expect(output).toContain("Line one|Line two");
   });
@@ -649,9 +633,7 @@ describe("TXT serializer", () => {
   });
 
   it("preserves special characters", () => {
-    const result = makeResult("txt", [
-      makeCue(0, 1000, 'Caf\u00e9 & "test"'),
-    ]);
+    const result = makeResult("txt", [makeCue(0, 1000, 'Caf\u00e9 & "test"')]);
     const output = serializer.serialize(result);
     expect(output).toContain('Caf\u00e9 & "test"');
   });
