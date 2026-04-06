@@ -66,6 +66,7 @@ def resolve_subtitle_path(media_type, media_id, language_code):
                 'mediaTitle': series_row.title if series_row else None,
                 'mediaId': row.sonarrSeriesId,
                 'episodeTitle': row.title,
+                'mediaPath': row.path,
             }
     elif media_type == 'movie':
         row = database.execute(
@@ -76,6 +77,7 @@ def resolve_subtitle_path(media_type, media_id, language_code):
             metadata = {
                 'mediaTitle': row.title,
                 'mediaId': row.radarrId,
+                'mediaPath': row.path,
             }
     else:
         return 'Invalid media type', 400
@@ -366,13 +368,14 @@ def _save_subtitle_content(media_type, media_id, language_code):
         except Exception:
             pass
 
-    # Force re-scan subtitles from disk (no cache) so the DB picks up the changes
-    if media_type == 'episode':
-        store_subtitles(path_mappings.path_replace_reverse(subtitle_path), subtitle_path, use_cache=False)
+    # Force re-scan subtitles from disk using the media (video) path
+    media_path = metadata.get('mediaPath', '')
+    if media_type == 'episode' and media_path:
+        store_subtitles(path_mappings.path_replace_reverse(media_path), media_path, use_cache=False)
         event_stream(type='series', payload=metadata['mediaId'])
         event_stream(type='episode', payload=media_id)
-    else:
-        store_subtitles_movie(path_mappings.path_replace_reverse_movie(subtitle_path), subtitle_path, use_cache=False)
+    elif media_type == 'movie' and media_path:
+        store_subtitles_movie(path_mappings.path_replace_reverse_movie(media_path), media_path, use_cache=False)
         event_stream(type='movie', payload=media_id)
 
     new_etag = generate_etag(subtitle_path)
@@ -504,12 +507,12 @@ def _create_subtitle(media_type, media_id):
         except Exception:
             pass
 
-    # Force re-scan subtitles from disk (no cache) so the DB picks up the new file
+    # Force re-scan subtitles from disk using the media (video) path
     if media_type == 'episode':
-        store_subtitles(path_mappings.path_replace_reverse(subtitle_path), subtitle_path, use_cache=False)
+        store_subtitles(row.path, video_path, use_cache=False)
         event_stream(type='episode', payload=media_id)
     else:
-        store_subtitles_movie(path_mappings.path_replace_reverse_movie(subtitle_path), subtitle_path, use_cache=False)
+        store_subtitles_movie(row.path, video_path, use_cache=False)
         event_stream(type='movie', payload=media_id)
 
     # Build language with modifiers

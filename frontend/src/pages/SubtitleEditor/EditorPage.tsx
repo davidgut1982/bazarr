@@ -116,6 +116,7 @@ export default function EditorPage() {
   useEffect(() => {
     if (prevLangRef.current !== language) {
       loadedRef.current = false;
+      setCreatedSuccessfully(false);
       prevLangRef.current = language;
     }
   }, [language]);
@@ -754,6 +755,7 @@ export default function EditorPage() {
         try {
           const result = getParser(detectedFormat).parse(text);
           dispatch({ type: "LOAD", cues: result.cues });
+          dispatch({ type: "MARK_DIRTY" });
         } catch {
           // Parse failure, ignore
         }

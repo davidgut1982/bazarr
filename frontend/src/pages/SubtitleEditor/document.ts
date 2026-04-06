@@ -125,13 +125,18 @@ export function createDeleteCues(indices: number[]): CueOperation {
 }
 
 export function createEditText(index: number, newText: string): CueOperation {
+  let cueId: string | null = null;
   return {
     type: "EDIT_TEXT",
     apply(cues) {
+      cueId = cues[index]?.id ?? null;
       return cues.map((c, i) => (i === index ? { ...c, text: newText } : c));
     },
     inverse(cues) {
-      return createEditText(index, cues[index].text);
+      // Find by id since sort may have changed indices
+      const idx = cueId ? cues.findIndex((c) => c.id === cueId) : index;
+      const i = idx >= 0 ? idx : index;
+      return createEditText(i, cues[i].text);
     },
   };
 }
@@ -141,13 +146,17 @@ export function createEditTiming(
   startMs: number,
   endMs: number,
 ): CueOperation {
+  let cueId: string | null = null;
   return {
     type: "EDIT_TIMING",
     apply(cues) {
+      cueId = cues[index]?.id ?? null;
       return cues.map((c, i) => (i === index ? { ...c, startMs, endMs } : c));
     },
     inverse(cues) {
-      return createEditTiming(index, cues[index].startMs, cues[index].endMs);
+      const idx = cueId ? cues.findIndex((c) => c.id === cueId) : index;
+      const i = idx >= 0 ? idx : index;
+      return createEditTiming(i, cues[i].startMs, cues[i].endMs);
     },
   };
 }
