@@ -191,6 +191,7 @@ export default function EditorPage() {
         recoveryAvailable.format as SubtitleFormat,
       ).parse(recoveryAvailable.content);
       dispatch({ type: "LOAD", cues: result.cues });
+      dispatch({ type: "MARK_DIRTY" });
     } catch {
       /* ignore */
     }

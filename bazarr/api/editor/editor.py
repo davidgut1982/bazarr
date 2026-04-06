@@ -293,15 +293,27 @@ class EditorVideo(Resource):
         except (ValueError, TypeError):
             audio_track_idx = 0
 
+        # Check if the requested audio track exists
+        probe_data = _probe_video(video_path)
+        has_audio = False
+        if probe_data:
+            audio_streams = [s for s in probe_data.get('streams', []) if s.get('codec_type') == 'audio']
+            has_audio = audio_track_idx < len(audio_streams)
+
+        audio_args = []
+        if has_audio:
+            audio_args = ['-map', f'0:a:{audio_track_idx}', '-c:a', 'aac']
+        else:
+            audio_args = ['-an']
+
         cmd = [
             ffmpeg,
             *pre_seek,
             '-i', video_path,
             *post_seek,
             '-map', '0:v:0',
-            '-map', f'0:a:{audio_track_idx}',
+            *audio_args,
             *video_args,
-            '-c:a', 'aac',
             '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
             '-f', 'mp4',
             '-v', 'error',

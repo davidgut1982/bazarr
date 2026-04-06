@@ -92,8 +92,8 @@ class BazarrClient {
         return;
       case 409:
       case 412:
-        // Handled by the caller (subtitle editor save-as / ETag conflict)
-        return;
+        // Re-throw so callers (e.g. subtitle editor ETag conflict) can handle specifically
+        throw error;
     }
     LOG("error", "A error has occurred", code);
 
