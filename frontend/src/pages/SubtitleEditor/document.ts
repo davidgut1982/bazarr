@@ -434,6 +434,7 @@ export function subtitleDocumentReducer(
       const op = state.undoStack[state.undoStack.length - 1];
       const inv = op.inverse(state.cues);
       const newCues = op.apply(state.cues);
+      newCues.sort((a, b) => a.startMs - b.startMs);
       const changed = affectedCueIds(state.cues, newCues);
       const newModified = new Set(state.modifiedCueIds);
       for (const id of changed) newModified.add(id);
@@ -452,6 +453,7 @@ export function subtitleDocumentReducer(
       const op = state.redoStack[state.redoStack.length - 1];
       const inv = op.inverse(state.cues);
       const newCues = op.apply(state.cues);
+      newCues.sort((a, b) => a.startMs - b.startMs);
       const changed = affectedCueIds(state.cues, newCues);
       const newModified = new Set(state.modifiedCueIds);
       for (const id of changed) newModified.add(id);

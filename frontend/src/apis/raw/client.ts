@@ -92,8 +92,8 @@ class BazarrClient {
         return;
       case 409:
       case 412:
-        // Re-throw so callers (e.g. subtitle editor ETag conflict) can handle specifically
-        throw error;
+        // Skip notification, let the caller handle via onError / .catch()
+        return;
     }
     LOG("error", "A error has occurred", code);
 
