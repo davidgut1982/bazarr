@@ -163,9 +163,7 @@ export function createEditTiming(
           ? cues.findIndex((c) => c.id === indexOrId)
           : indexOrId;
       if (idx < 0 || idx >= cues.length) return cues;
-      return cues.map((c, i) =>
-        i === idx ? { ...c, startMs, endMs } : c,
-      );
+      return cues.map((c, i) => (i === idx ? { ...c, startMs, endMs } : c));
     },
     inverse(cues) {
       const idx =
