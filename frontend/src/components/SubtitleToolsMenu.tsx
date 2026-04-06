@@ -13,6 +13,7 @@ import {
   faLanguage,
   faMagic,
   faPaintBrush,
+  faPencil,
   faPlay,
   faSearch,
   faTextHeight,
@@ -124,7 +125,7 @@ interface Props {
   selections: FormType.ModifySubtitle[];
   children?: ReactElement;
   menu?: Omit<MenuProps, "children">;
-  onAction?: (action: "delete" | "search" | "view") => void;
+  onAction?: (action: "delete" | "search" | "view" | "edit") => void;
   // For missing subtitle translation
   missingLanguage?: Subtitle;
   translationSources?: Subtitle[];
@@ -241,6 +242,15 @@ const SubtitleToolsMenu: FunctionComponent<Props> = ({
           }}
         >
           View
+        </Menu.Item>
+        <Menu.Item
+          disabled={onAction === undefined}
+          leftSection={<FontAwesomeIcon icon={faPencil}></FontAwesomeIcon>}
+          onClick={() => {
+            onAction?.("edit");
+          }}
+        >
+          {selections.length === 0 ? "Create / Upload" : "Edit"}
         </Menu.Item>
         <Menu.Item
           disabled={selections.length !== 0 || onAction === undefined}
