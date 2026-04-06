@@ -124,39 +124,57 @@ export function createDeleteCues(indices: number[]): CueOperation {
   };
 }
 
-export function createEditText(index: number, newText: string): CueOperation {
-  let cueId: string | null = null;
+export function createEditText(
+  indexOrId: number | string,
+  newText: string,
+): CueOperation {
   return {
     type: "EDIT_TEXT",
     apply(cues) {
-      cueId = cues[index]?.id ?? null;
-      return cues.map((c, i) => (i === index ? { ...c, text: newText } : c));
+      const idx =
+        typeof indexOrId === "string"
+          ? cues.findIndex((c) => c.id === indexOrId)
+          : indexOrId;
+      if (idx < 0 || idx >= cues.length) return cues;
+      return cues.map((c, i) => (i === idx ? { ...c, text: newText } : c));
     },
     inverse(cues) {
-      // Find by id since sort may have changed indices
-      const idx = cueId ? cues.findIndex((c) => c.id === cueId) : index;
-      const i = idx >= 0 ? idx : index;
-      return createEditText(i, cues[i].text);
+      const idx =
+        typeof indexOrId === "string"
+          ? cues.findIndex((c) => c.id === indexOrId)
+          : indexOrId;
+      if (idx < 0 || idx >= cues.length) return createEditText(indexOrId, "");
+      // Return id-based inverse so it survives sort reordering
+      return createEditText(cues[idx].id, cues[idx].text);
     },
   };
 }
 
 export function createEditTiming(
-  index: number,
+  indexOrId: number | string,
   startMs: number,
   endMs: number,
 ): CueOperation {
-  let cueId: string | null = null;
   return {
     type: "EDIT_TIMING",
     apply(cues) {
-      cueId = cues[index]?.id ?? null;
-      return cues.map((c, i) => (i === index ? { ...c, startMs, endMs } : c));
+      const idx =
+        typeof indexOrId === "string"
+          ? cues.findIndex((c) => c.id === indexOrId)
+          : indexOrId;
+      if (idx < 0 || idx >= cues.length) return cues;
+      return cues.map((c, i) =>
+        i === idx ? { ...c, startMs, endMs } : c,
+      );
     },
     inverse(cues) {
-      const idx = cueId ? cues.findIndex((c) => c.id === cueId) : index;
-      const i = idx >= 0 ? idx : index;
-      return createEditTiming(i, cues[i].startMs, cues[i].endMs);
+      const idx =
+        typeof indexOrId === "string"
+          ? cues.findIndex((c) => c.id === indexOrId)
+          : indexOrId;
+      if (idx < 0 || idx >= cues.length)
+        return createEditTiming(indexOrId, 0, 0);
+      return createEditTiming(cues[idx].id, cues[idx].startMs, cues[idx].endMs);
     },
   };
 }

@@ -369,14 +369,17 @@ def _save_subtitle_content(media_type, media_id, language_code):
             pass
 
     # Force re-scan subtitles from disk using the media (video) path
+    # media_path is row.path (original/Sonarr path), needs path_replace for local filesystem path
     media_path = metadata.get('mediaPath', '')
     if media_type == 'episode' and media_path:
-        store_subtitles(path_mappings.path_replace_reverse(media_path), media_path, use_cache=False)
+        store_subtitles(media_path, path_mappings.path_replace(media_path), use_cache=False)
         event_stream(type='series', payload=metadata['mediaId'])
         event_stream(type='episode', payload=media_id)
     elif media_type == 'movie' and media_path:
-        store_subtitles_movie(path_mappings.path_replace_reverse_movie(media_path), media_path, use_cache=False)
+        store_subtitles_movie(media_path, path_mappings.path_replace_movie(media_path), use_cache=False)
         event_stream(type='movie', payload=media_id)
+    elif media_path:
+        logger.warning('Subtitle saved but re-indexing skipped: unknown media_type %s', media_type)
 
     new_etag = generate_etag(subtitle_path)
     response = make_response('', 204)
