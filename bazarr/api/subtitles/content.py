@@ -25,10 +25,9 @@ MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
 
 
 def _is_safe_path(path):
-    """Validate that a resolved path doesn't traverse outside expected directories."""
-    normalized = os.path.normpath(path)
-    # Block obvious traversal patterns
-    if '..' in normalized.split(os.sep):
+    """Validate that a path doesn't contain traversal sequences."""
+    # Check the raw path for traversal before any normalization
+    if '..' in path.split(os.sep) or '..' in path.split('/'):
         return False
     return True
 
