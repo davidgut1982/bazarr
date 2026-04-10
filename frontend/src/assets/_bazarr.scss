@@ -106,6 +106,7 @@ body::after {
 // causing a visible strip below the main content area.
 [data-mantine-shared-portal-node] {
   position: fixed;
+  z-index: 10001;
 }
 
 /* Shared tokens (scheme-independent) */
