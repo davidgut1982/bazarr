@@ -17,10 +17,10 @@ import {
   faEllipsis,
   faHardDrive,
   faHistory,
+  faMagnifyingGlass,
   faSearch,
   faSync,
   faToolbox,
-  faMagnifyingGlass,
   faWrench,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";

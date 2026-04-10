@@ -6,9 +6,9 @@ import {
   faCloudUploadAlt,
   faDownload,
   faLanguage,
+  faMagnifyingGlass,
   faRecycle,
   faTrash,
-  faMagnifyingGlass,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 

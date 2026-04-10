@@ -9,8 +9,8 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import { faArrowLeft } from "@fortawesome/free-solid-svg-icons";
 import { faEyeSlash as fasEyeSlash } from "@fortawesome/free-regular-svg-icons";
+import { faArrowLeft } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
 const NotFound: FunctionComponent = () => {

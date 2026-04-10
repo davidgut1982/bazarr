@@ -3,8 +3,8 @@ import { Divider, List, Menu, MenuProps, ScrollArea } from "@mantine/core";
 import {
   faAlignJustify,
   faClock,
-  faCode,
   faClosedCaptioning,
+  faCode,
   faExchangeAlt,
   faEye,
   faFaceGrinStars,
