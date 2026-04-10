@@ -141,7 +141,7 @@ function useRoutes(): CustomRouteObject[] {
           },
           {
             icon: faExclamationTriangle,
-            name: "Missing Subtitles",
+            name: "Missing",
             path: "wanted",
             hidden: !sonarr && !radarr,
             children: [
