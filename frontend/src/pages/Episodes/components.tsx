@@ -93,11 +93,8 @@ export const Subtitle: FunctionComponent<Props> = ({
     );
   }
 
-  // For interactive badges (inside Menu.Target), don't wrap in UnstyledButton
-  // as Menu.Target already provides button semantics and click handling
-  const ctx = (
-    <Tooltip.Floating label={badgeTooltip}>{badgeEl}</Tooltip.Floating>
-  );
+  // Interactive badges: no Tooltip wrapper, as it breaks Menu.Target click handling
+  const ctx = badgeEl;
 
   return (
     <SubtitleToolsMenu
