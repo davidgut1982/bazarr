@@ -1,5 +1,6 @@
 import type { ParseResult } from "@/pages/SubtitleEditor/types";
 import type { SubtitleParser } from "./index";
+import { cueId } from "./uuid";
 
 function stripHtml(html: string): string {
   let result = html.replace(/<br\s*\/?>/gi, "\n");
@@ -66,7 +67,7 @@ export const smiParser: SubtitleParser = {
         i + 1 < syncs.length ? syncs[i + 1].startMs : start.startMs + 3000;
 
       cues.push({
-        id: crypto.randomUUID(),
+        id: cueId(),
         startMs: start.startMs,
         endMs,
         text: displayText,
