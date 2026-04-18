@@ -25,6 +25,18 @@ logger = logging.getLogger(__name__)
 retry_amount = 3
 retry_timeout = 5
 
+
+def _coerce_int(value):
+    """Best-effort int coercion; returns None on failure. Subdl's episode_from /
+    episode_end fields are sometimes strings depending on the response shape."""
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 language_converters.register('subdl = subliminal_patch.converters.subdl:SubdlConverter')
 
 
@@ -110,13 +122,14 @@ class SubdlProvider(ProviderRetryMixin, Provider):
 
     video_types = (Episode, Movie)
 
-    def __init__(self, api_key=None):
+    def __init__(self, api_key=None, anime_mode=False):
         if not api_key:
             raise ConfigurationError('Api_key must be specified')
 
         self.session = Session()
         self.session.headers = {'User-Agent': os.environ.get("SZ_USER_AGENT", "Sub-Zero/2")}
         self.api_key = api_key
+        self.anime_mode = bool(anime_mode)
         self.video = None
         self._started = None
 
@@ -174,18 +187,45 @@ class SubdlProvider(ProviderRetryMixin, Provider):
                 retry_timeout=retry_timeout
             )
 
-            # For anime with absolute episode numbering, also search by absolute episode number
-            # so we can find subtitles that are only indexed by absolute number on subdl
+            # Anime-mode extras: additional searches gated behind settings.subdl.anime_mode
+            # to avoid the 2-4x API call cost on non-anime libraries.
+            res_absolute = None
+            res_season = None
             absolute_episode = getattr(self.video, 'absolute_episode', None)
-            if absolute_episode and absolute_episode != self.video.episode:
-                logger.debug(f'Also searching by absolute episode number: {absolute_episode}')
-                res_absolute = self.retry(
+            if self.anime_mode:
+                # For anime with absolute episode numbering, also search by absolute episode number
+                # so we can find subtitles that are only indexed by absolute number on subdl
+                if absolute_episode and absolute_episode != self.video.episode:
+                    logger.debug(f'Also searching by absolute episode number: {absolute_episode}')
+                    res_absolute = self.retry(
+                        lambda: self.session.get(self.server_url() + 'subtitles',
+                                                 params=(('api_key', self.api_key),
+                                                         ('episode_number', absolute_episode),
+                                                         ('film_name', title if not imdb_id else None),
+                                                         ('imdb_id', imdb_id if imdb_id else None),
+                                                         ('languages', langs),
+                                                         ('subs_per_page', 30),
+                                                         ('type', 'tv'),
+                                                         ('comment', 1),
+                                                         ('releases', 1),
+                                                         ('bazarr', 1)),
+                                                 timeout=30),
+                        amount=retry_amount,
+                        retry_timeout=retry_timeout
+                    )
+
+                # Fallback: search by season only (no episode filter) to catch subtitles that use
+                # split-season / cour-based internal numbering (e.g. Fire Force S3 split into two cours
+                # where episode 25 is stored internally as cour-2 episode 13).
+                # The release name matching in get_matches() will identify the correct episode.
+                logger.debug(f'Also searching by season only (no episode filter) for season {self.video.season}')
+                res_season = self.retry(
                     lambda: self.session.get(self.server_url() + 'subtitles',
                                              params=(('api_key', self.api_key),
-                                                     ('episode_number', absolute_episode),
                                                      ('film_name', title if not imdb_id else None),
                                                      ('imdb_id', imdb_id if imdb_id else None),
                                                      ('languages', langs),
+                                                     ('season_number', self.video.season),
                                                      ('subs_per_page', 30),
                                                      ('type', 'tv'),
                                                      ('comment', 1),
@@ -195,30 +235,6 @@ class SubdlProvider(ProviderRetryMixin, Provider):
                     amount=retry_amount,
                     retry_timeout=retry_timeout
                 )
-            else:
-                res_absolute = None
-
-            # Fallback: search by season only (no episode filter) to catch subtitles that use
-            # split-season / cour-based internal numbering (e.g. Fire Force S3 split into two cours
-            # where episode 25 is stored internally as cour-2 episode 13).
-            # The release name matching in get_matches() will identify the correct episode.
-            logger.debug(f'Also searching by season only (no episode filter) for season {self.video.season}')
-            res_season = self.retry(
-                lambda: self.session.get(self.server_url() + 'subtitles',
-                                         params=(('api_key', self.api_key),
-                                                 ('film_name', title if not imdb_id else None),
-                                                 ('imdb_id', imdb_id if imdb_id else None),
-                                                 ('languages', langs),
-                                                 ('season_number', self.video.season),
-                                                 ('subs_per_page', 30),
-                                                 ('type', 'tv'),
-                                                 ('comment', 1),
-                                                 ('releases', 1),
-                                                 ('bazarr', 1)),
-                                         timeout=30),
-                amount=retry_amount,
-                retry_timeout=retry_timeout
-            )
         else:
             res_absolute = None
             res_season = None
@@ -290,34 +306,34 @@ class SubdlProvider(ProviderRetryMixin, Provider):
                     return subtitles
                 raise ProviderError(error_msg)
 
-        # Merge absolute episode search results if available
-        all_items = list(result.get('subtitles', []))
+        # Merge extra search results (only populated when anime_mode enables them).
+        # Use .get('name') to skip malformed rows instead of KeyError-ing the whole query.
+        all_items = [i for i in result.get('subtitles', []) if i.get('name')]
         seen_ids = {item['name'] for item in all_items}
 
-        if res_absolute and res_absolute.status_code == 200:
-            abs_result = res_absolute.json()
-            if ('success' in abs_result and abs_result['success']) or ('status' in abs_result and abs_result['status']):
-                for item in abs_result.get('subtitles', []):
-                    if item['name'] not in seen_ids:
-                        all_items.append(item)
-                        seen_ids.add(item['name'])
-                logger.debug(f'Absolute episode search added {len(abs_result.get("subtitles", []))} more subtitles')
+        def _merge_extra(response, label):
+            if not response or response.status_code != 200:
+                return
+            data = response.json()
+            if not (('success' in data and data['success']) or ('status' in data and data['status'])):
+                return
+            added = 0
+            for item in data.get('subtitles', []):
+                name = item.get('name')
+                if not name or name in seen_ids:
+                    continue
+                all_items.append(item)
+                seen_ids.add(name)
+                added += 1
+            logger.debug(f'{label} search added {added} more subtitles')
 
-        if res_season and res_season.status_code == 200:
-            season_result = res_season.json()
-            if ('success' in season_result and season_result['success']) or ('status' in season_result and season_result['status']):
-                added = 0
-                for item in season_result.get('subtitles', []):
-                    if item['name'] not in seen_ids:
-                        all_items.append(item)
-                        seen_ids.add(item['name'])
-                        added += 1
-                logger.debug(f'Season-only search added {added} more subtitles')
+        _merge_extra(res_absolute, 'Absolute episode')
+        _merge_extra(res_season, 'Season-only')
 
-        # Last resort: if all season-filtered searches returned nothing, search by title only
-        # (no season/episode filter). This catches anime stored as season 0 on subdl (full series
-        # blocks) where season_number filtering silently excludes all results.
-        if not all_items and isinstance(self.video, Episode):
+        # Last resort (anime_mode only): if all prior searches returned nothing, search by title
+        # only. Catches anime stored as season 0 on subdl (full-series blocks) where
+        # season_number filtering silently excludes all results.
+        if self.anime_mode and not all_items and isinstance(self.video, Episode):
             logger.debug('All season-filtered searches returned 0 results, falling back to title-only search')
             res_title = self.retry(
                 lambda: self.session.get(self.server_url() + 'subtitles',
@@ -334,17 +350,7 @@ class SubdlProvider(ProviderRetryMixin, Provider):
                 amount=retry_amount,
                 retry_timeout=retry_timeout
             )
-            if res_title.status_code == 200:
-                title_result = res_title.json()
-                if ('success' in title_result and title_result['success']) or \
-                        ('status' in title_result and title_result['status']):
-                    added = 0
-                    for item in title_result.get('subtitles', []):
-                        if item['name'] not in seen_ids:
-                            all_items.append(item)
-                            seen_ids.add(item['name'])
-                            added += 1
-                    logger.debug(f'Title-only fallback search added {added} subtitles')
+            _merge_extra(res_title, 'Title-only fallback')
 
         logger.debug(f"Query returned {len(all_items)} subtitles")
 
@@ -354,32 +360,40 @@ class SubdlProvider(ProviderRetryMixin, Provider):
             for item in all_items:
                 is_pack = False
                 if isinstance(self.video, Episode):
-                    ep_from = item.get('episode_from')
-                    ep_end = item.get('episode_end')
-                    # Fallback: parse episode range from release names when the API
-                    # does not provide episode_from/episode_end fields.
-                    if not (ep_from and ep_end and ep_from != ep_end):
-                        ep_from_parsed, ep_end_parsed = self._parse_episode_range_from_releases(
-                            item.get('releases', [])
-                        )
-                        if ep_from_parsed and ep_end_parsed and ep_from_parsed != ep_end_parsed:
-                            ep_from = ep_from_parsed
-                            ep_end = ep_end_parsed
-                            logger.debug(
-                                f'Parsed episode range {ep_from}-{ep_end} from release names'
+                    ep_from = _coerce_int(item.get('episode_from'))
+                    ep_end = _coerce_int(item.get('episode_end'))
+                    # Pack branch only considered in anime_mode: legacy behavior was to
+                    # skip packs outright when ep_from != ep_end. Preserve that for
+                    # non-anime users to keep score/selection stable.
+                    if self.anime_mode:
+                        # Fallback: parse episode range from release names when the API
+                        # does not provide episode_from/episode_end fields.
+                        if not (ep_from and ep_end and ep_from != ep_end):
+                            ep_from_parsed, ep_end_parsed = self._parse_episode_range_from_releases(
+                                item.get('releases', [])
                             )
-                    if ep_from and ep_end and ep_from != ep_end:
-                        # Multi-episode pack: allow if target episode is within range
-                        target_ep = self.video.episode
-                        if absolute_episode:
-                            # Check both standard and absolute episode against the range
-                            if not ((ep_from <= target_ep <= ep_end) or
-                                    (ep_from <= absolute_episode <= ep_end)):
-                                continue
-                        else:
-                            if not (ep_from <= target_ep <= ep_end):
-                                continue
-                        is_pack = True
+                            if ep_from_parsed and ep_end_parsed and ep_from_parsed != ep_end_parsed:
+                                ep_from = ep_from_parsed
+                                ep_end = ep_end_parsed
+                                logger.debug(
+                                    f'Parsed episode range {ep_from}-{ep_end} from release names'
+                                )
+                        if ep_from and ep_end and ep_from != ep_end:
+                            # Multi-episode pack: allow if target episode is within range
+                            target_ep = self.video.episode
+                            if absolute_episode:
+                                # Check both standard and absolute episode against the range
+                                if not ((ep_from <= target_ep <= ep_end) or
+                                        (ep_from <= absolute_episode <= ep_end)):
+                                    continue
+                            else:
+                                if not (ep_from <= target_ep <= ep_end):
+                                    continue
+                            is_pack = True
+                    else:
+                        # Non-anime mode: preserve upstream's pre-patch behavior — skip packs.
+                        if ep_from is not None and ep_end is not None and ep_from != ep_end:
+                            continue
 
                 subtitle = SubdlSubtitle(
                     language=Language.fromsubdl(item['language']),
