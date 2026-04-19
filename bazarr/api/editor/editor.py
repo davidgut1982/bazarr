@@ -746,6 +746,11 @@ class EditorSync(Resource):
         if not content:
             return 'content is required', 400
 
+        # Whitelist the format so we never feed attacker-controlled characters
+        # (e.g. path-traversal, shell metachars) into the tempfile suffix.
+        if fmt not in ('srt', 'vtt', 'ass', 'ssa', 'sub', 'smi', 'mpl', 'txt'):
+            return 'Invalid format; must be one of srt, vtt, ass, ssa, sub, smi, mpl, txt', 400
+
         try:
             media_id = int(media_id)
         except (ValueError, TypeError):
@@ -758,7 +763,7 @@ class EditorSync(Resource):
         if not os.path.isfile(video_path):
             return 'Video file not found', 404
 
-        ext = f'.{fmt}' if fmt else '.srt'
+        ext = f'.{fmt}'
         fd, tmp_in = tempfile.mkstemp(suffix=ext, prefix='bazarr_sync_')
         os.write(fd, content.encode(encoding))
         os.close(fd)

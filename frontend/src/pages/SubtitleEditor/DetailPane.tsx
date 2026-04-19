@@ -6,6 +6,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { stripTags } from "./stripTags";
 import type { Cue } from "./types";
 
 export interface DetailPaneHandle {
@@ -475,7 +476,6 @@ const DetailPane = forwardRef<DetailPaneHandle, DetailPaneProps>(
 
     const durationMs = cue.endMs - cue.startMs;
     const durationSec = (durationMs / 1000).toFixed(3);
-    const stripTags = (s: string) => s.replace(/<[^>]+>/g, "");
     const lines = textDraft.split("\n");
 
     const cpsValue =

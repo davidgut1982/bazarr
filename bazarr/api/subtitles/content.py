@@ -3,6 +3,7 @@
 import ast
 import hashlib
 import os
+import re
 import sys
 import tempfile
 
@@ -30,6 +31,16 @@ def _is_safe_path(path):
     if '..' in path.split(os.sep) or '..' in path.split('/'):
         return False
     return True
+
+
+# ISO-ish language tags used by Bazarr. e.g. "en", "pt-BR", "en:hi", "en:forced".
+# Anchored + char-class prevents `..`, slashes, or shell metachars from reaching
+# the file-system probe paths downstream.
+_LANGUAGE_CODE_RE = re.compile(r'^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,4})?(:[a-z]+)?$')
+
+
+def _is_valid_language_code(code):
+    return isinstance(code, str) and bool(_LANGUAGE_CODE_RE.match(code))
 
 SUBTITLE_EXTENSIONS = {
     '.srt', '.ass', '.ssa', '.sub', '.idx', '.sup',
@@ -60,6 +71,9 @@ def resolve_subtitle_path(media_type, media_id, language_code):
 
     Returns (path, language, metadata) on success, or (message, status_code) on failure.
     """
+    if not _is_valid_language_code(language_code):
+        return 'Invalid language code', 400
+
     metadata = {}
     if media_type == 'episode':
         row = database.execute(
