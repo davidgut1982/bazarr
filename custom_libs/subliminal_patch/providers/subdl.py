@@ -297,23 +297,47 @@ class SubdlProvider(ProviderRetryMixin, Provider):
 
         result = res.json()
 
+        # Whether the primary response reported an empty/error shape. In non-anime-mode
+        # we short-circuit; in anime-mode we fall through so the extra searches can
+        # still contribute results.
+        primary_empty = False
         if ('success' in result and not result['success']) or ('status' in result and not result['status']):
             logger.debug(result)
             if 'error' in result:
                 error_msg = result['error']
                 if "can't find" in error_msg.lower():
-                    logger.debug(f"No subtitles found for {imdb_id or title}: {error_msg}")
-                    return subtitles
-                raise ProviderError(error_msg)
+                    logger.debug(f"No subtitles found (primary) for {imdb_id or title}: {error_msg}")
+                    primary_empty = True
+                else:
+                    raise ProviderError(error_msg)
+            else:
+                primary_empty = True
+
+        if primary_empty and not self.anime_mode:
+            # Original single-call behavior: bail out immediately.
+            return subtitles
 
         # Merge extra search results (only populated when anime_mode enables them).
         # Use .get('name') to skip malformed rows instead of KeyError-ing the whole query.
-        all_items = [i for i in result.get('subtitles', []) if i.get('name')]
+        primary_items = [] if primary_empty else result.get('subtitles', [])
+        all_items = [i for i in primary_items if i.get('name')]
         seen_ids = {item['name'] for item in all_items}
 
         def _merge_extra(response, label):
-            if not response or response.status_code != 200:
+            """Merge an extra anime-mode search response into all_items.
+
+            Propagates throttling and auth errors so the scheduler sees the same
+            failure modes it would see on the primary request. Silently skips
+            only the "empty result" shape, since that is the expected no-op.
+            """
+            if response is None:
                 return
+            if response.status_code == 429:
+                raise APIThrottled(f"Too many requests (subdl {label} search)")
+            if response.status_code == 403:
+                raise ConfigurationError("Invalid API key")
+            if response.status_code != 200:
+                response.raise_for_status()
             data = response.json()
             if not (('success' in data and data['success']) or ('status' in data and data['status'])):
                 return

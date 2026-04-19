@@ -14,6 +14,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from subliminal_patch.core import Episode
+from subliminal_patch.exceptions import APIThrottled
 from subzero.language import Language
 
 from subliminal_patch.providers.subdl import (
@@ -241,3 +242,79 @@ def test_query_anime_mode_skips_pack_not_covering_target():
         subs = provider.query({Language("eng")}, video)
 
     assert subs == []
+
+
+def test_query_anime_mode_merges_fallbacks_when_primary_reports_cant_find():
+    """Primary 'cant find' must not short-circuit: anime_mode fallbacks must still run
+    and their results must flow through (covers Codex review P1)."""
+    provider = SubdlProvider(api_key="fake", anime_mode=True)
+    video = _episode(season=1, episode=3)
+
+    primary = _mock_response({
+        "status": False,
+        "error": "Sorry, we can't find any subtitles.",
+    })
+    # Season-only fallback returns the real match
+    season_fallback = _mock_response({
+        "success": True,
+        "subtitles": [
+            {
+                "name": "found_in_fallback.srt", "url": "/u/99", "language": "EN",
+                "subtitlePage": "/s/99", "releases": ["Dummy.Show.S01E03"],
+                "season": 1, "episode": 3,
+            },
+        ],
+    })
+    empty = _mock_response({"success": True, "subtitles": []})
+
+    # Sequence: [primary, season_fallback, title_fallback_empty]
+    # (no absolute_episode on this video, so res_absolute is skipped.)
+    with patch.object(provider, "retry", side_effect=[primary, season_fallback, empty]):
+        subs = provider.query({Language("eng")}, video)
+
+    assert len(subs) == 1
+    assert subs[0].page_link.endswith("/s/99")
+
+
+def test_query_non_anime_mode_short_circuits_on_cant_find():
+    """Non-anime mode preserves original early-return on 'cant find' error."""
+    provider = SubdlProvider(api_key="fake", anime_mode=False)
+    video = _episode()
+
+    primary = _mock_response({
+        "status": False,
+        "error": "Sorry, we can't find any subtitles.",
+    })
+    with patch.object(provider, "retry", return_value=primary) as retry_mock:
+        subs = provider.query({Language("eng")}, video)
+
+    assert subs == []
+    # Exactly 1 call: no fallbacks fired.
+    assert retry_mock.call_count == 1
+
+
+def test_query_raises_on_fallback_throttle():
+    """Extra anime-mode searches hitting 429 must raise APIThrottled instead of
+    silently dropping the response (covers Codex review P2)."""
+    provider = SubdlProvider(api_key="fake", anime_mode=True)
+    video = _episode()
+
+    primary = _mock_response({"success": True, "subtitles": []})
+    throttled = MagicMock()
+    throttled.status_code = 429
+
+    with patch.object(provider, "retry", side_effect=[primary, throttled]):
+        with pytest.raises(APIThrottled):
+            provider.query({Language("eng")}, video)
+
+
+def test_query_still_raises_non_can_find_primary_error():
+    """A non-'cant find' primary error must still raise ProviderError even in anime_mode."""
+    from subliminal.exceptions import ProviderError
+    provider = SubdlProvider(api_key="fake", anime_mode=True)
+    video = _episode()
+
+    bad = _mock_response({"status": False, "error": "Something broke internally"})
+    with patch.object(provider, "retry", return_value=bad):
+        with pytest.raises(ProviderError):
+            provider.query({Language("eng")}, video)
