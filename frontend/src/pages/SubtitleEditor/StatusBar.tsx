@@ -1,3 +1,4 @@
+import { stripTags } from "./stripTags";
 import type { Cue } from "./types";
 
 interface StatusBarProps {
@@ -38,7 +39,7 @@ const dotStyle: React.CSSProperties = {
 function computeCps(cue: Cue): { value: number | null; color: string } {
   const durationMs = cue.endMs - cue.startMs;
   if (durationMs <= 0) return { value: null, color: "var(--bz-text-tertiary)" };
-  const chars = cue.text.replace(/<[^>]+>/g, "").replace(/\n/g, "").length;
+  const chars = stripTags(cue.text).replace(/\n/g, "").length;
   const cps = chars / (durationMs / 1000);
   const color = cps > 25 ? "#EF4444" : cps > 18 ? "#fbbf24" : "#22c55e";
   return { value: cps, color };

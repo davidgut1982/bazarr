@@ -308,10 +308,19 @@ STATIC_FILE_EXTENSIONS = {
 
 
 def create_static_handler(config_dir: str):
+    static_root = STATIC_DIR.resolve()
+
     async def static_handler(request: web.Request) -> web.StreamResponse:
         """Serve static frontend files, fallback to index.html for SPA routing."""
         path = request.path.lstrip("/")
-        file_path = STATIC_DIR / path
+        # Resolve against the static root, then confirm the resolved target
+        # is still inside it. Prevents path traversal via '..' segments,
+        # encoded separators, or absolute paths in the request URL.
+        try:
+            file_path = (static_root / path).resolve()
+            file_path.relative_to(static_root)
+        except (ValueError, OSError):
+            return web.Response(status=404, text="Not found")
 
         if file_path.is_file() and path != "index.html":
             content_type = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"

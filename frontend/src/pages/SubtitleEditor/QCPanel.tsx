@@ -9,6 +9,7 @@ import {
   QC_PRESETS,
   type QCPreset,
 } from "./document";
+import { stripTags } from "./stripTags";
 import type { Cue } from "./types";
 
 interface QCPanelProps {
@@ -53,9 +54,7 @@ function normalizeEllipsis(text: string): string {
 
 function rebreakLines(text: string, maxChars: number): string {
   const rawLines = text.split("\n");
-  const needsRebreak = rawLines.some(
-    (l) => l.replace(/<[^>]*>|\{\\[^}]*\}/g, "").length > maxChars,
-  );
+  const needsRebreak = rawLines.some((l) => stripTags(l).length > maxChars);
   if (!needsRebreak) return text;
 
   const words = text.replace(/\n/g, " ").split(/\s+/).filter(Boolean);
@@ -64,7 +63,7 @@ function rebreakLines(text: string, maxChars: number): string {
 
   for (const word of words) {
     const test = current ? current + " " + word : word;
-    if (test.replace(/<[^>]*>|\{\\[^}]*\}/g, "").length <= maxChars) {
+    if (stripTags(test).length <= maxChars) {
       current = test;
     } else {
       if (current) lines.push(current);
@@ -118,9 +117,7 @@ function countEllipsis(cues: Cue[]): number {
 
 function countLongLines(cues: Cue[], maxChars: number): number {
   return cues.filter((c) =>
-    c.text
-      .split("\n")
-      .some((l) => l.replace(/<[^>]*>|\{\\[^}]*\}/g, "").length > maxChars),
+    c.text.split("\n").some((l) => stripTags(l).length > maxChars),
   ).length;
 }
 
