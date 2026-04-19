@@ -69,7 +69,9 @@ def resolve_subtitle_path(media_type, media_id, language_code):
     language_code can be like "en", "hu", "en:hi", "en:forced".
     Matches against the language field in the subtitles array.
 
-    Returns (path, language, metadata) on success, or (message, status_code) on failure.
+    Returns (path, metadata) on success, or (message, status_code) on failure.
+    Callers discriminate via isinstance(result[1], int).
+    Language is NOT returned; callers have language_code in scope.
     """
     if not _is_valid_language_code(language_code):
         return 'Invalid language code', 400
@@ -137,7 +139,6 @@ def resolve_subtitle_path(media_type, media_id, language_code):
         entry = (language_code, subtitles_by_lang[language_code])
 
     if entry is not None:
-        language = entry[0]
         subtitle_path = entry[1]
 
         if media_type == 'episode':
@@ -157,7 +158,6 @@ def resolve_subtitle_path(media_type, media_id, language_code):
         video_name = os.path.splitext(os.path.basename(video_path))[0]
         video_dir = os.path.dirname(video_path)
         video_dir_real = os.path.realpath(video_dir)
-        language = language_code
 
         # Try common subtitle extensions. Use the CodeQL-canonical path-anchor
         # pattern inline (normpath(join(base, name)) + startswith(base + sep))
@@ -277,7 +277,12 @@ def resolve_subtitle_path(media_type, media_id, language_code):
     if not os.path.isfile(resolved_subtitle_path):
         return 'Subtitle file not found on disk', 404
 
-    return resolved_subtitle_path, language, metadata
+    # Return only path + metadata. Callers have language_code in scope; do
+    # NOT include it in the returned tuple because CodeQL's py/path-injection
+    # taint tracker unions taint across all tuple elements — a tainted
+    # `language` in position 1 poisons position 0 (subtitle_path) on unpack
+    # even when the path itself passed the commonpath barrier above.
+    return resolved_subtitle_path, metadata
 
 
 def read_subtitle_file(path):
@@ -389,7 +394,7 @@ def _get_subtitle_content(media_type, media_id, language_code):
                 return make_response(jsonify(response_data))
         return result[0], result[1]
 
-    subtitle_path, language, metadata = result
+    subtitle_path, metadata = result
 
     etag = generate_etag(subtitle_path)
 
@@ -410,7 +415,7 @@ def _get_subtitle_content(media_type, media_id, language_code):
         'content': content,
         'encoding': encoding,
         'format': fmt,
-        'language': language,
+        'language': language_code,
         'size': stat.st_size,
         'lastModified': stat.st_mtime,
     }
@@ -430,7 +435,7 @@ def _save_subtitle_content(media_type, media_id, language_code):
     if isinstance(result[1], int):
         return result[0], result[1]
 
-    subtitle_path, language, metadata = result
+    subtitle_path, metadata = result
 
     # Optimistic locking via ETag (optional but recommended)
     if_match = request.headers.get('If-Match')
