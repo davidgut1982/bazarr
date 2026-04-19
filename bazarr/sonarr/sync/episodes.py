@@ -18,6 +18,7 @@ from subtitles.mass_download import episode_download_subtitles
 from app.event_handler import event_stream
 from sonarr.info import get_sonarr_info
 from app.jobs_queue import jobs_queue
+from app.notifier import send_notifications
 from subtitles.adaptive_searching import is_search_active
 
 from .parser import episodeParser
@@ -234,6 +235,9 @@ def sync_episodes(series_id, defer_search=False, is_signalr=False):
                                       f'between disks?). Searching for missing subtitles is deferred until scheduled '
                                       f'task execution for this episode: {episode_title}')
                 else:
+                    if is_signalr and settings.general.notify_if_nothing_is_missing_for_signalr_event:
+                        send_notifications(series_id, episode['sonarrEpisodeId'],
+                                           "There are no missing subtitles in this episode.")
                     logging.debug(f'BAZARR no missing subtitles for this episode: {episode_title}')
 
     logging.debug(f'BAZARR All episodes from series ID {series_id} synced from Sonarr into database.')
@@ -339,6 +343,9 @@ def sync_one_episode(episode_id, defer_search=False, is_signalr=False):
                                                    kwargs={'no': episode_id},
                                                    is_signalr=is_signalr)
             else:
+                if is_signalr and settings.general.notify_if_nothing_is_missing_for_signalr_event:
+                    send_notifications(episode["sonarrSeriesId"], episode_id,
+                                       "There are no missing subtitles in this episode.")
                 logging.debug(f'BAZARR no missing subtitles for this episode: {episode_full_title}')
         else:
             logging.debug(f'BAZARR cannot find this file yet (Sonarr may be slow to import episode between disks?). '

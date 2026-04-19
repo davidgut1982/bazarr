@@ -161,6 +161,7 @@ validators = [
               is_in=[6, 12, 24, 168, ONE_HUNDRED_YEARS_IN_HOURS]),
     Validator('general.subzero_mods', must_exist=True, default='', is_type_of=str),
     Validator('general.dont_notify_manual_actions', must_exist=True, default=False, is_type_of=bool),
+    Validator('general.notify_if_nothing_is_missing_for_signalr_event', must_exist=True, default=False, is_type_of=bool),
     Validator('general.hi_extension', must_exist=True, default='hi', is_type_of=str, is_in=['hi', 'cc', 'sdh']),
     Validator('general.embedded_subtitles_parser', must_exist=True, default='ffprobe', is_type_of=str,
               is_in=['ffprobe', 'mediainfo'], condition=check_parser_binary),
