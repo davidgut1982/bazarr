@@ -253,11 +253,31 @@ def resolve_subtitle_path(media_type, media_id, language_code):
     if safe_path is None:
         return 'Subtitle file not found on disk', 404
 
-    ext = os.path.splitext(safe_path)[1].lower()
-    if ext not in SUBTITLE_EXTENSIONS:
-        return f'File does not have a recognized subtitle extension: {ext}', 400
+    # CodeQL-recognized py/path-injection sanitizer: realpath + commonpath.
+    # Copilot's official autofix for this exact query uses precisely this
+    # pattern. startswith(base + os.sep) is NOT modeled as a sanitizer by
+    # the py/path-injection query, but os.path.commonpath([path, base]) is.
+    # Building the barrier at the final return site gives the caller a value
+    # that CodeQL's dataflow treats as cleared, so the downstream sinks
+    # (os.stat in generate_etag, tempfile.mkstemp(dir=), os.replace, os.chmod)
+    # no longer inherit taint from the language_code URL param.
+    resolved_subtitle_path = os.path.realpath(safe_path)
+    try:
+        common = os.path.commonpath([resolved_subtitle_path, trusted_media_dir])
+    except ValueError:
+        # Mixed drives on Windows or empty paths.
+        return 'Invalid subtitle path', 400
+    if common != trusted_media_dir:
+        return 'Resolved subtitle path outside media directory', 400
 
-    return safe_path, language, metadata
+    ext = os.path.splitext(resolved_subtitle_path)[1].lower()
+    if ext not in SUBTITLE_EXTENSIONS:
+        return 'File does not have a recognized subtitle extension', 400
+
+    if not os.path.isfile(resolved_subtitle_path):
+        return 'Subtitle file not found on disk', 404
+
+    return resolved_subtitle_path, language, metadata
 
 
 def read_subtitle_file(path):
@@ -316,63 +336,6 @@ def generate_etag(path):
     return hashlib.md5(tag_input.encode()).hexdigest()
 
 
-def _sanitize_media_path(media_type, media_id, subtitle_path):
-    """CodeQL-canonical py/path-injection sanitizer.
-
-    Re-fetches the media directory from DB keyed ONLY by the int media_id
-    (untrusted language_code never enters this lookup), then rebuilds the
-    subtitle path using the exact pattern CodeQL documents as 'GOOD':
-
-        fullpath = os.path.normpath(os.path.join(base, name))
-        if not fullpath.startswith(base): abort
-
-    The returned path is sourced from this join+barrier on the same branch
-    as downstream os.stat/tempfile/os.replace/os.chmod sinks, breaking any
-    residual taint the analyser might carry from the function argument.
-    Returns None if the path cannot be safely anchored.
-    """
-    basename = os.path.basename(os.path.normpath(subtitle_path))
-    if not basename or basename in ('.', '..'):
-        return None
-    # Reject any separator-like chars in the basename.
-    if '/' in basename or '\\' in basename or os.sep in basename:
-        return None
-    # Enforce a strict filename policy for user-influenced values.
-    # If canonicalization changes the value, reject it.
-    if basename != secure_filename(basename):
-        return None
-
-    candidate_bases = []
-    if media_type == 'episode':
-        row = database.execute(
-            select(TableEpisodes.path).where(TableEpisodes.sonarrEpisodeId == media_id)
-        ).first()
-        if not row:
-            return None
-        video_path = path_mappings.path_replace(row.path)
-    elif media_type == 'movie':
-        row = database.execute(
-            select(TableMovies.path).where(TableMovies.radarrId == media_id)
-        ).first()
-        if not row:
-            return None
-        video_path = path_mappings.path_replace_movie(row.path)
-    else:
-        return None
-
-    candidate_bases.append(os.path.realpath(os.path.dirname(video_path)))
-    target = get_target_folder(video_path)
-    if target:
-        candidate_bases.append(os.path.realpath(target))
-
-    for base in candidate_bases:
-        fullpath = os.path.normpath(os.path.join(base, basename))
-        if fullpath == base or fullpath.startswith(base + os.sep):
-            if os.path.isfile(fullpath):
-                return fullpath
-    return None
-
-
 def _get_media_metadata(media_type, media_id):
     """Get media metadata without requiring a subtitle to exist."""
     if media_type == 'episode':
@@ -428,14 +391,6 @@ def _get_subtitle_content(media_type, media_id, language_code):
 
     subtitle_path, language, metadata = result
 
-    # CodeQL-canonical barrier: rebuild the path from a freshly-fetched
-    # DB base (keyed by int media_id only) and verify containment. The
-    # barrier lives on the same branch as the downstream os.stat sink.
-    sanitized = _sanitize_media_path(media_type, media_id, subtitle_path)
-    if sanitized is None:
-        return 'Subtitle file not found on disk', 404
-    subtitle_path = sanitized
-
     etag = generate_etag(subtitle_path)
 
     # ETag-based caching
@@ -476,15 +431,6 @@ def _save_subtitle_content(media_type, media_id, language_code):
         return result[0], result[1]
 
     subtitle_path, language, metadata = result
-
-    # CodeQL-canonical barrier: rebuild path from fresh DB base + basename
-    # with the normpath(join(base,name)) + startswith(base+sep) guard.
-    # Every downstream sink (tempfile.mkstemp dir=, os.replace, os.chmod)
-    # consumes the sanitized value, never the argument-derived one.
-    sanitized = _sanitize_media_path(media_type, media_id, subtitle_path)
-    if sanitized is None:
-        return 'Subtitle file not found on disk', 404
-    subtitle_path = sanitized
 
     # Optimistic locking via ETag (optional but recommended)
     if_match = request.headers.get('If-Match')
