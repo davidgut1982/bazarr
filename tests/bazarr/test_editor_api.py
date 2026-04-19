@@ -24,24 +24,73 @@ import pytest
 _mock_args = MagicMock()
 _mock_args.config_dir = '/tmp/bazarr_test'
 
-# Patch modules that would otherwise require a running application
+# Pass-through flask_restx stand-ins so the class decorators
+# (@api_ns_editor.route(...), @Resource, etc.) do not replace the real
+# methods with MagicMocks at import time.
+def _passthrough_decorator(*args, **kwargs):
+    """Return a decorator that yields the target unchanged."""
+    def wrap(target):
+        return target
+    return wrap
+
+
+class _FakeNamespace:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def route(self, *args, **kwargs):
+        return _passthrough_decorator()
+
+    def doc(self, *args, **kwargs):
+        return _passthrough_decorator()
+
+    def expect(self, *args, **kwargs):
+        return _passthrough_decorator()
+
+    def marshal_with(self, *args, **kwargs):
+        return _passthrough_decorator()
+
+    def __getattr__(self, name):
+        # Any other attribute (model, parser, response, etc.) becomes
+        # a harmless MagicMock. Keeps downstream module imports happy
+        # without having to enumerate flask_restx's full surface.
+        return MagicMock()
+
+
+class _FakeResource:
+    """Minimal Resource base so classes like EditorSync subclass cleanly."""
+    pass
+
+
+_fake_flask_restx = MagicMock()
+_fake_flask_restx.Namespace = _FakeNamespace
+_fake_flask_restx.Resource = _FakeResource
+_fake_flask_restx.fields = MagicMock()
+
+# Patch modules that would otherwise require a running application.
+# `init` is patched because importing `bazarr.api.*` triggers
+# `bazarr/init.py` which runs `os.environ["SZ_HI_EXTENSION"] = settings.general.hi_extension`
+# during import. When `app.config` is mocked, that returns a MagicMock
+# and `os.environ.__setitem__` rejects anything that is not a string.
+_api_utils_mock = MagicMock()
+_api_utils_mock.authenticate = lambda fn: fn
+
 _patches = {
     'app.get_args': MagicMock(args=_mock_args),
     'app.config': MagicMock(),
     'app.database': MagicMock(),
     'utilities.path_mappings': MagicMock(),
     'utilities.binaries': MagicMock(),
-    'api.utils': MagicMock(),
+    'api.utils': _api_utils_mock,
+    'bazarr.api.utils': _api_utils_mock,
     'api.subtitles.content': MagicMock(),
-    'flask_restx': MagicMock(),
+    'flask_restx': _fake_flask_restx,
+    'init': MagicMock(startTime=0),
 }
 
 import sys
 for mod_name, mock_obj in _patches.items():
     sys.modules.setdefault(mod_name, mock_obj)
-
-# Make the authenticate decorator a no-op pass-through
-sys.modules['api.utils'].authenticate = lambda fn: fn
 
 # Now safe to import
 from bazarr.api.editor.editor import (
