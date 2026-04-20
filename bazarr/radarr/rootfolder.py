@@ -7,8 +7,7 @@ import logging
 from app.config import settings, get_ssl_verify
 from utilities.path_mappings import path_mappings
 from app.database import TableMoviesRootfolder, TableMovies, database, delete, update, insert, select
-from radarr.info import url_api_radarr
-from constants import HEADERS
+from radarr.info import radarr_headers, url_api_radarr
 
 
 def get_radarr_rootfolder():
@@ -16,10 +15,11 @@ def get_radarr_rootfolder():
     radarr_rootfolder = []
 
     # Get root folder data from Radarr
-    url_radarr_api_rootfolder = f"{url_api_radarr()}rootfolder?apikey={apikey_radarr}"
+    url_radarr_api_rootfolder = f"{url_api_radarr()}rootfolder"
 
     try:
-        rootfolder = requests.get(url_radarr_api_rootfolder, timeout=int(settings.radarr.http_timeout), verify=get_ssl_verify('radarr'), headers=HEADERS)
+        rootfolder = requests.get(url_radarr_api_rootfolder, timeout=int(settings.radarr.http_timeout), verify=get_ssl_verify('radarr'),
+                                  headers=radarr_headers(apikey_radarr))
     except requests.exceptions.ConnectionError:
         logging.exception("BAZARR Error trying to get rootfolder from Radarr. Connection Error.")
         return []
