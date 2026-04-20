@@ -29,19 +29,20 @@ class GetRadarrInfo:
         else:
             radarr_version = ''
         if settings.general.use_radarr:
+            headers = {**HEADERS, "X-Api-Key": settings.radarr.apikey}
             try:
-                rv = f"{url_radarr()}/api/system/status?apikey={settings.radarr.apikey}"
+                rv = f"{url_radarr()}/api/system/status"
                 radarr_json = requests.get(rv, timeout=int(settings.radarr.http_timeout), verify=get_ssl_verify('radarr'),
-                                           headers=HEADERS).json()
+                                           headers=headers).json()
                 if 'version' in radarr_json:
                     radarr_version = radarr_json['version']
                 else:
                     raise JSONDecodeError
             except JSONDecodeError:
                 try:
-                    rv = f"{url_radarr()}/api/v3/system/status?apikey={settings.radarr.apikey}"
+                    rv = f"{url_radarr()}/api/v3/system/status"
                     radarr_version = requests.get(rv, timeout=int(settings.radarr.http_timeout), verify=get_ssl_verify('radarr'),
-                                                  headers=HEADERS).json()['version']
+                                                  headers=headers).json()['version']
                 except (RequestException, JSONDecodeError, KeyError):
                     logging.debug('BAZARR cannot get Radarr version')
                     radarr_version = 'unknown'
@@ -110,3 +111,7 @@ def url_radarr():
 
 def url_api_radarr():
     return url_radarr() + f'/api{"/v3" if not get_radarr_info.is_legacy() else ""}/'
+
+
+def radarr_headers(apikey_radarr):
+    return {**HEADERS, "X-Api-Key": apikey_radarr}

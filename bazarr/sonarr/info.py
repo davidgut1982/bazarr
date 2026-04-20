@@ -29,19 +29,20 @@ class GetSonarrInfo:
         else:
             sonarr_version = ''
         if settings.general.use_sonarr:
+            headers = {**HEADERS, "X-Api-Key": settings.sonarr.apikey}
             try:
-                sv = f"{url_sonarr()}/api/system/status?apikey={settings.sonarr.apikey}"
+                sv = f"{url_sonarr()}/api/system/status"
                 sonarr_json = requests.get(sv, timeout=int(settings.sonarr.http_timeout), verify=get_ssl_verify('sonarr'),
-                                           headers=HEADERS).json()
+                                           headers=headers).json()
                 if 'version' in sonarr_json:
                     sonarr_version = sonarr_json['version']
                 else:
                     raise JSONDecodeError
             except JSONDecodeError:
                 try:
-                    sv = f"{url_sonarr()}/api/v3/system/status?apikey={settings.sonarr.apikey}"
+                    sv = f"{url_sonarr()}/api/v3/system/status"
                     sonarr_version = requests.get(sv, timeout=int(settings.sonarr.http_timeout), verify=get_ssl_verify('sonarr'),
-                                                  headers=HEADERS).json()['version']
+                                                  headers=headers).json()['version']
                 except (RequestException, JSONDecodeError, KeyError):
                     logging.debug('BAZARR cannot get Sonarr version')
                     sonarr_version = 'unknown'
@@ -110,3 +111,7 @@ def url_sonarr():
 
 def url_api_sonarr():
     return url_sonarr() + f'/api{"/v3" if not get_sonarr_info.is_legacy() else ""}/'
+
+
+def sonarr_headers(apikey_sonarr):
+    return {**HEADERS, "X-Api-Key": apikey_sonarr}
