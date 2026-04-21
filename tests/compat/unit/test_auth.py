@@ -2,6 +2,31 @@ import pytest
 from bazarr.compat import auth as A
 
 
+@pytest.fixture(autouse=True)
+def _reset_compat_secrets():
+    """Set live compat secrets for each test and restore afterward.
+
+    pytest's monkeypatch.setattr on dotted string paths doesn't reliably restore
+    Dynaconf attributes between tests, causing full-suite ordering flakes.
+    Setting and restoring directly on the live DynaBox is deterministic.
+    """
+    from bazarr.app.config import settings
+    original = {
+        name: getattr(settings.compat_endpoint, name, "")
+        for name in ("token", "jwt_secret", "file_id_secret",
+                     "jwt_ttl_seconds", "file_id_ttl_seconds", "stream_token_ttl_seconds")
+    }
+    settings.compat_endpoint.token = "t" * 32
+    settings.compat_endpoint.jwt_secret = "j" * 32
+    settings.compat_endpoint.file_id_secret = "f" * 32
+    settings.compat_endpoint.jwt_ttl_seconds = 60
+    settings.compat_endpoint.file_id_ttl_seconds = 60
+    settings.compat_endpoint.stream_token_ttl_seconds = 60
+    yield
+    for name, value in original.items():
+        setattr(settings.compat_endpoint, name, value)
+
+
 def test_validate_compat_token_accepts_exact_match(monkeypatch):
     monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.token", "a" * 32)
     assert A.validate_compat_token("a" * 32) is True
