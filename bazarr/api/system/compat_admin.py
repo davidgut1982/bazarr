@@ -14,6 +14,14 @@ _stats = {
 }
 
 
+def _set_compat_secret(name: str, value: str) -> None:
+    """Mutate the underlying Dynaconf store so `as_dict()` + `get_settings()`
+    reflect the new value on subsequent reads. `setattr()` on the section wrapper
+    does NOT propagate to `settings.as_dict()` output in some Dynaconf versions.
+    Using the dict-assignment path matches what `save_settings` does."""
+    settings["compat_endpoint"][name] = value
+
+
 def regenerate_all_secrets(write_fn=None) -> str:
     """Atomic 3-way rotation + cache invalidate AFTER file_id_secret write (B9).
 
@@ -23,9 +31,9 @@ def regenerate_all_secrets(write_fn=None) -> str:
     new_token = secrets.token_urlsafe(32)
     new_jwt = secrets.token_urlsafe(32)
     new_fid = secrets.token_urlsafe(32)
-    settings.compat_endpoint.token = new_token
-    settings.compat_endpoint.jwt_secret = new_jwt
-    settings.compat_endpoint.file_id_secret = new_fid
+    _set_compat_secret("token", new_token)
+    _set_compat_secret("jwt_secret", new_jwt)
+    _set_compat_secret("file_id_secret", new_fid)
     if write_fn is not None:
         write_fn("compat_endpoint.token", new_token)
         write_fn("compat_endpoint.jwt_secret", new_jwt)
@@ -38,16 +46,17 @@ def regenerate_all_secrets(write_fn=None) -> str:
 
 
 def ensure_secrets(write_fn=None) -> None:
-    """Called on settings save-with-enabled-flip. Auto-generates any missing secret.
+    """Auto-generate any missing / too-short compat secret.
 
     Idempotent: if all 3 secrets are already present and >=32 chars, no-op.
+    Called at blueprint registration when enabled=True.
     """
     changed = False
     for name in ("token", "jwt_secret", "file_id_secret"):
         current = getattr(settings.compat_endpoint, name, "") or ""
         if len(current) < 32:
             new_val = secrets.token_urlsafe(32)
-            setattr(settings.compat_endpoint, name, new_val)
+            _set_compat_secret(name, new_val)
             changed = True
             if write_fn is not None:
                 write_fn(f"compat_endpoint.{name}", new_val)

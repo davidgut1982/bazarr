@@ -3,9 +3,15 @@ import {
   Alert,
   Button,
   Group,
-  Notification,
+  Stack,
   Text as MantineText,
+  Title,
 } from "@mantine/core";
+import {
+  faPowerOff,
+  faTriangleExclamation,
+} from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useSystem } from "@/apis/hooks";
 import { Check, Layout, Message, Section } from "@/pages/Settings/components";
 import { useSettingValue } from "@/pages/Settings/utilities/hooks";
@@ -32,29 +38,43 @@ const RestartBanner: FunctionComponent = () => {
   const needsRestart = Boolean(persistedEnabled) && !persistedToken;
   if (!needsRestart) return null;
   return (
-    <Notification
-      color="blue"
-      title="Restart required"
+    <Alert
       role="alert"
-      withCloseButton={false}
+      color="orange"
+      variant="filled"
+      radius="md"
       mb="md"
+      p="lg"
+      icon={<FontAwesomeIcon icon={faTriangleExclamation} size="xl" />}
+      styles={{
+        root: { border: "2px solid var(--mantine-color-orange-7)" },
+        icon: { alignSelf: "flex-start", marginTop: 4 },
+      }}
     >
-      <Group justify="space-between" align="center" wrap="nowrap">
-        <MantineText size="sm">
-          Save this page, then restart Bazarr to apply changes to the Subtitle
-          API Endpoint.
+      <Stack gap="xs">
+        <Title order={4} c="white" style={{ margin: 0 }}>
+          Restart required to activate the endpoint
+        </Title>
+        <MantineText size="sm" c="white">
+          You enabled the Subtitle API Endpoint, but it is not running yet. The
+          API token is generated during Bazarr startup. Restart now to activate
+          the endpoint and reveal the token below.
         </MantineText>
-        <Button
-          size="xs"
-          variant="light"
-          color="blue"
-          onClick={() => restart()}
-          disabled={isMutating}
-        >
-          Restart Bazarr
-        </Button>
-      </Group>
-    </Notification>
+        <Group mt="xs">
+          <Button
+            size="md"
+            color="white"
+            c="orange.9"
+            variant="white"
+            leftSection={<FontAwesomeIcon icon={faPowerOff} />}
+            onClick={() => restart()}
+            loading={isMutating}
+          >
+            Restart Bazarr now
+          </Button>
+        </Group>
+      </Stack>
+    </Alert>
   );
 };
 
