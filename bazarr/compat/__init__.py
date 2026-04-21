@@ -1,4 +1,3 @@
-# bazarr/compat/__init__.py
 """Bazarr+ OpenSubtitles-compatible REST endpoint subpackage.
 
 DO NOT import from bazarr.subtitles.manual, bazarr.subtitles.indexer, or
@@ -11,12 +10,18 @@ from __future__ import annotations
 def register(app, base_url: str) -> None:
     """Register the compat blueprint (real or stub) with the Flask app.
 
-    MUST be called BEFORE api_bp registration to preserve route precedence.
+    MUST be called BEFORE api_bp registration (B3 precedence).
+    When enabled=True, runs the boot HMAC self-test and FAILS CLOSED if any
+    secret is empty/short (B6).
     """
     from bazarr.app.config import settings
     enabled = bool(settings.compat_endpoint.enabled)
+    prefix = base_url.rstrip("/") + "/api/v1"
     if enabled:
+        from .auth import boot_hmac_selftest
+        boot_hmac_selftest()  # fail-closed if any secret invalid (B6)
         from .routes import compat_bp
+        app.register_blueprint(compat_bp, url_prefix=prefix)
     else:
-        from .routes import compat_stub_bp as compat_bp
-    app.register_blueprint(compat_bp, url_prefix=(base_url.rstrip("/") + "/api/v1"))
+        from .routes import compat_stub_bp
+        app.register_blueprint(compat_stub_bp, url_prefix=prefix)
