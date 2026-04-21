@@ -114,12 +114,6 @@ const SettingsExternalView: FunctionComponent = () => {
           VLC, Kodi, Jellyfin, and media-center subtitle plugins.
         </MantineText>
         <RestartBanner />
-        <Alert color="yellow" mt="xs" mb="xs">
-          Do not expose this endpoint to the public internet. You are
-          responsible for provider ToS compliance. Some providers
-          (OpenSubtitles.com, SubDL, and others) prohibit proxying their service
-          or sharing API keys with third-party clients.
-        </Alert>
         <Check
           label="I understand this endpoint must not be exposed to the public internet and I am responsible for provider ToS compliance."
           settingKey={CONSENT_KEY}
