@@ -116,3 +116,17 @@ def parse_file_id(token: str) -> Tuple[bool, dict]:
     if int(payload.get("exp", 0)) < int(time.time()):
         return False, {}
     return True, payload
+
+
+def mint_stream_token(provider: str, native_id: str) -> str:
+    """Short-lived HMAC token used in the /download/stream/<token> URL. 5-min default."""
+    secret = (settings.compat_endpoint.file_id_secret or "").encode()
+    exp = int(time.time()) + int(settings.compat_endpoint.stream_token_ttl_seconds)
+    payload = {"p": provider, "i": str(native_id), "exp": exp, "t": "s"}
+    p_bytes = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    sig = _hmac_sign(secret, p_bytes)
+    return base64.urlsafe_b64encode(p_bytes + b"." + sig).decode().rstrip("=")
+
+
+def parse_stream_token(token: str) -> Tuple[bool, dict]:
+    return parse_file_id(token)  # same structure; exp check included

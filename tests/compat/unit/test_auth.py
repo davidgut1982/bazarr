@@ -96,3 +96,14 @@ def test_file_id_expired_rejected(monkeypatch):
     time.sleep(2)
     ok, _ = A.parse_file_id(tok)
     assert not ok
+
+
+def test_stream_token_roundtrip_and_expiry(monkeypatch):
+    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.file_id_secret", "f" * 32)
+    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.stream_token_ttl_seconds", 1)
+    tok = A.mint_stream_token("p", "i")
+    ok, payload = A.parse_stream_token(tok)
+    assert ok and payload["p"] == "p" and payload["i"] == "i"
+    time.sleep(2)
+    ok, _ = A.parse_stream_token(tok)
+    assert not ok
