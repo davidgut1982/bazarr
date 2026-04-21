@@ -65,3 +65,34 @@ def test_boot_hmac_selftest_fails_closed_with_empty_secret(monkeypatch):
     monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.jwt_secret", "")
     with pytest.raises(A.CompatBootError):
         A.boot_hmac_selftest()
+
+
+def test_file_id_roundtrip(monkeypatch):
+    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.file_id_secret", "f" * 32)
+    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.file_id_ttl_seconds", 60)
+    token = A.mint_file_id(
+        provider="opensubtitlescom",
+        native_id="12345",
+        language="eng",
+        release_info="Movie.2020.1080p.BluRay.x264-GROUP",
+    )
+    ok, payload = A.parse_file_id(token)
+    assert ok and payload["p"] == "opensubtitlescom" and payload["i"] == "12345"
+
+
+def test_file_id_tamper_rejected(monkeypatch):
+    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.file_id_secret", "f" * 32)
+    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.file_id_ttl_seconds", 60)
+    tok = A.mint_file_id("p", "i", "eng", "")
+    bad = tok[:-4] + "AAAA"
+    ok, _ = A.parse_file_id(bad)
+    assert not ok
+
+
+def test_file_id_expired_rejected(monkeypatch):
+    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.file_id_secret", "f" * 32)
+    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.file_id_ttl_seconds", 1)
+    tok = A.mint_file_id("p", "i", "eng", "")
+    time.sleep(2)
+    ok, _ = A.parse_file_id(tok)
+    assert not ok

@@ -1,6 +1,8 @@
 from __future__ import annotations
+import base64
 import hashlib
 import hmac
+import json
 import time
 from typing import Tuple
 
@@ -69,3 +71,48 @@ def boot_hmac_selftest() -> None:
         tag = hmac.new(secret, b"selftest", hashlib.sha256).hexdigest()
         if not tag or len(tag) != 64:
             raise CompatBootError(f"HMAC self-test failed for {secret_name}")
+
+
+def _hmac_sign(secret: bytes, payload_bytes: bytes) -> bytes:
+    return hmac.new(secret, payload_bytes, hashlib.sha256).digest()
+
+
+def mint_file_id(provider: str, native_id: str, language: str, release_info: str) -> str:
+    """Produce a stateless HMAC-signed file_id.
+
+    Payload shape (sort_keys, compact separators):
+        {"p": provider, "i": native_id, "l": language,
+         "r": sha1(release_info)[:10], "exp": <epoch>}
+    """
+    secret = (settings.compat_endpoint.file_id_secret or "").encode()
+    if len(secret) < 32:
+        raise CompatBootError("file_id_secret missing or short")
+    exp = int(time.time()) + int(settings.compat_endpoint.file_id_ttl_seconds)
+    release_hash = hashlib.sha1((release_info or "").encode()).hexdigest()[:10]
+    payload = {"p": provider, "i": str(native_id), "l": str(language),
+               "r": release_hash, "exp": exp}
+    p_bytes = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    sig = _hmac_sign(secret, p_bytes)
+    return base64.urlsafe_b64encode(p_bytes + b"." + sig).decode().rstrip("=")
+
+
+def parse_file_id(token: str) -> Tuple[bool, dict]:
+    try:
+        padded = token + ("=" * (-len(token) % 4))
+        raw = base64.urlsafe_b64decode(padded.encode())
+        p_bytes, sig = raw.rsplit(b".", 1)
+    except Exception:
+        return False, {}
+    secret = (settings.compat_endpoint.file_id_secret or "").encode()
+    if len(secret) < 32:
+        return False, {}
+    expected_sig = _hmac_sign(secret, p_bytes)
+    if not hmac.compare_digest(sig, expected_sig):
+        return False, {}
+    try:
+        payload = json.loads(p_bytes)
+    except ValueError:
+        return False, {}
+    if int(payload.get("exp", 0)) < int(time.time()):
+        return False, {}
+    return True, payload
