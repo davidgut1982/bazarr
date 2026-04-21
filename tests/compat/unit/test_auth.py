@@ -48,8 +48,9 @@ def test_validate_jwt_rejects_expired(monkeypatch):
 def test_validate_jwt_rejects_bad_signature(monkeypatch):
     monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.jwt_secret", "j" * 32)
     tok = A.mint_jwt()
-    # Flip a byte in the signature segment
-    bad = tok[:-1] + ("A" if tok[-1] != "A" else "B")
+    # Replace the signature segment entirely with a clearly invalid payload.
+    header_payload, _ = tok.rsplit(".", 1)
+    bad = header_payload + ".AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
     ok, _ = A.validate_jwt(bad)
     assert ok is False
 
