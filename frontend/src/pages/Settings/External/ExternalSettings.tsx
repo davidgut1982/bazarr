@@ -1,6 +1,7 @@
 import { FunctionComponent } from "react";
 import { Alert, Text as MantineText } from "@mantine/core";
 import { Check, Layout, Message, Section } from "@/pages/Settings/components";
+import TokenField from "./TokenField";
 
 const SettingsExternalView: FunctionComponent = () => {
   return (
@@ -22,7 +23,7 @@ const SettingsExternalView: FunctionComponent = () => {
           settingKey="settings-compat-consent"
         />
         <Check label="Enable" settingKey="settings-compat-enabled" />
-        {/* TokenField component added in Task 25 */}
+        <TokenField />
         <Message>
           This endpoint implements a REST API shape used by OpenSubtitles.com
           for interoperability with existing OpenSubtitles-compatible
