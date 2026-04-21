@@ -2,6 +2,7 @@ from __future__ import annotations
 import logging
 from threading import Lock
 from typing import Iterable
+from urllib.parse import quote
 from babelfish import Language
 from subliminal.video import Episode, Movie, Video
 from subliminal_patch.core_persistent import list_all_subtitles_parallel
@@ -98,3 +99,16 @@ def search(imdb_id: str, season, episode, languages: Iterable[Language],
         creator=lambda: _do_fanout(imdb_id, season, episode, languages, media_type),
         expiration_time=ttl,
     )
+
+
+def download(file_id: str, base_host: str) -> dict:
+    """Parse the file_id, mint a short-lived stream token, return a Bazarr+-hosted link.
+
+    No provider fetch happens here — the subtitle is fetched only when the client
+    follows the link (see serve_subtitle_content)."""
+    ok, payload = auth.parse_file_id(file_id)
+    if not ok:
+        raise FileNotFoundError("file_id invalid or expired")
+    stream_tok = auth.mint_stream_token(payload["p"], payload["i"])
+    link = f"{base_host.rstrip('/')}/api/v1/download/stream/{quote(stream_tok, safe='')}"
+    return M.download_response(link)
