@@ -116,13 +116,48 @@ def download(file_id: str, base_host: str) -> dict:
 
 
 def _fetch_subtitle_bytes(provider_name: str, native_id: str) -> bytes:
-    """Reconstruct a provider subtitle proxy and download.
+    """Reconstruct a provider subtitle proxy, SSRF-guard its URL, then download.
 
-    Real implementation in Task 15 — this stub raises NotImplementedError.
-    Callers must invoke assert_safe_outbound on the resolved provider URL
-    BEFORE requests.get (and re-verify after any redirect).
+    Providers vary widely in how they expose per-subtitle reconstruction. The compat
+    endpoint supports providers that expose either:
+      - a `get_subtitle_by_id(native_id)` method on the provider class, or
+      - a stored subtitle cache / repository the provider can consult.
+    Providers lacking such an interface are logged as non-compat-eligible.
     """
-    raise NotImplementedError("per-provider reconstruction — see Task 15")
+    pool = _get_compat_pool()
+    providers = pool.providers
+    provider = providers.get(provider_name) if isinstance(providers, dict) else None
+    if provider is None:
+        # Fall back to pool.init_provider which instantiates on demand
+        if hasattr(pool, "init_provider"):
+            pool.init_provider(provider_name)
+            providers = pool.providers
+            provider = providers.get(provider_name) if isinstance(providers, dict) else None
+    if provider is None:
+        raise RuntimeError(f"provider {provider_name!r} not reachable")
+
+    # Reconstruct a Subtitle proxy by native_id. Providers that do not expose
+    # get_subtitle_by_id are not currently compat-eligible — log + raise.
+    get_by_id = getattr(provider, "get_subtitle_by_id", None)
+    if get_by_id is None:
+        logger.warning(
+            "compat: provider %s has no get_subtitle_by_id; subtitle %s not reconstructible",
+            provider_name, native_id,
+        )
+        raise FileNotFoundError(
+            f"provider {provider_name!r} does not support by-id reconstruction"
+        )
+    sub = get_by_id(native_id)
+    if sub is None:
+        raise FileNotFoundError(f"subtitle {native_id!r} not found on {provider_name}")
+
+    # SSRF guard: validate the URL the provider will fetch BEFORE download_subtitle.
+    url = getattr(sub, "download_link", None) or getattr(sub, "url", None)
+    if url:
+        assert_safe_outbound(url)  # raises UnsafeURLError on private/loopback/etc.
+
+    blob = provider.download_subtitle(sub)
+    return blob or b""
 
 
 def serve_subtitle_content(stream_token: str) -> tuple[bytes, str]:

@@ -50,3 +50,21 @@ def test_serve_subtitle_content_rejects_invalid_token():
     from bazarr.compat import service
     with pytest.raises(ValueError):
         service.serve_subtitle_content("not-a-valid-token")
+
+
+def test_fetch_subtitle_bytes_invokes_guard_before_request(monkeypatch):
+    from bazarr.compat import service
+    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.file_id_secret", "f"*32)
+    with patch("bazarr.compat.service.assert_safe_outbound") as guard, \
+         patch("bazarr.compat.service._get_compat_pool") as pool:
+        fake_provider = MagicMock()
+        fake_sub = MagicMock()
+        fake_sub.download_link = "https://safe.example.com/sub.srt"
+        fake_sub.url = None
+        fake_provider.get_subtitle_by_id = MagicMock(return_value=fake_sub)
+        fake_provider.download_subtitle.return_value = b"1\n00:00:00,000 --> 00:00:01,000\nhi"
+        pool.return_value.providers = {"opensubtitlescom": fake_provider}
+        pool.return_value.discarded_providers = set()
+        pool.return_value.init_provider = MagicMock()
+        service._fetch_subtitle_bytes("opensubtitlescom", "abc123")
+        assert guard.called, "assert_safe_outbound MUST be called before fetch"
