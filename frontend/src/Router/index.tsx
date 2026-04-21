@@ -40,6 +40,7 @@ import SettingsSonarrView from "@/pages/Settings/Sonarr";
 import SettingsSubtitlesView from "@/pages/Settings/Subtitles";
 import SettingsTranslatorView from "@/pages/Settings/Translator";
 import SettingsUIView from "@/pages/Settings/UI";
+import SettingsExternalView from "@/pages/Settings/External";
 import SystemAnnouncementsView from "@/pages/System/Announcements";
 import SystemBackupsView from "@/pages/System/Backups";
 import SystemLogsView from "@/pages/System/Logs";
@@ -222,6 +223,11 @@ function useRoutes(): CustomRouteObject[] {
                 path: "translator",
                 name: "AI Translator",
                 element: <SettingsTranslatorView></SettingsTranslatorView>,
+              },
+              {
+                path: "external",
+                name: "External Integration",
+                element: <SettingsExternalView></SettingsExternalView>,
               },
               {
                 divider: "Application",
