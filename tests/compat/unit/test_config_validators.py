@@ -1,152 +1,139 @@
-import pytest
 import os
 import tempfile
+
+import pytest
 import yaml
-from dynaconf import Dynaconf, Validator as OriginalValidator
+from dynaconf import Dynaconf
 from dynaconf.validator import ValidationError
-from types import MappingProxyType
+
+# Pull the real validators list from the application config module.
+# This is the source of truth: the same Validator objects registered
+# into the production `settings` singleton at startup.
+from bazarr.app.config import validators as app_validators
 
 
-class Validator(OriginalValidator):
-    # Match the custom Validator class from config.py
-    default_messages = MappingProxyType(
-        {
-            "must_exist_true": "{name} is required",
-            "must_exist_false": "{name} cannot exists",
-            "condition": "{name} invalid for {function}({value})",
-            "operations": "{name} must {operation} {op_value} but it is {value}",
-            "combined": "combined validators failed {errors}",
+def _compat_validators():
+    """Return only the compat_endpoint validators from the real config list."""
+    return [
+        v for v in app_validators
+        if any("compat_endpoint" in name for name in v.names)
+    ]
+
+
+def _make_settings(config_data: dict) -> Dynaconf:
+    """
+    Create a fresh, isolated Dynaconf instance loaded from a temp YAML file
+    and pre-registered with the real compat_endpoint validators from config.py.
+
+    Each call returns a new instance, so tests cannot leak state to one another
+    or to the module-level `settings` singleton.
+    """
+    tmp_dir = tempfile.mkdtemp()
+    cfg_path = os.path.join(tmp_dir, "config.yaml")
+    with open(cfg_path, "w") as f:
+        yaml.dump(config_data, f)
+    s = Dynaconf(settings_file=cfg_path, core_loaders=["YAML"], apply_default_on_none=True)
+    s.validators.register(*_compat_validators())
+    return s
+
+
+# ---------------------------------------------------------------------------
+# Default / disabled state
+# ---------------------------------------------------------------------------
+
+def test_defaults_when_no_config_present():
+    """An empty config file uses validator defaults: enabled=False, secrets empty.
+    No ValidationError should be raised."""
+    tmp_dir = tempfile.mkdtemp()
+    cfg_path = os.path.join(tmp_dir, "config.yaml")
+    open(cfg_path, "w").close()  # empty file
+
+    s = Dynaconf(settings_file=cfg_path, core_loaders=["YAML"], apply_default_on_none=True)
+    s.validators.register(*_compat_validators())
+
+    # Must not raise: disabled + empty secrets is valid
+    s.validators.validate_all()
+    assert s.compat_endpoint.enabled is False
+
+
+def test_disabled_with_empty_secrets_passes():
+    """When enabled=False, all three secrets may be empty without triggering
+    the conditional must_exist / len_min validators."""
+    s = _make_settings({
+        "compat_endpoint": {
+            "enabled": False,
+            "token": "",
+            "jwt_secret": "",
+            "file_id_secret": "",
         }
-    )
+    })
+    s.validators.validate_all()  # must not raise
+    assert s.compat_endpoint.enabled is False
 
 
-def test_compat_endpoint_validators_require_secrets_when_enabled():
-    """When enabled=True, all three secrets must exist and be >=32 chars."""
-    with tempfile.TemporaryDirectory() as tmp_path:
-        # Write a config with enabled=True but empty jwt_secret
-        cfg_path = os.path.join(tmp_path, "config.yaml")
-        config_data = {
-            "compat_endpoint": {
-                "enabled": True,
-                "token": "x" * 32,
-                "jwt_secret": "",  # empty -> must_exist enforcement
-                "file_id_secret": "y" * 32,
-            }
+# ---------------------------------------------------------------------------
+# Enabled: each secret individually missing / too short
+# ---------------------------------------------------------------------------
+
+def test_enabled_empty_jwt_secret_raises():
+    """When enabled=True, an empty jwt_secret must trigger a ValidationError
+    from the conditional len_min=32 validator at config.py:498-502."""
+    s = _make_settings({
+        "compat_endpoint": {
+            "enabled": True,
+            "token": "a" * 32,
+            "jwt_secret": "",
+            "file_id_secret": "c" * 32,
         }
-        with open(cfg_path, "w") as f:
-            yaml.dump(config_data, f)
-
-        # Create Dynaconf instance and register validators
-        settings = Dynaconf(
-            settings_file=cfg_path,
-            core_loaders=['YAML'],
-            apply_default_on_none=True,
-        )
-
-        # Add the compat_endpoint validators
-        validators_list = [
-            Validator("compat_endpoint.enabled", default=False, cast=bool),
-            Validator("compat_endpoint.token", default="", cast=str),
-            Validator("compat_endpoint.jwt_secret", default="", cast=str),
-            Validator("compat_endpoint.file_id_secret", default="", cast=str),
-            Validator(
-                "compat_endpoint.token",
-                must_exist=True, is_type_of=str, len_min=32,
-                when=Validator("compat_endpoint.enabled", eq=True),
-            ),
-            Validator(
-                "compat_endpoint.jwt_secret",
-                must_exist=True, is_type_of=str, len_min=32,
-                when=Validator("compat_endpoint.enabled", eq=True),
-            ),
-            Validator(
-                "compat_endpoint.file_id_secret",
-                must_exist=True, is_type_of=str, len_min=32,
-                when=Validator("compat_endpoint.enabled", eq=True),
-            ),
-            Validator("compat_endpoint.cache_ttl_seconds",
-                      default=1800, cast=int, gte=60, lte=86400),
-            Validator("compat_endpoint.cache_ttl_partial_seconds",
-                      default=300, cast=int, gte=30, lte=3600),
-            Validator("compat_endpoint.search_timeout_seconds",
-                      default=20, cast=int, gte=5, lte=120),
-            Validator("compat_endpoint.per_provider_timeout_seconds",
-                      default=12, cast=int, gte=3, lte=60),
-            Validator("compat_endpoint.file_id_ttl_seconds",
-                      default=3600, cast=int, gte=300, lte=86400),
-            Validator("compat_endpoint.stream_token_ttl_seconds",
-                      default=300, cast=int, gte=60, lte=3600),
-            Validator("compat_endpoint.jwt_ttl_seconds",
-                      default=86400, cast=int, gte=3600, lte=604800),
-        ]
-
-        settings.validators.register(*validators_list)
-
-        # Should raise ValidationError due to empty jwt_secret when enabled=True
-        with pytest.raises(ValidationError):
-            settings.validators.validate_all()
+    })
+    with pytest.raises(ValidationError):
+        s.validators.validate_all()
 
 
-def test_compat_endpoint_defaults_when_disabled():
-    """When enabled=False, validators should not enforce secret requirements."""
-    with tempfile.TemporaryDirectory() as tmp_path:
-        cfg_path = os.path.join(tmp_path, "config.yaml")
-        config_data = {
-            "compat_endpoint": {
-                "enabled": False,
-                # All secrets can be empty when disabled
-                "token": "",
-                "jwt_secret": "",
-                "file_id_secret": "",
-            }
+def test_enabled_token_too_short_raises():
+    """When enabled=True, a token shorter than 32 characters must trigger a
+    ValidationError from the conditional len_min=32 validator at config.py:493-497."""
+    s = _make_settings({
+        "compat_endpoint": {
+            "enabled": True,
+            "token": "short",
+            "jwt_secret": "b" * 32,
+            "file_id_secret": "c" * 32,
         }
-        with open(cfg_path, "w") as f:
-            yaml.dump(config_data, f)
+    })
+    with pytest.raises(ValidationError):
+        s.validators.validate_all()
 
-        settings = Dynaconf(
-            settings_file=cfg_path,
-            core_loaders=['YAML'],
-            apply_default_on_none=True,
-        )
 
-        validators_list = [
-            Validator("compat_endpoint.enabled", default=False, cast=bool),
-            Validator("compat_endpoint.token", default="", cast=str),
-            Validator("compat_endpoint.jwt_secret", default="", cast=str),
-            Validator("compat_endpoint.file_id_secret", default="", cast=str),
-            Validator(
-                "compat_endpoint.token",
-                must_exist=True, is_type_of=str, len_min=32,
-                when=Validator("compat_endpoint.enabled", eq=True),
-            ),
-            Validator(
-                "compat_endpoint.jwt_secret",
-                must_exist=True, is_type_of=str, len_min=32,
-                when=Validator("compat_endpoint.enabled", eq=True),
-            ),
-            Validator(
-                "compat_endpoint.file_id_secret",
-                must_exist=True, is_type_of=str, len_min=32,
-                when=Validator("compat_endpoint.enabled", eq=True),
-            ),
-            Validator("compat_endpoint.cache_ttl_seconds",
-                      default=1800, cast=int, gte=60, lte=86400),
-            Validator("compat_endpoint.cache_ttl_partial_seconds",
-                      default=300, cast=int, gte=30, lte=3600),
-            Validator("compat_endpoint.search_timeout_seconds",
-                      default=20, cast=int, gte=5, lte=120),
-            Validator("compat_endpoint.per_provider_timeout_seconds",
-                      default=12, cast=int, gte=3, lte=60),
-            Validator("compat_endpoint.file_id_ttl_seconds",
-                      default=3600, cast=int, gte=300, lte=86400),
-            Validator("compat_endpoint.stream_token_ttl_seconds",
-                      default=300, cast=int, gte=60, lte=3600),
-            Validator("compat_endpoint.jwt_ttl_seconds",
-                      default=86400, cast=int, gte=3600, lte=604800),
-        ]
+def test_enabled_empty_file_id_secret_raises():
+    """When enabled=True, an empty file_id_secret must trigger a ValidationError
+    from the conditional len_min=32 validator at config.py:503-507."""
+    s = _make_settings({
+        "compat_endpoint": {
+            "enabled": True,
+            "token": "a" * 32,
+            "jwt_secret": "b" * 32,
+            "file_id_secret": "",
+        }
+    })
+    with pytest.raises(ValidationError):
+        s.validators.validate_all()
 
-        settings.validators.register(*validators_list)
 
-        # Should NOT raise ValidationError
-        settings.validators.validate_all()
-        assert settings.compat_endpoint.enabled is False
+# ---------------------------------------------------------------------------
+# Enabled: all secrets valid
+# ---------------------------------------------------------------------------
+
+def test_enabled_all_secrets_valid_passes():
+    """When enabled=True and all three secrets are at least 32 characters,
+    validation must succeed without raising."""
+    s = _make_settings({
+        "compat_endpoint": {
+            "enabled": True,
+            "token": "a" * 32,
+            "jwt_secret": "b" * 32,
+            "file_id_secret": "c" * 32,
+        }
+    })
+    s.validators.validate_all()  # must not raise
+    assert s.compat_endpoint.enabled is True
