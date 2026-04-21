@@ -34,3 +34,24 @@ def test_search_calls_parallel_fanout_and_caches():
         assert result == result2
         lf.assert_not_called()
     C.invalidate_all()
+
+
+def test_subtitles_endpoint_requires_api_key(monkeypatch):
+    from flask import Flask
+    from bazarr.compat.routes import compat_bp
+    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.token", "a" * 32)
+    app = Flask(__name__)
+    app.register_blueprint(compat_bp, url_prefix="/api/v1")
+    r = app.test_client().get("/api/v1/subtitles?imdb_id=tt1&languages=en")
+    assert r.status_code == 401
+    assert r.headers["x-reason"] == "auth"
+
+
+def test_subtitles_requires_languages(monkeypatch):
+    from flask import Flask
+    from bazarr.compat.routes import compat_bp
+    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.token", "a" * 32)
+    app = Flask(__name__)
+    app.register_blueprint(compat_bp, url_prefix="/api/v1")
+    r = app.test_client().get("/api/v1/subtitles", headers={"Api-Key": "a" * 32})
+    assert r.status_code == 400
