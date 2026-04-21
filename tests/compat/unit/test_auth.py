@@ -23,3 +23,45 @@ def test_validate_compat_token_uses_constant_time():
     import hmac
     # Sanity: hmac.compare_digest accepts bytes and str
     assert hmac.compare_digest("a" * 32, "a" * 32) is True
+
+
+import time
+
+
+def test_mint_and_validate_jwt_roundtrip(monkeypatch):
+    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.jwt_secret", "j" * 32)
+    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.jwt_ttl_seconds", 60)
+    tok = A.mint_jwt()
+    ok, claims = A.validate_jwt(tok)
+    assert ok is True and "exp" in claims
+
+
+def test_validate_jwt_rejects_expired(monkeypatch):
+    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.jwt_secret", "j" * 32)
+    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.jwt_ttl_seconds", 1)
+    tok = A.mint_jwt()
+    time.sleep(2)
+    ok, _ = A.validate_jwt(tok)
+    assert ok is False
+
+
+def test_validate_jwt_rejects_bad_signature(monkeypatch):
+    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.jwt_secret", "j" * 32)
+    tok = A.mint_jwt()
+    # Flip a byte in the signature segment
+    bad = tok[:-1] + ("A" if tok[-1] != "A" else "B")
+    ok, _ = A.validate_jwt(bad)
+    assert ok is False
+
+
+def test_boot_hmac_selftest_passes_with_valid_secrets(monkeypatch):
+    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.token", "t" * 32)
+    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.jwt_secret", "j" * 32)
+    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.file_id_secret", "f" * 32)
+    A.boot_hmac_selftest()  # no exception
+
+
+def test_boot_hmac_selftest_fails_closed_with_empty_secret(monkeypatch):
+    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.jwt_secret", "")
+    with pytest.raises(A.CompatBootError):
+        A.boot_hmac_selftest()
