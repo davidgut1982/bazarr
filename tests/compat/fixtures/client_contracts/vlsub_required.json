@@ -1,0 +1,17 @@
+{
+  "data[0].id": "str",
+  "data[0].type": "str",
+  "data[0].attributes.language": "str",
+  "data[0].attributes.release": "str",
+  "data[0].attributes.download_count": "int",
+  "data[0].attributes.ratings": "number",
+  "data[0].attributes.from_trusted": "bool",
+  "data[0].attributes.hearing_impaired": "bool",
+  "data[0].attributes.uploader.name": "str",
+  "data[0].attributes.feature_details.imdb_id": "str",
+  "data[0].attributes.feature_details.season_number": "int",
+  "data[0].attributes.feature_details.episode_number": "int",
+  "data[0].attributes.feature_details.feature_type": "str",
+  "data[0].attributes.files[0].file_id": "str",
+  "data[0].attributes.files[0].file_name": "str"
+}
