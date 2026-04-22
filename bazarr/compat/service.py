@@ -196,16 +196,147 @@ def _refine_from_imdb(video, media_type: str) -> None:
     """Best-effort network lookup to populate title/year/tvdb_id when the
     local library doesn't know the imdb_id. Swallows all exceptions.
 
-    We bypass subliminal's stock refiners for movies: they early-exit when
-    video.imdb_id is set (which it always is from our compat clients),
-    treating it as 'information complete' even when the title is still
-    empty. For episodes, we also query TVDB directly by imdb_id because
-    the stock TVDB refiner requires a series name we don't have.
+    Episode resolution path (fastest first):
+      1. TVDB v4 by imdb_id - native episode support via /search/remoteid.
+         Works whether the client sent the series' imdb or the episode's.
+      2. OMDB bridge - translates episode-imdb to series-imdb via OMDB's
+         `seriesID` field, then hits subliminal's TVDB v1 by series imdb.
+      3. Subliminal's TVDB v1 series-imdb search - final fallback.
+
+    For movies we just hit OMDB directly (TVDB v4 also supports movies
+    but OMDB has better coverage for movie-imdb lookups in practice).
     """
     if media_type == "episode":
+        if _tvdb_v4_episode_lookup(video):
+            return
+        series_imdb = _omdb_episode_to_series_imdb(video)
+        if series_imdb:
+            video.series_imdb_id = series_imdb
         _tvdb_lookup_by_imdb(video)
     else:
         _omdb_lookup_by_imdb(video)
+
+
+def _tvdb_v4_episode_lookup(video) -> bool:
+    """Resolve an episode via TVDB v4's /search/remoteid endpoint.
+
+    Returns True if we populated at least series_tvdb_id; False on any
+    failure or no-match. Hydrates series name/year from subliminal's v1
+    get_series() once we have the numeric series_tvdb_id, since v4's
+    search result omits series fields when the imdb maps to an episode.
+    """
+    try:
+        from subliminal_patch.refiners import tvdb_v4
+        imdb = getattr(video, "series_imdb_id", None) or getattr(video, "imdb_id", None)
+        if not imdb:
+            return False
+        match = tvdb_v4.get_client().search_by_imdb_id(imdb)
+        if not match:
+            return False
+
+        series_id = None
+        if "episode" in match and isinstance(match["episode"], dict):
+            ep = match["episode"]
+            series_id = ep.get("seriesId")
+            if not getattr(video, "tvdb_id", None) and ep.get("id"):
+                try:
+                    video.tvdb_id = int(ep["id"])
+                except (TypeError, ValueError):
+                    pass
+            if not getattr(video, "title", None) and ep.get("name"):
+                video.title = ep["name"]
+            aired = ep.get("aired") or ""
+            if aired and not getattr(video, "year", None):
+                try:
+                    video.year = int(aired[:4])
+                except (TypeError, ValueError):
+                    pass
+        elif "series" in match and isinstance(match["series"], dict):
+            s = match["series"]
+            series_id = s.get("id")
+            if not getattr(video, "series", None) and s.get("name"):
+                video.series = s["name"]
+            fa = s.get("firstAired") or ""
+            if fa and not getattr(video, "year", None):
+                try:
+                    video.year = int(fa[:4])
+                except (TypeError, ValueError):
+                    pass
+        else:
+            return False
+
+        if not series_id:
+            return False
+        try:
+            video.series_tvdb_id = int(series_id)
+        except (TypeError, ValueError):
+            return False
+
+        # Hydrate series name/year via subliminal's v1 get_series if we
+        # don't have them yet (v4's episode match omits series fields).
+        if not getattr(video, "series", None) or not getattr(video, "year", None):
+            try:
+                from subliminal.refiners.tvdb import get_series
+                s_data = get_series(int(series_id))
+                if s_data:
+                    if not getattr(video, "series", None):
+                        video.series = s_data.get("seriesName") or ""
+                    if not getattr(video, "year", None):
+                        fa = s_data.get("firstAired") or ""
+                        try:
+                            video.year = int(fa[:4])
+                        except (TypeError, ValueError):
+                            pass
+            except Exception as e:
+                logger.debug("v1 get_series hydrate failed: %s", e)
+        return True
+    except Exception as e:
+        logger.debug("TVDB v4 episode lookup failed: %s", e)
+        return False
+
+
+def _omdb_episode_to_series_imdb(video) -> str | None:
+    """When the client sends the episode's imdb_id, OMDB tells us the
+    series' imdb_id via the `seriesID` field. Also populates year /
+    episode title as a side-effect. Returns the series imdb ('tt...') or
+    None on any failure / no-key. Safe to call without OMDB configured."""
+    try:
+        from subliminal_patch.refiners.omdb import _resolve_omdb_apikey
+        apikey = _resolve_omdb_apikey()
+        if not apikey:
+            return None
+        imdb = getattr(video, "series_imdb_id", None) or getattr(video, "imdb_id", None)
+        if not imdb:
+            return None
+        import requests
+        r = requests.get("http://www.omdbapi.com/",
+                         params={"i": imdb, "apikey": apikey},
+                         timeout=5)
+        if r.status_code != 200:
+            return None
+        data = r.json()
+        if data.get("Response") != "True":
+            return None
+        # Year on the episode record is the air year; good enough as a
+        # fallback when TVDB doesn't know the show.
+        if not getattr(video, "year", None):
+            try:
+                video.year = int(str(data.get("Year", ""))[:4])
+            except (TypeError, ValueError):
+                pass
+        # Episode record carries the episode title; the series title we'll
+        # get from TVDB if we can.
+        if not getattr(video, "title", None):
+            video.title = data.get("Title") or None
+        series_id = data.get("seriesID")
+        if series_id and str(series_id).startswith("tt"):
+            return str(series_id)
+        # If OMDB says this is actually a series root (not an episode),
+        # the caller's series_imdb_id is already correct.
+        return None
+    except Exception as e:
+        logger.debug("compat OMDB episode->series lookup failed: %s", e)
+        return None
 
 
 def _omdb_lookup_by_imdb(video) -> None:
