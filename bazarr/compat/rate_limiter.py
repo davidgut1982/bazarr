@@ -2,7 +2,14 @@
 
 Window is fixed-interval (not true rolling), so within a window a caller
 can consume up to `limit` downloads; at window boundary the count resets.
-In-memory only, single-node. Keyed by JWT jti for the compat flow."""
+In-memory only, single-node. Keyed by JWT jti for the compat flow.
+
+Stale entries are only pruned lazily: a jti that consumes once and never
+returns leaves its (window_start, count) tuple behind until the same jti
+calls again. At default config the map grows by at most one entry per
+logged-in JWT per day, so single-node memory usage is bounded well below
+concern even over weeks of churn. If that assumption changes (multi-node,
+or an abusive client rotating JWTs), add periodic pruning here."""
 from __future__ import annotations
 import time
 from threading import Lock

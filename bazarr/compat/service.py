@@ -581,15 +581,24 @@ def _do_fanout(imdb_id, season, episode, languages, media_type,
 
 def _build_requested_language_map(requested_languages: list[str]) -> dict:
     """Map alpha2 -> original BCP-47 code so mapper can preserve region
-    subtags like zh-CN. When the caller asked for 'en' and provider
-    returned Language('eng'), we get back 'en'. When caller asked for
-    'zh-CN' and provider returned Language('zho'), we emit 'zh-CN'."""
-    out: dict[str, str] = {}
+    subtags like zh-CN.
+
+    When the caller sends multiple variants of the same base (e.g.
+    'zh-CN,zh-TW'), we can't safely tag every returned Chinese sub with
+    one specific region, so we drop the override for that base and let
+    the mapper emit the bare alpha2. The plugin's match is
+    case-insensitive on alpha2, so this degrades correctly.
+    """
+    collected: dict[str, list[str]] = {}
     for code in requested_languages:
         if not code:
             continue
         base = code.split("-", 1)[0].lower()
-        out.setdefault(base, code)
+        collected.setdefault(base, []).append(code)
+    out: dict[str, str] = {}
+    for base, codes in collected.items():
+        if len(codes) == 1:
+            out[base] = codes[0]
     return out
 
 

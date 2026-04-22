@@ -72,12 +72,6 @@ def _normalize_release(raw) -> str:
     return parts[0]
 
 
-def _tomorrow_utc_iso() -> str:
-    t = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=1)).replace(
-        hour=0, minute=0, second=0, microsecond=0)
-    return t.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
 def _imdb_to_int(imdb_id) -> int:
     """OS.com returns feature_details.imdb_id as int (not string with 'tt').
     Accept 'tt0111161', '0111161', 111161, etc. Return 0 on parse failure."""
@@ -239,8 +233,8 @@ def subtitle_to_os_entry(sub, file_id: int, media_type: str, imdb_id: str,
         "release": release,
         "comments": str(raw_release),
         "download_count": int(getattr(sub, "download_count", 0) or 0),
-        "ratings": _derive_ratings(score)
-                   or float(getattr(sub, "ratings", 0) or 0),
+        "ratings": (_derive_ratings(score) if score is not None
+                    else float(getattr(sub, "ratings", 0) or 0)),
         "votes": 0,
         "from_trusted": _derive_from_trusted(sub),
         "hd": _derive_hd(raw_release),

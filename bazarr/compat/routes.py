@@ -37,7 +37,7 @@ def _jti_from_request() -> str | None:
     if not bearer.startswith("Bearer "):
         return None
     ok, claims = auth.validate_jwt(bearer[7:])
-    return (claims.get("jti") if ok else None) or None
+    return claims.get("jti") if ok else None
 
 compat_bp = Blueprint("compat", __name__)
 
