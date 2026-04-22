@@ -72,6 +72,13 @@ def subtitles():
     imdb = args.get("imdb_id") or args.get("tmdb_id") or args.get("query")
     if not imdb:
         return compat_error("imdb_id, tmdb_id, or query required", 400, "bad-request")
+    # The client's filename and OS-style moviehash are optional enrichments:
+    # clients like VLSub and Jellyfin send the playing filename as `query`
+    # (separate from imdb_id), and OS clients send `moviehash` for exact
+    # hash match. Both are plumbed into the virtual Video so providers can
+    # score against release group, resolution, source, etc.
+    query_filename = args.get("query") if args.get("imdb_id") else None
+    moviehash = args.get("moviehash") or None
     # subzero.language.Language (what every bazarr provider compares with).
     # babelfish.Language does NOT equal the subzero subclass in set operations
     # even though hash() matches, so providers would skip every language.
@@ -90,7 +97,8 @@ def subtitles():
     episode = args.get("episode_number", type=int)
     media_type = "episode" if season is not None else "movie"
     try:
-        result = service.search(imdb, season, episode, langs, media_type)
+        result = service.search(imdb, season, episode, langs, media_type,
+                                query=query_filename, moviehash=moviehash)
     except Exception:
         return compat_error("upstream providers unavailable", 503, "upstream")
     # Paginate on the route side. service.search (and its cache) always hold

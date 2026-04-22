@@ -42,36 +42,182 @@ def reset_compat_pool() -> None:
         _compat_pool = None
 
 
+def _lookup_library_metadata(imdb_id: str, media_type: str) -> dict:
+    """Best-effort title/year/tvdb_id resolution from the local Bazarr DB.
+
+    Providers like supersubtitles and yifysubtitles score heavily on title
+    match, so searching with a bare `imdb_id` and empty title returns few or
+    irrelevant results. When the title is already in TableMovies/TableShows
+    (almost always, since this is a library-backed deployment) we can hand
+    the real title/year to the Video constructor and dramatically improve
+    hit rate. Returns {} if the imdb_id is not in the library.
+    """
+    try:
+        from bazarr.app.database import database, select, TableMovies, TableShows
+    except Exception:
+        return {}
+    imdb = imdb_id if str(imdb_id).startswith("tt") else f"tt{imdb_id}"
+    try:
+        if media_type == "episode":
+            row = database.execute(
+                select(TableShows.title, TableShows.year, TableShows.tvdbId)
+                .where(TableShows.imdbId == imdb)
+            ).first()
+            if row:
+                return {"title": row[0] or "", "year": row[1],
+                        "tvdb_id": row[2]}
+        else:
+            row = database.execute(
+                select(TableMovies.title, TableMovies.year)
+                .where(TableMovies.imdbId == imdb)
+            ).first()
+            if row:
+                return {"title": row[0] or "", "year": row[1]}
+    except Exception as e:
+        logger.debug("compat library metadata lookup failed for %s: %s", imdb, e)
+    return {}
+
+
+def _guessit_filename(filename: str) -> dict:
+    """Run guessit on a filename and return a plain dict of the interesting
+    fields. Isolated from subliminal's Video.fromname so it doesn't raise
+    when the type disagrees with what the client told us."""
+    if not filename:
+        return {}
+    try:
+        from subliminal_patch.core import guessit as _guessit
+        g = _guessit(filename)
+        return dict(g) if g else {}
+    except Exception as e:
+        logger.debug("compat guessit failed on %r: %s", filename, e)
+        return {}
+
+
 def _build_video(imdb_id: str, season: int | None, episode: int | None,
-                 media_type: str) -> Video:
-    """No filesystem, no parse_video, no scan_video."""
+                 media_type: str, query: str | None = None,
+                 moviehash: str | None = None) -> Video:
+    """Construct a Video for compat fanout, enriched with whatever we can
+    scrape from (a) the local library (title/year/tvdb_id), (b) the client's
+    filename via guessit (source, resolution, release_group, codecs), and
+    (c) the OS-style moviehash if the client has one. Providers score
+    heavily on these fields, so populating them dramatically improves hit
+    rates for file-less compat searches.
+    """
+    meta = _lookup_library_metadata(imdb_id, media_type)
+    title = meta.get("title") or ""
+    year_raw = meta.get("year")
+    try:
+        year = int(str(year_raw)[:4]) if year_raw else None
+    except (TypeError, ValueError):
+        year = None
+
+    g = _guessit_filename(query) if query else {}
+    # guessit may expose 'title' in a different shape than our library; prefer
+    # the library title when both exist because it's been curated.
+    g_title = g.get("title") or ""
+    g_year = g.get("year")
+    g_source = g.get("source")
+    g_release_group = g.get("release_group")
+    g_resolution = g.get("screen_size") or g.get("resolution")
+    g_video_codec = g.get("video_codec")
+    g_audio_codec = g.get("audio_codec")
+
+    # Prefer the client's filename (it carries release info) as the Video.name,
+    # since many providers match subtitle names against it fuzzily.
+    name_fallback = query or None
+
     if media_type == "episode":
+        name = name_fallback or (
+            f"{title or g_title or imdb_id}.S{int(season or 0):02d}E{int(episode or 0):02d}.mkv"
+        )
         v = Episode(
-            name=f"virtual_{imdb_id}_s{season}e{episode}.mkv",
-            series="",
+            name=name,
+            series=title or g_title,
             season=int(season or 0),
             episode=int(episode or 0),
             series_imdb_id=imdb_id,
+            year=year or g_year,
+            source=g_source,
+            release_group=g_release_group,
+            resolution=g_resolution,
+            video_codec=g_video_codec,
+            audio_codec=g_audio_codec,
         )
+        tvdb_id = meta.get("tvdb_id")
+        if tvdb_id:
+            try:
+                v.series_tvdb_id = int(tvdb_id)
+            except (TypeError, ValueError):
+                pass
     else:
+        used_title = title or g_title
+        used_year = year or g_year
+        name = name_fallback or (
+            f"{used_title or imdb_id}.{used_year}.mkv" if used_year
+            else f"{used_title or imdb_id}.mkv"
+        )
         v = Movie(
-            name=f"virtual_{imdb_id}.mkv",
-            title="",
-            year=None,
+            name=name,
+            title=used_title,
+            year=used_year,
             imdb_id=imdb_id,
+            source=g_source,
+            release_group=g_release_group,
+            resolution=g_resolution,
+            video_codec=g_video_codec,
+            audio_codec=g_audio_codec,
         )
     v.size = None
-    v.hashes = {}
+    # OpenSubtitles uses a specific file-hash algorithm; if the client
+    # computed and provided it, OS providers get an exact-hash match path.
+    if moviehash:
+        v.hashes = {"opensubtitles": str(moviehash), "opensubtitlescom": str(moviehash)}
+    else:
+        v.hashes = {}
+
+    # If we still don't have a title (library miss + no filename), fall back
+    # to the OMDB/TVDB refiners that Bazarr already uses elsewhere. They
+    # resolve title/year/series from the imdb_id over the network. Kept
+    # strictly best-effort: any failure leaves the video unchanged so the
+    # fanout can still try providers that work from imdb_id alone.
+    if not getattr(v, "title", None) and not getattr(v, "series", None):
+        _refine_from_imdb(v, media_type)
     return v
 
 
-def _do_fanout(imdb_id, season, episode, languages, media_type):
+def _refine_from_imdb(video, media_type: str) -> None:
+    """Best-effort network lookup to populate title/year when the local
+    library doesn't know the imdb_id. Swallows all exceptions."""
+    try:
+        from subliminal_patch.core import refine as sz_refine
+        refiners = ("tvdb", "omdb") if media_type == "episode" else ("omdb",)
+        sz_refine(
+            video,
+            episode_refiners=refiners if media_type == "episode" else None,
+            movie_refiners=refiners if media_type != "episode" else None,
+        )
+    except Exception as e:
+        logger.debug("compat imdb refiner failed: %s", e)
+
+
+# Providers whose check() passes for a virtual video but that physically
+# cannot produce results without the file on disk. Skipping them at fanout
+# time frees a thread-pool slot and cuts wall time.
+_SKIP_FOR_VIRTUAL_VIDEO = frozenset({"embeddedsubtitles"})
+
+
+def _do_fanout(imdb_id, season, episode, languages, media_type,
+               query=None, moviehash=None):
     pool = _get_compat_pool()
-    video = _build_video(imdb_id, season, episode, media_type)
+    video = _build_video(imdb_id, season, episode, media_type,
+                         query=query, moviehash=moviehash)
+    logger.info("compat fanout: video=%r lang=%s providers=%d",
+                video, [str(l) for l in languages], len(pool.providers))
     results = list_all_subtitles_parallel(
         [video], set(languages), pool,
         per_provider_timeout=int(settings.compat_endpoint.per_provider_timeout_seconds),
         wall_timeout=int(settings.compat_endpoint.search_timeout_seconds),
+        exclude_providers=_SKIP_FOR_VIRTUAL_VIDEO,
     )
     subs = []
     for v, sub_list in results.items():
@@ -92,13 +238,16 @@ def _do_fanout(imdb_id, season, episode, languages, media_type):
 
 
 def search(imdb_id: str, season, episode, languages: Iterable[Language],
-           media_type: str) -> dict:
+           media_type: str, query: str | None = None,
+           moviehash: str | None = None) -> dict:
     enabled = get_providers_sorted()
-    key = C.build_key(media_type, imdb_id, season, episode, languages, enabled)
+    key = C.build_key(media_type, imdb_id, season, episode, languages, enabled,
+                      query=query, moviehash=moviehash)
     ttl = int(settings.compat_endpoint.cache_ttl_seconds)
     return C.compat_region.get_or_create(
         key,
-        creator=lambda: _do_fanout(imdb_id, season, episode, languages, media_type),
+        creator=lambda: _do_fanout(imdb_id, season, episode, languages,
+                                    media_type, query=query, moviehash=moviehash),
         expiration_time=ttl,
     )
 

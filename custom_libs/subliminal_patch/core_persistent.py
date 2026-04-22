@@ -92,21 +92,28 @@ def download_best_subtitles(
 
 def list_all_subtitles_parallel(videos, languages, pool_instance,
                                  per_provider_timeout: int = 12,
-                                 wall_timeout: int = 20):
+                                 wall_timeout: int = 20,
+                                 exclude_providers=None):
     """Parallel fanout with per-provider + wall timeouts.
 
     Unlike list_subtitles_prioritized, this does NOT early-stop. Every enabled
     provider is queried; slow providers are cancelled at per_provider_timeout
     without holding back the wall_timeout.
 
+    `exclude_providers` is an optional iterable of provider names to skip at
+    the fanout layer (e.g. providers that can't work without a real video
+    file on disk). This is cheaper than letting them run and return empty.
+
     Used exclusively by the compat endpoint. DO NOT replace list_subtitles_prioritized
     for existing code paths.
     """
+    exclude = set(exclude_providers or ())
     out = defaultdict(list)
     if not videos:
         return out
     providers = [p for p in pool_instance.providers
-                 if p not in getattr(pool_instance, "discarded_providers", set())]
+                 if p not in getattr(pool_instance, "discarded_providers", set())
+                 and p not in exclude]
     for video in videos:
         with ThreadPoolExecutor(max_workers=max(1, len(providers))) as ex:
             futures = {ex.submit(pool_instance.list_subtitles_provider,

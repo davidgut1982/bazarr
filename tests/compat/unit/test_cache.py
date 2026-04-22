@@ -9,7 +9,24 @@ def test_build_key_deterministic_across_processes():
     k2 = C.build_key("episode", "tt12345", 1, 2, [Language("eng")],
                     ["subdl", "opensubtitlescom"])  # unsorted
     assert k1 == k2
-    assert k1.startswith("compat:v1:episode:tt12345:1:2:")
+    assert k1.startswith("compat:v2:episode:tt12345:1:2:")
+
+
+def test_build_key_query_and_moviehash_vary():
+    """Different filenames / moviehashes map to distinct cache keys because
+    the compat endpoint uses them to build a different virtual Video."""
+    base = dict(
+        media_type="movie", imdb_id="tt1", season=None, episode=None,
+        languages=[Language("eng")], enabled_providers=["p"],
+    )
+    k_empty = C.build_key(**base)
+    k_q = C.build_key(**base, query="Movie.2020.1080p-GROUP.mkv")
+    k_h = C.build_key(**base, moviehash="deadbeefcafebabe")
+    k_qh = C.build_key(**base, query="Movie.2020.1080p-GROUP.mkv",
+                       moviehash="deadbeefcafebabe")
+    assert k_empty != k_q != k_h != k_qh
+    # Same query should produce the same key (deterministic)
+    assert k_q == C.build_key(**base, query="Movie.2020.1080p-GROUP.mkv")
 
 
 def test_build_key_language_variants_preserved():
