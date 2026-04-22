@@ -126,17 +126,20 @@ def _build_video(imdb_id: str, season: int | None, episode: int | None,
     # since many providers match subtitle names against it fuzzily.
     name_fallback = query or None
 
+    # Title precedence: library (curated) > refiner (OMDB/TVDB) > guessit.
+    # guessit titles are unreliable noise when the filename is bad, so we
+    # only fall back to them as a last resort.
     if media_type == "episode":
         name = name_fallback or (
             f"{title or g_title or imdb_id}.S{int(season or 0):02d}E{int(episode or 0):02d}.mkv"
         )
         v = Episode(
             name=name,
-            series=title or g_title,
+            series=title,  # will be filled by refiner then guessit if empty
             season=int(season or 0),
             episode=int(episode or 0),
             series_imdb_id=imdb_id,
-            year=year or g_year,
+            year=year,
             source=g_source,
             release_group=g_release_group,
             resolution=g_resolution,
@@ -150,16 +153,14 @@ def _build_video(imdb_id: str, season: int | None, episode: int | None,
             except (TypeError, ValueError):
                 pass
     else:
-        used_title = title or g_title
-        used_year = year or g_year
         name = name_fallback or (
-            f"{used_title or imdb_id}.{used_year}.mkv" if used_year
-            else f"{used_title or imdb_id}.mkv"
+            f"{title or imdb_id}.{year}.mkv" if year
+            else f"{title or imdb_id}.mkv"
         )
         v = Movie(
             name=name,
-            title=used_title,
-            year=used_year,
+            title=title,  # will be filled by refiner then guessit if empty
+            year=year,
             imdb_id=imdb_id,
             source=g_source,
             release_group=g_release_group,
@@ -175,13 +176,19 @@ def _build_video(imdb_id: str, season: int | None, episode: int | None,
     else:
         v.hashes = {}
 
-    # If we still don't have a title (library miss + no filename), fall back
-    # to the OMDB/TVDB refiners that Bazarr already uses elsewhere. They
-    # resolve title/year/series from the imdb_id over the network. Kept
-    # strictly best-effort: any failure leaves the video unchanged so the
-    # fanout can still try providers that work from imdb_id alone.
+    # Library miss -> try OMDB/TVDB refiners (network, best-effort).
     if not getattr(v, "title", None) and not getattr(v, "series", None):
         _refine_from_imdb(v, media_type)
+
+    # Refiner miss -> last-resort guessit title. Do NOT clobber a real value.
+    if media_type == "episode":
+        if not getattr(v, "series", None) and g_title:
+            v.series = g_title
+    else:
+        if not getattr(v, "title", None) and g_title:
+            v.title = g_title
+    if not getattr(v, "year", None) and g_year:
+        v.year = g_year
     return v
 
 
