@@ -608,9 +608,10 @@ def _fetch_subtitle_bytes(sub) -> bytes:
         raise
     content = getattr(sub, "content", None)
     if not content:
-        raise FileNotFoundError(
-            f"provider {provider_name!r} returned empty content for subtitle"
-        )
+        # Plugin contract: 200 + empty body = "broken subtitle, blocklist
+        # this file_id and don't retry". Returning FileNotFoundError ->
+        # 404 breaks that signal and the plugin retries on every scan.
+        return b""
     return content
 
 
