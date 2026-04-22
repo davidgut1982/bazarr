@@ -19,6 +19,24 @@ from bazarr.compat.auth import compat_auth
 _SUPPORTED_SUB_FORMATS = frozenset({"srt"})
 
 
+# Language codes that subliminal providers register WITHOUT a country
+# subtag. When the plugin sends e.g. 'zh-CN', babelfish produces
+# Language(zho, country=CN), which doesn't match the provider's bare
+# Language(zho). Strip the country so the provider lookup succeeds.
+# zh-TW is NOT in this set because providers DO register zho;TW.
+_STRIP_COUNTRY_CODES = frozenset({"zho"})
+
+
+def _normalize_lang(lang):
+    """Strip country subtag for languages where providers only register
+    the bare alpha3. Preserves zh-TW, pt-BR, etc. where providers
+    distinguish the variant."""
+    if getattr(lang, "country", None) and lang.alpha3 in _STRIP_COUNTRY_CODES:
+        from subzero.language import Language
+        return Language(lang.alpha3)
+    return lang
+
+
 def _quota_config() -> tuple[int, int]:
     from bazarr.app.config import settings
     return (int(settings.compat_endpoint.downloads_per_window),
@@ -120,7 +138,7 @@ def subtitles():
     requested_codes = [c.strip() for c in langs_s.split(",") if c.strip()] if langs_s else []
     try:
         if requested_codes:
-            langs = [Language.fromietf(c) for c in requested_codes]
+            langs = [_normalize_lang(Language.fromietf(c)) for c in requested_codes]
         else:
             langs = [Language.fromietf("en")]
             requested_codes = ["en"]
