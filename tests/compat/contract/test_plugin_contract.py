@@ -103,14 +103,26 @@ def test_login_user_block_has_iso_reset_time_utc():
 # 2. DELETE /logout
 # ---------------------------------------------------------------------------
 
-def test_logout_accepts_api_key_alone():
-    """Contract: 'any 2xx'. Plugin may hit /logout after it has already
-    cleared its JWT; requiring Bearer traps it in a clear-and-retry loop."""
+def test_logout_requires_bearer_to_revoke():
+    """Revocation needs the jti. Logout without Bearer is 401 so the
+    plugin's re-login path handles it cleanly."""
+    c = _app().test_client()
+    r = c.delete("/api/v1/logout", headers={"Api-Key": API_KEY})
+    assert r.status_code == 401
+
+
+def test_logout_with_bearer_returns_2xx_and_revokes():
+    from bazarr.compat import auth, jwt_denylist
+    jwt_denylist.reset()
+    tok = auth.mint_jwt()
     r = _app().test_client().delete(
         "/api/v1/logout",
-        headers={"Api-Key": API_KEY},
+        headers={"Api-Key": API_KEY, "Authorization": f"Bearer {tok}"},
     )
     assert 200 <= r.status_code < 300
+    ok, _ = auth.validate_jwt(tok)
+    assert ok is False
+    jwt_denylist.reset()
 
 
 # ---------------------------------------------------------------------------

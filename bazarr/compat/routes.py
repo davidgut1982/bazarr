@@ -65,12 +65,16 @@ def login():
 
 
 @compat_bp.route("/logout", methods=["DELETE"])
-@compat_auth(require_jwt=False)
+@compat_auth(require_jwt=True)
 def logout():
-    # Contract: "any 2xx". The plugin may hit /logout AFTER it has already
-    # cleared its JWT on a 401-retry path, so we cannot require a Bearer
-    # here - doing so traps the plugin in a clear-and-retry loop. Api-Key
-    # is still required (via @compat_auth), which is the real auth anyway.
+    """Validate the bearer JWT and revoke its jti. Unlike OS.com, which
+    doesn't track token state, we keep a server-side jti denylist so a
+    logged-out token stops working even before its own exp."""
+    bearer = (request.headers.get("Authorization") or "")
+    # compat_auth already validated; decode again to grab jti/exp cleanly.
+    ok, claims = auth.validate_jwt(bearer[7:] if bearer.startswith("Bearer ") else "")
+    if ok:
+        auth.revoke_jwt(claims.get("jti", ""), int(claims.get("exp", 0)))
     return "", 204
 
 
