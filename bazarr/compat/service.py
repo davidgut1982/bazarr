@@ -193,8 +193,17 @@ def _build_video(imdb_id: str, season: int | None, episode: int | None,
 
 
 def _refine_from_imdb(video, media_type: str) -> None:
-    """Best-effort network lookup to populate title/year when the local
-    library doesn't know the imdb_id. Swallows all exceptions."""
+    """Best-effort network lookup to populate title/year/tvdb_id when the
+    local library doesn't know the imdb_id. Swallows all exceptions.
+
+    For episodes, we skip the name-based TVDB search (which needs a series
+    title we don't have) and query TVDB directly by imdb_id - the TVDB API
+    key is baked into subliminal (public), so this works without any config.
+    Populating series_tvdb_id in particular unblocks gestdown, which queries
+    /shows/external/tvdb/<id> and 404s without it.
+    """
+    if media_type == "episode":
+        _tvdb_lookup_by_imdb(video)
     try:
         from subliminal_patch.core import refine as sz_refine
         refiners = ("tvdb", "omdb") if media_type == "episode" else ("omdb",)
@@ -205,6 +214,43 @@ def _refine_from_imdb(video, media_type: str) -> None:
         )
     except Exception as e:
         logger.debug("compat imdb refiner failed: %s", e)
+
+
+def _tvdb_lookup_by_imdb(video) -> None:
+    """Query TVDB with series_imdb_id (not series name). Populates
+    video.series_tvdb_id, video.series, video.year and the episode's tvdb_id
+    when available. Subliminal's stock TVDB refiner requires a series name,
+    which we don't have on library miss."""
+    try:
+        from subliminal.refiners.tvdb import tvdb_client, get_series_episode
+        imdb = getattr(video, "series_imdb_id", None) or getattr(video, "imdb_id", None)
+        if not imdb:
+            return
+        results = tvdb_client.search_series(imdb_id=imdb)
+        if not results:
+            return
+        series = results[0]
+        tvdb_id = series.get("id")
+        if not tvdb_id:
+            return
+        video.series_tvdb_id = int(tvdb_id)
+        if not getattr(video, "series", None):
+            video.series = series.get("seriesName") or ""
+        first_aired = series.get("firstAired") or ""
+        if first_aired and not getattr(video, "year", None):
+            try:
+                video.year = int(first_aired[:4])
+            except (TypeError, ValueError):
+                pass
+        if getattr(video, "season", None) and getattr(video, "episode", None):
+            ep = get_series_episode(tvdb_id, int(video.season), int(video.episode))
+            if ep:
+                if not getattr(video, "tvdb_id", None):
+                    video.tvdb_id = ep.get("id")
+                if not getattr(video, "title", None):
+                    video.title = ep.get("episodeName") or None
+    except Exception as e:
+        logger.debug("compat TVDB-by-imdb lookup failed: %s", e)
 
 
 # Providers whose check() passes for a virtual video but that physically
