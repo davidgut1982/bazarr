@@ -74,6 +74,24 @@ def test_moviehash_is_wired_for_opensubtitles_providers():
     assert v.hashes.get("opensubtitlescom") == "8e245d9679d31e12"
 
 
+def test_imdb_id_normalized_to_tt_prefix():
+    """OS-compat clients (Jellyfin plugin) strip 'tt' before sending.
+    OMDB / TVDB v1 / v4 all reject the bare numeric form, so we normalize
+    at Video construction and carry the tt-prefixed value downstream."""
+    from bazarr.compat.service import _tt, _build_video
+    assert _tt("9198004") == "tt9198004"
+    assert _tt("tt9198004") == "tt9198004"
+    assert _tt("TT9198004") == "tt9198004"
+    assert _tt(9198004) == "tt9198004"
+    assert _tt(None) == ""
+    assert _tt("") == ""
+    assert _tt("notanid") == ""
+    # Video inherits the normalized form
+    v = _build_video("9198004", 1, 1, "episode",
+                     query="For.All.Mankind.S01E01.mkv")
+    assert v.series_imdb_id == "tt9198004"
+
+
 def test_library_title_wins_over_guessit_title_but_guessit_fills_gaps():
     """When both sources have info, library title wins (curated); guessit
     provides the release-quality fields library lookup can't supply."""

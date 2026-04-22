@@ -105,6 +105,29 @@ class TVDBv4Client:
             logger.debug("TVDB v4 remoteid %s error: %s", s, e)
             return None
 
+    def get_episode(self, episode_id) -> Optional[dict]:
+        """Return the full episode record for a TVDB episode id, or None.
+
+        /search/remoteid returns episode stubs with seasonNumber/number
+        set to null; the full episode record is only at /episodes/{id}.
+        """
+        token = self._ensure_token()
+        if not token or not episode_id:
+            return None
+        try:
+            r = self._session.get(
+                f"{_BASE_URL}/episodes/{int(episode_id)}",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=10,
+            )
+            if r.status_code != 200:
+                logger.debug("TVDB v4 episode %s -> HTTP %s", episode_id, r.status_code)
+                return None
+            return r.json().get("data")
+        except Exception as e:
+            logger.debug("TVDB v4 episode %s error: %s", episode_id, e)
+            return None
+
 
 _singleton: Optional[TVDBv4Client] = None
 _singleton_lock = threading.Lock()

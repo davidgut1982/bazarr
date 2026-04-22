@@ -56,6 +56,18 @@ def subtitle_to_os_entry(sub, file_id: int, media_type: str, imdb_id: str,
             v_year = int(year_raw) if year_raw else 0
         except (TypeError, ValueError):
             v_year = 0
+        # Prefer video's resolved season/episode when the route didn't
+        # receive them. OS-compat clients (Jellyfin plugin) filter results
+        # by these fields, so 0/0 means every hit gets dropped.
+        if media_type == "episode":
+            if not season:
+                vs = getattr(video, "season", None)
+                if vs:
+                    season = vs
+            if not episode:
+                ve = getattr(video, "episode", None)
+                if ve:
+                    episode = ve
     # OS.com's movie_name is "YYYY - Title" for movies; for episodes it's
     # usually the episode title. Best-effort replication:
     if media_type == "episode":

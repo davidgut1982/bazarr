@@ -42,6 +42,22 @@ def reset_compat_pool() -> None:
         _compat_pool = None
 
 
+def _tt(imdb_id) -> str:
+    """Normalize an IMDb id to the 'tt' + digits form that external
+    services (OMDB, TVDB v1, TVDB v4) uniformly require. Clients like the
+    Jellyfin plugin strip 'tt' before sending it to us as an int-string;
+    every outbound metadata call has to put it back.
+    Returns '' for None / empty / unparseable."""
+    if imdb_id is None:
+        return ""
+    s = str(imdb_id).strip().lower()
+    if not s:
+        return ""
+    if s.startswith("tt"):
+        return s
+    return f"tt{s}" if s.isdigit() or s.lstrip("0").isdigit() else ""
+
+
 def _lookup_library_metadata(imdb_id: str, media_type: str) -> dict:
     """Best-effort title/year/tvdb_id resolution from the local Bazarr DB.
 
@@ -103,6 +119,11 @@ def _build_video(imdb_id: str, season: int | None, episode: int | None,
     heavily on these fields, so populating them dramatically improves hit
     rates for file-less compat searches.
     """
+    # Normalize up front: clients (Jellyfin plugin) strip 'tt' before
+    # sending. OMDB / TVDB v1 / v4 all reject the bare numeric form, so
+    # carrying the normalized value through the Video avoids having to
+    # re-prepend in every downstream caller.
+    imdb_id = _tt(imdb_id) or imdb_id
     meta = _lookup_library_metadata(imdb_id, media_type)
     title = meta.get("title") or ""
     year_raw = meta.get("year")
@@ -238,9 +259,10 @@ def _tvdb_v4_episode_lookup(video) -> bool:
         if "episode" in match and isinstance(match["episode"], dict):
             ep = match["episode"]
             series_id = ep.get("seriesId")
-            if not getattr(video, "tvdb_id", None) and ep.get("id"):
+            episode_id = ep.get("id")
+            if not getattr(video, "tvdb_id", None) and episode_id:
                 try:
-                    video.tvdb_id = int(ep["id"])
+                    video.tvdb_id = int(episode_id)
                 except (TypeError, ValueError):
                     pass
             if not getattr(video, "title", None) and ep.get("name"):
@@ -251,6 +273,34 @@ def _tvdb_v4_episode_lookup(video) -> bool:
                     video.year = int(aired[:4])
                 except (TypeError, ValueError):
                     pass
+            # /search/remoteid returns episode stubs with seasonNumber /
+            # number set to null. Fetch the full record so season/episode
+            # numbers land on the video, which the response mapper reads
+            # for feature_details - otherwise clients that filter results
+            # by (season, episode) see all zeros and drop every hit.
+            if episode_id and (not getattr(video, "season", None)
+                               or not getattr(video, "episode", None)):
+                try:
+                    full_ep = tvdb_v4.get_client().get_episode(int(episode_id))
+                except (TypeError, ValueError):
+                    full_ep = None
+                if full_ep:
+                    if not getattr(video, "season", None):
+                        sn = full_ep.get("seasonNumber")
+                        if sn is not None:
+                            try:
+                                video.season = int(sn)
+                            except (TypeError, ValueError):
+                                pass
+                    if not getattr(video, "episode", None):
+                        en = full_ep.get("number")
+                        if en is not None:
+                            try:
+                                video.episode = int(en)
+                            except (TypeError, ValueError):
+                                pass
+                    if not getattr(video, "title", None) and full_ep.get("name"):
+                        video.title = full_ep["name"]
         elif "series" in match and isinstance(match["series"], dict):
             s = match["series"]
             series_id = s.get("id")
@@ -305,7 +355,8 @@ def _omdb_episode_to_series_imdb(video) -> str | None:
         apikey = _resolve_omdb_apikey()
         if not apikey:
             return None
-        imdb = getattr(video, "series_imdb_id", None) or getattr(video, "imdb_id", None)
+        imdb = _tt(getattr(video, "series_imdb_id", None)
+                   or getattr(video, "imdb_id", None))
         if not imdb:
             return None
         import requests
@@ -328,6 +379,23 @@ def _omdb_episode_to_series_imdb(video) -> str | None:
         # get from TVDB if we can.
         if not getattr(video, "title", None):
             video.title = data.get("Title") or None
+        # OMDB episode records carry Season / Episode numbers as strings;
+        # populate them when the client didn't send season_number /
+        # episode_number (which is exactly when we took this path).
+        if not getattr(video, "season", None):
+            try:
+                season = int(data.get("Season", "") or 0)
+                if season:
+                    video.season = season
+            except (TypeError, ValueError):
+                pass
+        if not getattr(video, "episode", None):
+            try:
+                episode = int(data.get("Episode", "") or 0)
+                if episode:
+                    video.episode = episode
+            except (TypeError, ValueError):
+                pass
         series_id = data.get("seriesID")
         if series_id and str(series_id).startswith("tt"):
             return str(series_id)
@@ -347,7 +415,7 @@ def _omdb_lookup_by_imdb(video) -> None:
         apikey = _resolve_omdb_apikey()
         if not apikey:
             return
-        imdb = getattr(video, "imdb_id", None)
+        imdb = _tt(getattr(video, "imdb_id", None))
         if not imdb:
             return
         import requests
@@ -377,9 +445,11 @@ def _tvdb_lookup_by_imdb(video) -> None:
     which we don't have on library miss."""
     try:
         from subliminal.refiners.tvdb import tvdb_client, get_series_episode
-        imdb = getattr(video, "series_imdb_id", None) or getattr(video, "imdb_id", None)
+        imdb = _tt(getattr(video, "series_imdb_id", None)
+                   or getattr(video, "imdb_id", None))
         if not imdb:
             return
+        # TVDB v1 search rejects bare numeric ids; always send tt-prefixed.
         results = tvdb_client.search_series(imdb_id=imdb)
         if not results:
             return
