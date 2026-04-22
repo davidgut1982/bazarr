@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import time
+import uuid
 from functools import wraps
 from typing import Tuple
 
@@ -45,6 +46,7 @@ def mint_jwt(claims_extra: dict | None = None) -> str:
     claims = {
         "iat": now,
         "exp": now + int(settings.compat_endpoint.jwt_ttl_seconds),
+        "jti": uuid.uuid4().hex,
     }
     if claims_extra:
         claims.update(claims_extra)
@@ -59,9 +61,19 @@ def validate_jwt(token: str | None) -> Tuple[bool, dict]:
         return False, {}
     try:
         claims = pyjwt.decode(token, secret, algorithms=["HS256"])
-        return True, claims
     except pyjwt.PyJWTError:
         return False, {}
+    from bazarr.compat import jwt_denylist
+    jti = claims.get("jti")
+    if jti and jwt_denylist.is_revoked(jti):
+        return False, {}
+    return True, claims
+
+
+def revoke_jwt(jti: str, exp: int) -> None:
+    """Add a jti to the server-side revocation denylist. Called by /logout."""
+    from bazarr.compat import jwt_denylist
+    jwt_denylist.revoke(jti, exp)
 
 
 def boot_hmac_selftest() -> None:

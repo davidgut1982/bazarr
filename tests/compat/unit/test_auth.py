@@ -174,3 +174,34 @@ def test_stream_token_expiry():
     time.sleep(2)
     ok, _ = A.parse_stream_token(tok)
     assert not ok
+
+
+def test_mint_jwt_includes_jti_claim():
+    import jwt as pyjwt
+    from bazarr.compat import auth
+    from bazarr.app.config import settings
+    settings["compat_endpoint"]["jwt_secret"] = "j" * 32
+    tok = auth.mint_jwt()
+    claims = pyjwt.decode(tok, "j" * 32, algorithms=["HS256"])
+    assert "jti" in claims and claims["jti"]
+
+
+def test_validate_jwt_rejects_revoked_jti():
+    from bazarr.compat import auth, jwt_denylist
+    from bazarr.app.config import settings
+    settings["compat_endpoint"]["jwt_secret"] = "j" * 32
+    jwt_denylist.reset()
+    tok = auth.mint_jwt()
+    import jwt as pyjwt
+    claims = pyjwt.decode(tok, "j" * 32, algorithms=["HS256"])
+    ok, _ = auth.validate_jwt(tok)
+    assert ok is True
+    auth.revoke_jwt(claims["jti"], claims["exp"])
+    ok2, _ = auth.validate_jwt(tok)
+    assert ok2 is False
+    jwt_denylist.reset()
+
+
+def test_revoke_jwt_is_noop_for_empty_jti():
+    from bazarr.compat import auth
+    auth.revoke_jwt("", 9999999999)  # must not raise
