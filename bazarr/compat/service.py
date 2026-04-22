@@ -196,24 +196,47 @@ def _refine_from_imdb(video, media_type: str) -> None:
     """Best-effort network lookup to populate title/year/tvdb_id when the
     local library doesn't know the imdb_id. Swallows all exceptions.
 
-    For episodes, we skip the name-based TVDB search (which needs a series
-    title we don't have) and query TVDB directly by imdb_id - the TVDB API
-    key is baked into subliminal (public), so this works without any config.
-    Populating series_tvdb_id in particular unblocks gestdown, which queries
-    /shows/external/tvdb/<id> and 404s without it.
+    We bypass subliminal's stock refiners for movies: they early-exit when
+    video.imdb_id is set (which it always is from our compat clients),
+    treating it as 'information complete' even when the title is still
+    empty. For episodes, we also query TVDB directly by imdb_id because
+    the stock TVDB refiner requires a series name we don't have.
     """
     if media_type == "episode":
         _tvdb_lookup_by_imdb(video)
+    else:
+        _omdb_lookup_by_imdb(video)
+
+
+def _omdb_lookup_by_imdb(video) -> None:
+    """Query OMDB by imdb_id directly (`?i=tt...`) and populate title/year.
+    Requires settings.omdb.apikey or OMDB_API_KEY env. No-op without a key."""
     try:
-        from subliminal_patch.core import refine as sz_refine
-        refiners = ("tvdb", "omdb") if media_type == "episode" else ("omdb",)
-        sz_refine(
-            video,
-            episode_refiners=refiners if media_type == "episode" else None,
-            movie_refiners=refiners if media_type != "episode" else None,
-        )
+        from subliminal_patch.refiners.omdb import _resolve_omdb_apikey
+        apikey = _resolve_omdb_apikey()
+        if not apikey:
+            return
+        imdb = getattr(video, "imdb_id", None)
+        if not imdb:
+            return
+        import requests
+        r = requests.get("http://www.omdbapi.com/",
+                         params={"i": imdb, "apikey": apikey},
+                         timeout=5)
+        if r.status_code != 200:
+            return
+        data = r.json()
+        if data.get("Response") != "True":
+            return
+        if not getattr(video, "title", None):
+            video.title = data.get("Title") or ""
+        if not getattr(video, "year", None):
+            try:
+                video.year = int(str(data.get("Year", ""))[:4])
+            except (TypeError, ValueError):
+                pass
     except Exception as e:
-        logger.debug("compat imdb refiner failed: %s", e)
+        logger.debug("compat OMDB-by-imdb lookup failed: %s", e)
 
 
 def _tvdb_lookup_by_imdb(video) -> None:
