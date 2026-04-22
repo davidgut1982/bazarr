@@ -67,3 +67,49 @@ def test_user_info_stub():
     r = M.user_info_response()
     assert r["data"]["remaining_downloads"] > 0
     assert r["data"]["allowed_downloads"] > 0
+
+
+def test_feature_details_imdb_id_is_int():
+    """OS.com wire contract: feature_details.imdb_id is int, not string.
+    Accepts 'tt0111161', '0111161', and bare int forms from callers."""
+    for imdb in ("tt0111161", "0111161", "111161", 111161):
+        e = M.subtitle_to_os_entry(make_sub(), 1, "movie", imdb, None, None)
+        assert e["attributes"]["feature_details"]["imdb_id"] == 111161
+        assert isinstance(e["attributes"]["feature_details"]["imdb_id"], int)
+
+
+def test_feature_details_populates_from_video_movie():
+    """Movie: title from video.title, movie_name as 'YYYY - Title'."""
+    from unittest.mock import MagicMock
+    video = MagicMock(title="The Shawshank Redemption", year=1994)
+    e = M.subtitle_to_os_entry(make_sub(), 1, "movie", "tt111161", None, None,
+                                video=video)
+    fd = e["attributes"]["feature_details"]
+    assert fd["title"] == "The Shawshank Redemption"
+    assert fd["year"] == 1994
+    assert fd["movie_name"] == "1994 - The Shawshank Redemption"
+
+
+def test_feature_details_populates_from_video_episode():
+    """Episode: title is the series name, movie_name is the episode title."""
+    from unittest.mock import MagicMock
+    # Episode video has .series (show name) and .title (episode title)
+    video = MagicMock(series="Game of Thrones", title="Winter Is Coming", year=2011)
+    e = M.subtitle_to_os_entry(make_sub(), 1, "episode", "tt0944947", 1, 1,
+                                video=video)
+    fd = e["attributes"]["feature_details"]
+    assert fd["feature_type"] == "Episode"
+    assert fd["title"] == "Game of Thrones"
+    assert fd["movie_name"] == "Winter Is Coming"
+    assert fd["season_number"] == 1
+    assert fd["episode_number"] == 1
+    assert fd["year"] == 2011
+
+
+def test_feature_details_graceful_without_video():
+    """No video threaded through -> empty strings / 0, never throws."""
+    e = M.subtitle_to_os_entry(make_sub(), 1, "movie", "tt1", None, None)
+    fd = e["attributes"]["feature_details"]
+    assert fd["title"] == ""
+    assert fd["movie_name"] == ""
+    assert fd["year"] == 0

@@ -95,7 +95,16 @@ def subtitles():
         return compat_error("invalid language code", 400, "bad-request")
     season = args.get("season_number", type=int)
     episode = args.get("episode_number", type=int)
-    media_type = "episode" if season is not None else "movie"
+    # OS.com clients send `type=episode|movie` explicitly. Honor that when
+    # present; fall back to inferring from season_number (the legacy behavior
+    # VLSub relies on when it sets season but not type).
+    raw_type = (args.get("type") or "").strip().lower()
+    if raw_type in ("episode", "movie"):
+        media_type = raw_type
+    elif season is not None or episode is not None:
+        media_type = "episode"
+    else:
+        media_type = "movie"
     try:
         result = service.search(imdb, season, episode, langs, media_type,
                                 query=query_filename, moviehash=moviehash)

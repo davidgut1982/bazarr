@@ -11,7 +11,7 @@
   "data[0].attributes.from_trusted": "bool",
   "data[0].attributes.hearing_impaired": "bool",
   "data[0].attributes.uploader.name": "str",
-  "data[0].attributes.feature_details.imdb_id": "str",
+  "data[0].attributes.feature_details.imdb_id": "int",
   "data[0].attributes.feature_details.season_number": "int",
   "data[0].attributes.feature_details.episode_number": "int",
   "data[0].attributes.feature_details.feature_type": "str",

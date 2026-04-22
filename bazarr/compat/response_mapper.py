@@ -10,19 +10,62 @@ def _tomorrow_utc_iso() -> str:
     return t.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _imdb_to_int(imdb_id) -> int:
+    """OS.com returns feature_details.imdb_id as int (not string with 'tt').
+    Accept 'tt0111161', '0111161', 111161, etc. Return 0 on parse failure."""
+    if imdb_id is None:
+        return 0
+    s = str(imdb_id).strip().lower()
+    if s.startswith("tt"):
+        s = s[2:]
+    try:
+        return int(s)
+    except (TypeError, ValueError):
+        return 0
+
+
 def subtitle_to_os_entry(sub, file_id: int, media_type: str, imdb_id: str,
-                         season=None, episode=None) -> dict:
+                         season=None, episode=None, video=None) -> dict:
     """Map a Subtitle instance to an OS.com `data[].attributes` shape.
 
     file_id is a server-mapped int (OS.com contract); entry-level `id` is the
     same value as a numeric string (OS.com returns numeric strings like
-    "10832492").
+    "10832492"). `video` is the enriched virtual Video built in
+    compat.service._build_video - used to populate feature_details.title /
+    movie_name / year from library lookup + refiner output.
     """
     lang = getattr(sub, "language", None)
     lang_alpha2 = getattr(lang, "alpha2", None) or ""
     release = getattr(sub, "release_info", "") or ""
     uploader_name = getattr(sub, "uploader", None) or getattr(sub, "provider_name", "")
     feat_type = "Episode" if media_type == "episode" else "Movie"  # B12
+
+    # Pull metadata off the virtual video (library + refiner populated).
+    # Falls back to empty/0 when the video wasn't threaded through.
+    v_title = ""
+    v_year = 0
+    ep_title = ""
+    if video is not None:
+        if media_type == "episode":
+            v_title = getattr(video, "series", "") or ""
+            ep_title = getattr(video, "title", "") or ""
+        else:
+            v_title = getattr(video, "title", "") or ""
+        year_raw = getattr(video, "year", None)
+        try:
+            v_year = int(year_raw) if year_raw else 0
+        except (TypeError, ValueError):
+            v_year = 0
+    # OS.com's movie_name is "YYYY - Title" for movies; for episodes it's
+    # usually the episode title. Best-effort replication:
+    if media_type == "episode":
+        movie_name = ep_title or v_title
+    elif v_year and v_title:
+        movie_name = f"{v_year} - {v_title}"
+    else:
+        movie_name = v_title
+
+    imdb_id_int = _imdb_to_int(imdb_id)
     attributes = {
         "language": str(lang_alpha2).lower(),
         "subtitle_id": str(getattr(sub, "id", "")),
@@ -43,12 +86,12 @@ def subtitle_to_os_entry(sub, file_id: int, media_type: str, imdb_id: str,
         "uploader": {"name": str(uploader_name)},
         "feature_details": {
             "feature_type": feat_type,
-            "imdb_id": imdb_id,
+            "imdb_id": imdb_id_int,
             "season_number": int(season) if season is not None else 0,
             "episode_number": int(episode) if episode is not None else 0,
-            "title": "",
-            "movie_name": "",
-            "year": 0,
+            "title": v_title,
+            "movie_name": movie_name,
+            "year": v_year,
         },
         "files": [{
             "file_id": int(file_id),

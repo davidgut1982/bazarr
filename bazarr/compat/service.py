@@ -308,7 +308,7 @@ def _do_fanout(imdb_id, season, episode, languages, media_type,
             subtitle=sub,
         )
         entries.append(M.subtitle_to_os_entry(sub, file_id, media_type, imdb_id,
-                                              season, episode))
+                                              season, episode, video=video))
     entries.sort(key=lambda e: -int(e["attributes"].get("download_count", 0)))
     return M.search_envelope(entries, per_page=50, page=1)
 
