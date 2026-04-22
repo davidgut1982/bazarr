@@ -566,6 +566,20 @@ def _do_fanout(imdb_id, season, episode, languages, media_type,
             score, _sc_no_hash = compute(matches, sub, video)
         except Exception:
             score = 0
+        # Popularity augment: when the virtual video has no source file,
+        # ComputeScore collapses every sub with the same matches to the
+        # same number, so the plugin's tertiary sort (ratings) has nothing
+        # to rank on. A log-scaled download_count boost differentiates
+        # community-validated subs without ever exceeding a real
+        # release_group match (20 pts). Subs with no count stay at raw
+        # score.
+        try:
+            dc = int(getattr(sub, "download_count", 0) or 0)
+            if dc > 0:
+                import math
+                score = int(score) + min(20, int(math.log10(dc + 1) * 4))
+        except (TypeError, ValueError):
+            pass
         sub_alpha2 = getattr(getattr(sub, "language", None), "alpha2", None) or ""
         req_lang = req_lang_map.get(sub_alpha2)
         entries.append(M.subtitle_to_os_entry(

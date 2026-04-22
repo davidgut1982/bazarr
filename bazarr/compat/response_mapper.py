@@ -233,8 +233,12 @@ def subtitle_to_os_entry(sub, file_id: int, media_type: str, imdb_id: str,
         "release": release,
         "comments": str(raw_release),
         "download_count": int(getattr(sub, "download_count", 0) or 0),
-        "ratings": (_derive_ratings(score) if score is not None
-                    else float(getattr(sub, "ratings", 0) or 0)),
+        # Ratings precedence: provider's own ratings (OSCom, YIFY) if > 0,
+        # else project ComputeScore into 0-10 so the field is meaningful
+        # for providers that don't expose a community rating.
+        "ratings": (float(getattr(sub, "ratings", 0) or 0)
+                    if float(getattr(sub, "ratings", 0) or 0) > 0
+                    else (_derive_ratings(score) if score is not None else 0.0)),
         "votes": 0,
         "from_trusted": _derive_from_trusted(sub),
         "hd": _derive_hd(raw_release),

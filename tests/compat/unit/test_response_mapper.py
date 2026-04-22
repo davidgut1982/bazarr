@@ -288,3 +288,21 @@ def test_requested_language_is_preserved_for_region_subtag():
     a = M.subtitle_to_os_entry(sub, 1, "movie", "tt1",
                                 requested_language="zh-CN")["attributes"]
     assert a["language"] == "zh-CN"
+
+
+def test_provider_rating_wins_over_score_derived():
+    """When a provider sets sub.ratings > 0 (OSCom, YIFY), that value is
+    surfaced as attributes.ratings and the score-derived value is not
+    used. Score-derived is only the fallback for providers without a
+    native rating."""
+    from unittest.mock import MagicMock
+    from bazarr.compat import response_mapper as M
+    sub = MagicMock(
+        upload_date=None, id="1", language=MagicMock(alpha2="en"),
+        download_count=1000, ratings=8.5, release_info="",
+        uploader=None, provider_name="opensubtitlescom", matches=set(),
+    )
+    a = M.subtitle_to_os_entry(sub, 1, "movie", "tt1",
+                                score=(168, 336))["attributes"]
+    # score would derive 5.0; provider says 8.5 - provider wins.
+    assert a["ratings"] == 8.5
