@@ -45,10 +45,15 @@ class Server:
 
     def configure_server(self):
         try:
+            # clear_untrusted_proxy_headers=False so X-Forwarded-Host / -Proto
+            # survive into Flask's request.headers. The compat endpoint reads
+            # these for cosmetic URL reconstruction (login base_url, absolute
+            # download links); we do not trust them for any security decision.
             self.server = create_server(app,
                                         host=self.address,
                                         port=self.port,
-                                        threads=100)
+                                        threads=100,
+                                        clear_untrusted_proxy_headers=False)
             self.connected = True
         except OSError as error:
             if error.errno == errno.EADDRNOTAVAIL:

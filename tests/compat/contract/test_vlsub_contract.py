@@ -48,7 +48,7 @@ def test_vlsub_contract(monkeypatch):
 
     with patch("bazarr.compat.service._get_compat_pool") as gp, \
          patch("bazarr.compat.service.list_all_subtitles_parallel") as lf, \
-         patch("bazarr.compat.service.auth.mint_file_id", return_value="FID"):
+         patch("bazarr.compat.service.auth.mint_file_id", return_value=42):
         lf.return_value = {MagicMock(): [fake_sub]}
         gp.return_value.providers = ["opensubtitlescom"]
         gp.return_value.discarded_providers = set()

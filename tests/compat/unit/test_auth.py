@@ -94,39 +94,54 @@ def test_boot_hmac_selftest_fails_closed_with_empty_secret(monkeypatch):
 
 
 def test_file_id_roundtrip(monkeypatch):
-    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.file_id_secret", "f" * 32)
+    """mint_file_id now returns an int (OS.com wire contract); parse resolves
+    via the in-memory store."""
+    from bazarr.compat.file_id_store import reset_store
+    reset_store()
     monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.file_id_ttl_seconds", 60)
-    token = A.mint_file_id(
+    fid = A.mint_file_id(
         provider="opensubtitlescom",
         native_id="12345",
         language="eng",
         release_info="Movie.2020.1080p.BluRay.x264-GROUP",
     )
-    ok, payload = A.parse_file_id(token)
+    assert isinstance(fid, int) and fid > 0
+    ok, payload = A.parse_file_id(fid)
     assert ok and payload["p"] == "opensubtitlescom" and payload["i"] == "12345"
+    # Numeric string also accepted (clients may serialize as str)
+    ok2, _ = A.parse_file_id(str(fid))
+    assert ok2
 
 
-def test_file_id_tamper_rejected(monkeypatch):
-    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.file_id_secret", "f" * 32)
+def test_file_id_unknown_rejected(monkeypatch):
+    """An int that was never minted must return (False, {})."""
+    from bazarr.compat.file_id_store import reset_store
+    reset_store()
     monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.file_id_ttl_seconds", 60)
-    tok = A.mint_file_id("p", "i", "eng", "")
-    bad = tok[:-4] + "AAAA"
-    ok, _ = A.parse_file_id(bad)
+    ok, _ = A.parse_file_id(999999999)
+    assert not ok
+    ok, _ = A.parse_file_id("not-a-number")
+    assert not ok
+    ok, _ = A.parse_file_id(None)
     assert not ok
 
 
 def test_file_id_expired_rejected(monkeypatch):
-    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.file_id_secret", "f" * 32)
+    from bazarr.compat.file_id_store import reset_store
+    reset_store()
     monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.file_id_ttl_seconds", 1)
-    tok = A.mint_file_id("p", "i", "eng", "")
+    fid = A.mint_file_id("p", "i", "eng", "")
     time.sleep(2)
-    ok, _ = A.parse_file_id(tok)
+    ok, _ = A.parse_file_id(fid)
     assert not ok
 
 
-def test_stream_token_roundtrip_and_expiry(monkeypatch):
-    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.file_id_secret", "f" * 32)
-    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.stream_token_ttl_seconds", 1)
+def test_stream_token_roundtrip_and_expiry():
+    """Use direct attribute writes instead of monkeypatch dotted paths - see
+    the _reset_compat_secrets fixture note about Dynaconf restoration."""
+    from bazarr.app.config import settings
+    settings.compat_endpoint.file_id_secret = "f" * 32
+    settings.compat_endpoint.stream_token_ttl_seconds = 1
     tok = A.mint_stream_token("p", "i")
     ok, payload = A.parse_stream_token(tok)
     assert ok and payload["p"] == "p" and payload["i"] == "i"

@@ -118,7 +118,14 @@ def list_all_subtitles_parallel(videos, languages, pool_instance,
                         remaining = max(0.1, deadline - time.monotonic())
                         if remaining <= 0:
                             break
-                        subs = fut.result(timeout=min(per_provider_timeout, remaining))
+                        result = fut.result(timeout=min(per_provider_timeout, remaining))
+                        # SZAsyncProviderPool.list_subtitles_provider returns
+                        # (provider_name, subtitle_list). SZProviderPool returns
+                        # just subtitle_list. Handle both.
+                        if isinstance(result, tuple) and len(result) == 2:
+                            _, subs = result
+                        else:
+                            subs = result
                         if subs:
                             out[video].extend(subs)
                     except FTimeout:

@@ -10,12 +10,13 @@ def _tomorrow_utc_iso() -> str:
     return t.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def subtitle_to_os_entry(sub, file_id: str, media_type: str, imdb_id: str,
+def subtitle_to_os_entry(sub, file_id: int, media_type: str, imdb_id: str,
                          season=None, episode=None) -> dict:
     """Map a Subtitle instance to an OS.com `data[].attributes` shape.
 
-    Field set = union of what VLSub/Stremio/Kodi/Jellyfin parse. Unknown fields
-    get safe defaults.
+    file_id is a server-mapped int (OS.com contract); entry-level `id` is the
+    same value as a numeric string (OS.com returns numeric strings like
+    "10832492").
     """
     lang = getattr(sub, "language", None)
     lang_alpha2 = getattr(lang, "alpha2", None) or ""
@@ -50,11 +51,29 @@ def subtitle_to_os_entry(sub, file_id: str, media_type: str, imdb_id: str,
             "year": 0,
         },
         "files": [{
-            "file_id": file_id,
+            "file_id": int(file_id),
             "file_name": f"{imdb_id}.{lang_alpha2}.srt",
         }],
     }
-    return {"id": file_id, "type": "subtitle", "attributes": attributes}
+    return {"id": str(file_id), "type": "subtitle", "attributes": attributes}
+
+
+def search_envelope(entries: list, per_page: int = 50, page: int = 1) -> dict:
+    """OS.com search envelope: top-level total_pages/total_count/per_page/page.
+
+    VLSub and other OS-compat clients read total_count for their result-count
+    display; Jellyfin reads per_page for pagination sanity. Bazarr+ fans out
+    all providers in one shot so all results fit on page 1.
+    """
+    total = len(entries)
+    total_pages = max(1, (total + per_page - 1) // per_page) if per_page > 0 else 1
+    return {
+        "total_pages": total_pages,
+        "total_count": total,
+        "per_page": per_page,
+        "page": page,
+        "data": entries,
+    }
 
 
 def download_response(link: str, reset_iso: str | None = None) -> dict:

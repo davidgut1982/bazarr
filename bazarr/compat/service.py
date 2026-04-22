@@ -83,11 +83,12 @@ def _do_fanout(imdb_id, season, episode, languages, media_type):
             native_id=getattr(sub, "id", ""),
             language=str(getattr(sub, "language", "")),
             release_info=getattr(sub, "release_info", "") or "",
+            subtitle=sub,
         )
         entries.append(M.subtitle_to_os_entry(sub, file_id, media_type, imdb_id,
                                               season, episode))
     entries.sort(key=lambda e: -int(e["attributes"].get("download_count", 0)))
-    return {"data": entries, "total_pages": 1, "page": 1}
+    return M.search_envelope(entries, per_page=50, page=1)
 
 
 def search(imdb_id: str, season, episode, languages: Iterable[Language],
@@ -102,62 +103,63 @@ def search(imdb_id: str, season, episode, languages: Iterable[Language],
     )
 
 
-def download(file_id: str, base_host: str) -> dict:
-    """Parse the file_id, mint a short-lived stream token, return a Bazarr+-hosted link.
+def download(file_id, base_host: str = "") -> dict:
+    """Resolve the int file_id, mint a short-lived stream token, return a
+    download link. No provider fetch happens here - the subtitle is fetched
+    only when the client follows the link.
 
-    No provider fetch happens here — the subtitle is fetched only when the client
-    follows the link (see serve_subtitle_content)."""
-    ok, payload = auth.parse_file_id(file_id)
+    The link is relative by default (starts with `/api/v1/...`) because
+    Bazarr+ can't reliably determine its own public URL behind its supervisor
+    proxy. Clients already know the host they connected to. Pass base_host
+    to override for callers that want an absolute URL.
+    """
+    ok, _payload = auth.parse_file_id(file_id)
     if not ok:
         raise FileNotFoundError("file_id invalid or expired")
-    stream_tok = auth.mint_stream_token(payload["p"], payload["i"])
-    link = f"{base_host.rstrip('/')}/api/v1/download/stream/{quote(stream_tok, safe='')}"
+    stream_tok = auth.mint_file_stream_token(int(file_id))
+    path = f"/api/v1/download/stream/{quote(stream_tok, safe='')}"
+    link = f"{base_host.rstrip('/')}{path}" if base_host else path
     return M.download_response(link)
 
 
-def _fetch_subtitle_bytes(provider_name: str, native_id: str) -> bytes:
-    """Reconstruct a provider subtitle proxy, SSRF-guard its URL, then download.
+def _fetch_subtitle_bytes(sub) -> bytes:
+    """SSRF-guard the provider URL and invoke pool.download_subtitle(sub).
 
-    Providers vary widely in how they expose per-subtitle reconstruction. The compat
-    endpoint supports providers that expose either:
-      - a `get_subtitle_by_id(native_id)` method on the provider class, or
-      - a stored subtitle cache / repository the provider can consult.
-    Providers lacking such an interface are logged as non-compat-eligible.
+    `sub` is the original Subtitle instance retained from search (stashed in
+    the file_id store). Downloading via the pool is the only portable path:
+    each provider's `download_subtitle(sub)` knows exactly how to resolve its
+    own subtitle's URL, auth, and content encoding - most providers do not
+    expose a generic `get_subtitle_by_id` method.
     """
-    pool = _get_compat_pool()
-    providers = pool.providers
-    provider = providers.get(provider_name) if isinstance(providers, dict) else None
-    if provider is None:
-        # Fall back to pool.init_provider which instantiates on demand
-        if hasattr(pool, "init_provider"):
-            pool.init_provider(provider_name)
-            providers = pool.providers
-            provider = providers.get(provider_name) if isinstance(providers, dict) else None
-    if provider is None:
-        raise RuntimeError(f"provider {provider_name!r} not reachable")
-
-    # Reconstruct a Subtitle proxy by native_id. Providers that do not expose
-    # get_subtitle_by_id are not currently compat-eligible — log + raise.
-    get_by_id = getattr(provider, "get_subtitle_by_id", None)
-    if get_by_id is None:
-        logger.warning(
-            "compat: provider %s has no get_subtitle_by_id; subtitle %s not reconstructible",
-            provider_name, native_id,
-        )
-        raise FileNotFoundError(
-            f"provider {provider_name!r} does not support by-id reconstruction"
-        )
-    sub = get_by_id(native_id)
     if sub is None:
-        raise FileNotFoundError(f"subtitle {native_id!r} not found on {provider_name}")
+        raise FileNotFoundError("subtitle payload missing")
 
-    # SSRF guard: validate the URL the provider will fetch BEFORE download_subtitle.
+    # SSRF guard: only apply when download_link/url is a full http(s) URL.
+    # Many providers store an internal reference (native id, zip name, etc.)
+    # in these fields and construct the actual fetch URL inside their own
+    # download_subtitle(). Running the guard on a non-URL string would reject
+    # perfectly legitimate providers for the wrong reason.
     url = getattr(sub, "download_link", None) or getattr(sub, "url", None)
-    if url:
+    if isinstance(url, str) and url.startswith(("http://", "https://")):
         assert_safe_outbound(url)  # raises UnsafeURLError on private/loopback/etc.
 
-    blob = provider.download_subtitle(sub)
-    return blob or b""
+    provider_name = getattr(sub, "provider_name", None)
+    if not provider_name:
+        raise FileNotFoundError("subtitle has no provider_name")
+
+    pool = _get_compat_pool()
+    try:
+        pool.download_subtitle(sub)
+    except Exception as e:
+        logger.exception("compat: download_subtitle failed for %s: %s",
+                         provider_name, e)
+        raise
+    content = getattr(sub, "content", None)
+    if not content:
+        raise FileNotFoundError(
+            f"provider {provider_name!r} returned empty content for subtitle"
+        )
+    return content
 
 
 def serve_subtitle_content(stream_token: str) -> tuple[bytes, str]:
@@ -168,12 +170,19 @@ def serve_subtitle_content(stream_token: str) -> tuple[bytes, str]:
         FileNotFoundError: subtitle not found
         UnsafeURLError: provider URL failed SSRF guard
     """
-    ok, payload = auth.parse_stream_token(stream_token)
+    ok, payload = auth.parse_file_stream_token(stream_token)
     if not ok:
         raise ValueError("stream token invalid or expired")
-    # Surface the guard symbol so tests can patch it; Task 15 uses it inside _fetch.
+    fid = payload.get("fid")
+    if fid is None:
+        raise ValueError("stream token missing file_id")
+    ok, fpayload = auth.parse_file_id(fid)
+    if not ok:
+        raise FileNotFoundError("file_id expired or not found")
+    sub = fpayload.get("sub")
+    # Surface the guard symbol so tests can patch it.
     _ = assert_safe_outbound
-    blob = _fetch_subtitle_bytes(payload["p"], payload["i"])
+    blob = _fetch_subtitle_bytes(sub)
     return blob, "application/x-subrip"
 
 

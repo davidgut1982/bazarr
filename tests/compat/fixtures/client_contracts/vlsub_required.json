@@ -1,4 +1,7 @@
 {
+  "total_count": "int",
+  "per_page": "int",
+  "page": "int",
   "data[0].id": "str",
   "data[0].type": "str",
   "data[0].attributes.language": "str",
@@ -12,6 +15,6 @@
   "data[0].attributes.feature_details.season_number": "int",
   "data[0].attributes.feature_details.episode_number": "int",
   "data[0].attributes.feature_details.feature_type": "str",
-  "data[0].attributes.files[0].file_id": "str",
+  "data[0].attributes.files[0].file_id": "int",
   "data[0].attributes.files[0].file_name": "str"
 }
