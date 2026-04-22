@@ -414,3 +414,70 @@ def test_missing_jwt_on_download_returns_401():
         json={"file_id": 1},
     )
     assert r.status_code == 401
+
+
+def test_contract_attributes_include_comments():
+    from bazarr.compat import response_mapper as M
+    sub = MagicMock(
+        upload_date=None, id="1", language=MagicMock(alpha2="en"),
+        download_count=0, ratings=0.0, release_info="Rel.info",
+        uploader=None, provider_name="os", matches=set(),
+    )
+    e = M.subtitle_to_os_entry(sub, 1, "movie", "tt1")
+    assert "comments" in e["attributes"]
+
+
+def test_contract_moviehash_match_is_hash_aware():
+    from bazarr.compat import response_mapper as M
+    sub_with = MagicMock(
+        upload_date=None, id="1", language=MagicMock(alpha2="en"),
+        download_count=0, ratings=0.0, release_info="",
+        uploader=None, provider_name="os", matches={"hash"},
+    )
+    sub_without = MagicMock(
+        upload_date=None, id="2", language=MagicMock(alpha2="en"),
+        download_count=0, ratings=0.0, release_info="",
+        uploader=None, provider_name="os", matches={"series"},
+    )
+    e1 = M.subtitle_to_os_entry(sub_with, 1, "movie", "tt1")
+    e2 = M.subtitle_to_os_entry(sub_without, 2, "movie", "tt1")
+    assert e1["attributes"]["moviehash_match"] is True
+    assert e2["attributes"]["moviehash_match"] is False
+
+
+def test_contract_ratings_is_in_0_to_10_range():
+    from bazarr.compat import response_mapper as M
+    sub = MagicMock(
+        upload_date=None, id="1", language=MagicMock(alpha2="en"),
+        download_count=0, ratings=0.0, release_info="",
+        uploader=None, provider_name="os", matches=set(),
+    )
+    e = M.subtitle_to_os_entry(sub, 1, "movie", "tt1", score=(720, 720))
+    assert e["attributes"]["ratings"] == 10.0
+    e = M.subtitle_to_os_entry(sub, 1, "movie", "tt1", score=(0, 720))
+    assert e["attributes"]["ratings"] == 0.0
+
+
+def test_contract_file_name_never_leading_dot():
+    from bazarr.compat import response_mapper as M
+    sub = MagicMock(
+        upload_date=None, id="1", language=MagicMock(alpha2="en"),
+        download_count=0, ratings=0.0, release_info="",
+        uploader=None, provider_name="os", matches=set(),
+    )
+    e = M.subtitle_to_os_entry(sub, 9, "movie", "")
+    assert not e["attributes"]["files"][0]["file_name"].startswith(".")
+
+
+def test_contract_stream_accepts_api_key_header_too():
+    """Plugin actually sends Api-Key on the follow-up even though HMAC
+    is the auth. Route must still 200."""
+    from bazarr.compat import auth
+    with patch("bazarr.compat.service.serve_subtitle_content",
+                return_value=(b"hi", "application/x-subrip")):
+        token = auth.mint_file_stream_token(1)
+        r = _app().test_client().get(
+            f"/api/v1/download/stream/{token}",
+            headers={"Api-Key": API_KEY},
+        )
+    assert r.status_code == 200
