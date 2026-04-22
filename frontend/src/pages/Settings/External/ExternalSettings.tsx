@@ -13,7 +13,13 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useSystem } from "@/apis/hooks";
-import { Check, Layout, Message, Section } from "@/pages/Settings/components";
+import {
+  Check,
+  Layout,
+  Message,
+  Password,
+  Section,
+} from "@/pages/Settings/components";
 import { useSettingValue } from "@/pages/Settings/utilities/hooks";
 import TokenField from "./TokenField";
 
@@ -125,6 +131,30 @@ const SettingsExternalView: FunctionComponent = () => {
           for interoperability with existing OpenSubtitles-compatible
           media-center plugins. Bazarr+ is not affiliated with or endorsed by
           OpenSubtitles.com.
+        </Message>
+      </Section>
+      <Section header="Metadata Providers">
+        <MantineText size="sm">
+          Optional API keys for enriching searches when a movie or show is not
+          in your local library. Used to resolve title and year from an IMDb ID
+          so provider matching works on out-of-library content.
+        </MantineText>
+        <Password
+          label="OMDB API Key"
+          placeholder="Leave empty to disable OMDB enrichment"
+          settingKey="settings-omdb-apikey"
+        />
+        <Message>
+          Get a free key at{" "}
+          <a
+            href="https://www.omdbapi.com/apikey.aspx"
+            target="_blank"
+            rel="noreferrer"
+          >
+            omdbapi.com
+          </a>{" "}
+          (1000 requests/day). Only used as a fallback for movies not yet in
+          your Bazarr library. Episodes are covered by TVDB automatically.
         </Message>
       </Section>
     </Layout>

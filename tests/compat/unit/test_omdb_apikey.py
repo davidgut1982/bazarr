@@ -19,6 +19,19 @@ from subliminal_patch.refiners.omdb import _resolve_omdb_apikey
 def _isolate_env(monkeypatch):
     monkeypatch.delenv("OMDB_API_KEY", raising=False)
     monkeypatch.delenv("U1pfT01EQl9LRVk", raising=False)
+    # Clear Dynaconf setting so env-var tests aren't masked by a live config.
+    try:
+        from bazarr.app.config import settings
+        monkeypatch.setattr(settings.omdb, "apikey", "")
+    except Exception:
+        pass
+
+
+def test_settings_apikey_wins_over_env(monkeypatch):
+    from bazarr.app.config import settings
+    settings.omdb.apikey = "fromSettings"
+    monkeypatch.setenv("OMDB_API_KEY", "fromEnv")
+    assert _resolve_omdb_apikey() == "fromSettings"
 
 
 def test_plain_key_is_preferred(monkeypatch):

@@ -510,6 +510,9 @@ validators = [
               default=300, cast=int, gte=60, lte=3600),
     Validator('compat_endpoint.jwt_ttl_seconds',
               default=86400, cast=int, gte=3600, lte=604800),
+    # OMDB: optional title/year resolution for movies that aren't in the
+    # local library. Free tier at omdbapi.com (1000 req/day). Empty = skip.
+    Validator('omdb.apikey', default='', cast=str),
 ]
 
 

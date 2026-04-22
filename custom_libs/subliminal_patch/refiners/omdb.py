@@ -14,19 +14,26 @@ logger = logging.getLogger(__name__)
 
 
 def _resolve_omdb_apikey():
-    """Resolve the OMDB API key from the environment.
+    """Resolve the OMDB API key, in priority order:
 
-    Accepts either:
-      * OMDB_API_KEY - plain text, the simple path
-      * U1pfT01EQl9LRVk - the upstream obfuscated envelope (base16 ->
-        zlib -> rot13 -> base64 -> split on 'x'). The upstream decoder
-        was Python-2-only (.decode('base64') on str), so it crashes in
-        every Python 3 Bazarr deployment. We reimplement the same
-        encoding shape here so existing baked-in envelopes still work.
+      1. Dynaconf settings.omdb.apikey - the user-facing settings input.
+      2. OMDB_API_KEY env var - for operators who prefer config via env.
+      3. U1pfT01EQl9LRVk env var - upstream's obfuscated envelope
+         (base16 -> zlib -> rot13 -> base64 -> split 'x'), kept for
+         compatibility with anyone who baked one in. Upstream decodes
+         this with Python-2-only `.decode('base64')`, which crashes on
+         Python 3; we reimplement the same shape in Python 3 terms.
 
-    Returns the api key string, or None if neither env var is set /
+    Returns the api key string, or None if nothing is configured /
     the envelope is malformed.
     """
+    try:
+        from bazarr.app.config import settings
+        apikey = (settings.omdb.apikey or "").strip()
+        if apikey:
+            return apikey
+    except Exception:
+        pass
     plain = os.environ.get("OMDB_API_KEY")
     if plain:
         return plain.strip()
@@ -35,8 +42,6 @@ def _resolve_omdb_apikey():
         return None
     try:
         decompressed = zlib.decompress(base64.b16decode(envelope))
-        # Original: bytes -> decode(rot13) -> decode(base64) -> split('x')[0]
-        # Python 3 equivalent:
         rot13ed = codecs.decode(decompressed.decode("utf-8"), "rot_13")
         decoded = base64.b64decode(rot13ed).decode("utf-8")
         return decoded.split("x")[0]
