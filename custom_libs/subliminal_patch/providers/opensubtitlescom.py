@@ -449,6 +449,40 @@ class OpenSubtitlesComProvider(ProviderRetryMixin, Provider):
                         hash_matched=moviehash_match,
                         imdb_match=True if imdb_id else False
                     )
+                    # Compat layer exposes these on attributes.download_count /
+                    # attributes.ratings / attributes.ai_translated so the
+                    # Jellyfin plugin sort and display have real data.
+                    attrs = item['attributes']
+                    try:
+                        subtitle.download_count = int(attrs.get('download_count') or 0)
+                    except (TypeError, ValueError):
+                        subtitle.download_count = 0
+                    try:
+                        subtitle.ratings = float(attrs.get('ratings') or 0)
+                    except (TypeError, ValueError):
+                        subtitle.ratings = 0.0
+                    subtitle.ai_translated = bool(attrs.get('ai_translated', False))
+                    subtitle.machine_translated = bool(attrs.get('machine_translated', False))
+                    subtitle.foreign_parts_only = bool(attrs.get('foreign_parts_only', False))
+                    try:
+                        fps_raw = attrs.get('fps')
+                        subtitle.fps = float(fps_raw) if fps_raw else 0.0
+                    except (TypeError, ValueError):
+                        subtitle.fps = 0.0
+                    from_trusted = attrs.get('from_trusted')
+                    if from_trusted is not None:
+                        subtitle.from_trusted = bool(from_trusted)
+                    files0 = attrs['files'][0] if attrs.get('files') else {}
+                    if files0.get('file_name'):
+                        subtitle.filename = files0['file_name']
+                    upload_date = attrs.get('upload_date')
+                    if upload_date:
+                        try:
+                            from datetime import datetime
+                            subtitle.upload_date = datetime.fromisoformat(
+                                str(upload_date).replace('Z', '+00:00'))
+                        except (TypeError, ValueError):
+                            pass
                     subtitle.get_matches(self.video)
                     subtitles.append(subtitle)
 
