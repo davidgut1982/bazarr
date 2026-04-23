@@ -220,21 +220,21 @@ async def proxy_handler(request: web.Request) -> web.StreamResponse:
             # etc.) is unreachable from the outside. If an outer reverse
             # proxy already set these, preserve them; otherwise fill
             # them in from what THIS supervisor sees.
-            # Always overwrite X-Forwarded-* from request.host/scheme.
-            # Preserving client-supplied values would let an attacker inject
-            # an arbitrary host into compat download links, causing OS-compat
-            # clients to follow the forged URL and leak their Api-Key header
-            # to the attacker's server.
+            # X-Forwarded-Host: always overwrite from request.host (the Host
+            # header from the immediate upstream). Preserving client-supplied
+            # values would let an attacker inject an arbitrary host into
+            # compat download links, leaking the Api-Key off-box.
             #
-            # request.host is the Host header from the immediate upstream:
-            # - direct client: the target the client hit (correct)
-            # - behind nginx with `proxy_set_header Host $host`: the public
-            #   hostname (correct)
-            # If an outer reverse proxy rewrites Host to an internal address,
-            # download links will point to that internal address. Fix the
-            # proxy config (`proxy_set_header Host $host` in nginx), not this.
+            # X-Forwarded-Proto: preserve if already set by an outer TLS
+            # terminator (nginx/traefik sets this to "https" while
+            # forwarding to us over plain http). Only fill in our own
+            # scheme when absent, since request.scheme here is always
+            # "http" behind a TLS proxy and overwriting would downgrade
+            # all download links to http://.
             forwarded_headers["X-Forwarded-Host"] = request.host
-            forwarded_headers["X-Forwarded-Proto"] = request.scheme
+            fwd_proto_lower = {k.lower() for k in forwarded_headers}
+            if "x-forwarded-proto" not in fwd_proto_lower:
+                forwarded_headers["X-Forwarded-Proto"] = request.scheme
             if request.remote:
                 forwarded_headers["X-Forwarded-For"] = request.remote
             async with session.request(

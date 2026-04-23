@@ -1,6 +1,7 @@
 from __future__ import annotations
 from flask import Blueprint, request, jsonify, Response
 from bazarr.compat.auth import compat_error
+from bazarr.utilities.url_guard import UnsafeURLError
 
 compat_stub_bp = Blueprint("compat_stub", __name__)
 
@@ -262,6 +263,8 @@ def download_stream(stream_token):
     _log = logging.getLogger("bazarr.compat.routes")
     try:
         blob, ctype = service.serve_subtitle_content(stream_token)
+    except UnsafeURLError:
+        return compat_error("provider URL blocked by SSRF guard", 403, "auth")
     except ValueError:
         return compat_error("stream token expired", 410, "not_found")
     except FileNotFoundError:
