@@ -19,19 +19,15 @@ from bazarr.compat.auth import compat_auth
 _SUPPORTED_SUB_FORMATS = frozenset({"srt"})
 
 
-# Language codes that subliminal providers register WITHOUT a country
-# subtag. When the plugin sends e.g. 'zh-CN', babelfish produces
-# Language(zho, country=CN), which doesn't match the provider's bare
-# Language(zho). Strip the country so the provider lookup succeeds.
-# zh-TW is NOT in this set because providers DO register zho;TW.
-_STRIP_COUNTRY_CODES = frozenset({"zho"})
-
-
 def _normalize_lang(lang):
-    """Strip country subtag for languages where providers only register
-    the bare alpha3. Preserves zh-TW, pt-BR, etc. where providers
-    distinguish the variant."""
-    if getattr(lang, "country", None) and lang.alpha3 in _STRIP_COUNTRY_CODES:
+    """Strip country subtag only for zh-CN. Providers register bare zho
+    (generic Chinese) and zho;TW (Traditional), but NOT zho;CN. zh-TW
+    must be preserved."""
+    country = getattr(lang, "country", None)
+    if not country:
+        return lang
+    country_code = getattr(country, "alpha2", None) or ""
+    if lang.alpha3 == "zho" and country_code.upper() == "CN":
         from subzero.language import Language
         return Language(lang.alpha3)
     return lang

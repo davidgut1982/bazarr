@@ -463,7 +463,7 @@ def _omdb_episode_to_series_imdb(video) -> str | None:
         if not imdb:
             return None
         import requests
-        r = requests.get("http://www.omdbapi.com/",
+        r = requests.get("https://www.omdbapi.com/",
                          params={"i": imdb, "apikey": apikey},
                          timeout=5)
         if r.status_code != 200:
@@ -522,7 +522,7 @@ def _omdb_lookup_by_imdb(video) -> None:
         if not imdb:
             return
         import requests
-        r = requests.get("http://www.omdbapi.com/",
+        r = requests.get("https://www.omdbapi.com/",
                          params={"i": imdb, "apikey": apikey},
                          timeout=5)
         if r.status_code != 200:
@@ -730,7 +730,9 @@ def search(imdb_id: str, season, episode, languages: Iterable[Language],
     key = C.build_key(media_type, imdb_id, season, episode, languages, enabled,
                       query=query, moviehash=moviehash,
                       moviehash_match=moviehash_match)
-    ttl = int(settings.compat_endpoint.cache_ttl_seconds)
+    cache_ttl = int(settings.compat_endpoint.cache_ttl_seconds)
+    fid_ttl = int(settings.compat_endpoint.file_id_ttl_seconds)
+    ttl = min(cache_ttl, fid_ttl)
     return C.compat_region.get_or_create(
         key,
         creator=lambda: _do_fanout(imdb_id, season, episode, languages,
@@ -793,6 +795,15 @@ def _fetch_subtitle_bytes(sub) -> bytes:
         logger.exception("compat: download_subtitle failed for %s: %s",
                          provider_name, e)
         raise
+
+    # Re-validate after download: some providers follow redirects that
+    # could land on a private/loopback address, bypassing the pre-download
+    # SSRF guard. Check the post-download URL if the provider updated it.
+    post_url = getattr(sub, "download_link", None) or getattr(sub, "url", None)
+    if (isinstance(post_url, str)
+            and post_url.startswith(("http://", "https://"))
+            and post_url != url):
+        assert_safe_outbound(post_url)
     content = getattr(sub, "content", None)
     if not content:
         # Plugin contract: 200 + empty body = "broken subtitle, blocklist
