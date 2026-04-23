@@ -3,7 +3,10 @@ import os
 import pkgutil
 import sys
 
-import pkg_resources
+try:
+    import pkg_resources
+except ImportError:
+    pkg_resources = None
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../libs/"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../bazarr/"))
@@ -16,6 +19,8 @@ def pytest_report_header(config):
 
 
 def _get_conflicting(path):
+    if pkg_resources is None:
+        return []
     libs_packages = []
     for _, package_name, _ in pkgutil.iter_modules([path]):
         libs_packages.append(package_name)

@@ -18,6 +18,8 @@ from .database import close_database
 from .app import create_app
 
 app = create_app()
+from bazarr.compat import register as register_compat
+register_compat(app, base_url=base_url)
 app.register_blueprint(api_bp, url_prefix=base_url.rstrip('/') + '/api')
 app.register_blueprint(ui_bp, url_prefix=base_url.rstrip('/'))
 
@@ -43,10 +45,20 @@ class Server:
 
     def configure_server(self):
         try:
+            # Trust X-Forwarded-* only from 127.0.0.1 (the supervisor proxy
+            # in docker/supervisor.py). Direct clients that inject these
+            # headers are untrusted and Waitress strips them. The compat
+            # endpoint reads X-Forwarded-Host/Proto for download-link
+            # construction; trusting arbitrary client values would let an
+            # attacker forge stream URLs and exfiltrate the Api-Key.
             self.server = create_server(app,
                                         host=self.address,
                                         port=self.port,
-                                        threads=100)
+                                        threads=100,
+                                        trusted_proxy='127.0.0.1',
+                                        trusted_proxy_headers={'x-forwarded-host',
+                                                               'x-forwarded-proto',
+                                                               'x-forwarded-for'})
             self.connected = True
         except OSError as error:
             if error.errno == errno.EADDRNOTAVAIL:

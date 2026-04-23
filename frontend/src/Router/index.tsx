@@ -29,6 +29,7 @@ import SeriesHistoryView from "@/pages/History/Series";
 import MovieView from "@/pages/Movies";
 import MovieDetailView from "@/pages/Movies/Details";
 import SeriesView from "@/pages/Series";
+import SettingsExternalView from "@/pages/Settings/External";
 import SettingsGeneralView from "@/pages/Settings/General";
 import SettingsLanguagesView from "@/pages/Settings/Languages";
 import SettingsNotificationsView from "@/pages/Settings/Notifications";
@@ -222,6 +223,11 @@ function useRoutes(): CustomRouteObject[] {
                 path: "translator",
                 name: "AI Translator",
                 element: <SettingsTranslatorView></SettingsTranslatorView>,
+              },
+              {
+                path: "external",
+                name: "External Integration",
+                element: <SettingsExternalView></SettingsExternalView>,
               },
               {
                 divider: "Application",

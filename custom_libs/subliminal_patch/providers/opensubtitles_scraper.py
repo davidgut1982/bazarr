@@ -275,6 +275,13 @@ class OpenSubtitlesScraperMixin:
                 )
 
                 subtitle.uploader = sub.get('uploader', 'anonymous')
+                # Compat layer exposes these on attributes.download_count /
+                # attributes.ratings so Jellyfin plugin sort has real popularity
+                # data to work with instead of all zeros.
+                try:
+                    subtitle.download_count = int(sub.get('download_count') or 0)
+                except (TypeError, ValueError):
+                    subtitle.download_count = 0
                 # Store download_url for the download step
                 subtitle.scraper_download_url = download_url
 

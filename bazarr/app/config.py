@@ -484,6 +484,40 @@ validators = [
     
     # subsro section
     Validator('subsro.api_key', must_exist=True, default='', is_type_of=str, cast=str),
+
+    # compat_endpoint section
+    # NOTE: secret length enforcement happens at blueprint registration via
+    # boot_hmac_selftest (see bazarr/compat/auth.py). Do NOT add len_min
+    # validators here that fire on the "Save" path -- they would reject the
+    # first save that flips enabled=True (secrets still empty at that moment
+    # because auto-generation runs at next boot, not at save time).
+    Validator('compat_endpoint.enabled', default=False, cast=bool),
+    Validator('compat_endpoint.consent', default=False, cast=bool),
+    Validator('compat_endpoint.token', default='', cast=str),
+    Validator('compat_endpoint.jwt_secret', default='', cast=str),
+    Validator('compat_endpoint.file_id_secret', default='', cast=str),
+    Validator('compat_endpoint.cache_ttl_seconds',
+              default=1800, cast=int, gte=60, lte=86400),
+    Validator('compat_endpoint.cache_ttl_partial_seconds',
+              default=300, cast=int, gte=30, lte=3600),
+    Validator('compat_endpoint.search_timeout_seconds',
+              default=20, cast=int, gte=5, lte=120),
+    # per_provider_timeout is not a user-facing knob: it's derived as
+    # 60% of the wall timeout inside _do_fanout. The log-label threshold
+    # should scale with the wall, not be tuned independently.
+    Validator('compat_endpoint.file_id_ttl_seconds',
+              default=3600, cast=int, gte=300, lte=86400),
+    Validator('compat_endpoint.stream_token_ttl_seconds',
+              default=300, cast=int, gte=60, lte=3600),
+    Validator('compat_endpoint.jwt_ttl_seconds',
+              default=86400, cast=int, gte=3600, lte=604800),
+    Validator('compat_endpoint.downloads_per_window',
+              default=1000, cast=int, gte=1, lte=1000000),
+    Validator('compat_endpoint.downloads_window_seconds',
+              default=86400, cast=int, gte=60, lte=2592000),
+    # OMDB: optional title/year resolution for movies that aren't in the
+    # local library. Free tier at omdbapi.com (1000 req/day). Empty = skip.
+    Validator('omdb.apikey', default='', cast=str),
 ]
 
 
@@ -868,6 +902,11 @@ def save_settings(settings_items):
         if reset_providers:
             from .get_providers import reset_throttled_providers
             reset_throttled_providers(only_auth_or_conf_error=True)
+            try:
+                from bazarr.compat.service import reset_compat_pool
+                reset_compat_pool()
+            except Exception:
+                pass
 
         if settings_keys[0] == 'settings':
             if len(settings_keys) == 3:

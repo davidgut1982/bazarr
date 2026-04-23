@@ -202,11 +202,45 @@ async def proxy_handler(request: web.Request) -> web.StreamResponse:
     try:
         timeout = ClientTimeout(total=300, connect=5)
         async with ClientSession(timeout=timeout) as session:
+            # Strip hop-by-hop / framing headers before forwarding. The body
+            # has already been fully read via request.read() (aiohttp de-chunks
+            # at parse time), so forwarding Transfer-Encoding: chunked would
+            # either cause aiohttp to re-chunk a body that's no longer
+            # chunked, or tell waitress to expect more chunk frames that
+            # never come - waitress then hangs waiting for the trailer.
+            # This manifested as silent 100s+ hangs on any POST from clients
+            # like .NET's HttpClient that default to chunked request bodies.
+            _drop = {"host", "content-length", "transfer-encoding",
+                     "connection", "keep-alive", "expect"}
+            forwarded_headers = {k: v for k, v in request.headers.items()
+                                 if k.lower() not in _drop}
+            # Advertise the CLIENT-facing URL to the backend. Without
+            # these, Flask's request.host is the internal 127.0.0.1:6768
+            # and any absolute URL it builds (download links, base_url,
+            # etc.) is unreachable from the outside. If an outer reverse
+            # proxy already set these, preserve them; otherwise fill
+            # them in from what THIS supervisor sees.
+            # X-Forwarded-Host: always overwrite from request.host (the Host
+            # header from the immediate upstream). Preserving client-supplied
+            # values would let an attacker inject an arbitrary host into
+            # compat download links, leaking the Api-Key off-box.
+            #
+            # X-Forwarded-Proto: preserve if already set by an outer TLS
+            # terminator (nginx/traefik sets this to "https" while
+            # forwarding to us over plain http). Only fill in our own
+            # scheme when absent, since request.scheme here is always
+            # "http" behind a TLS proxy and overwriting would downgrade
+            # all download links to http://.
+            forwarded_headers["X-Forwarded-Host"] = request.host
+            fwd_proto_lower = {k.lower() for k in forwarded_headers}
+            if "x-forwarded-proto" not in fwd_proto_lower:
+                forwarded_headers["X-Forwarded-Proto"] = request.scheme
+            if request.remote:
+                forwarded_headers["X-Forwarded-For"] = request.remote
             async with session.request(
                 method=request.method,
                 url=target_url,
-                headers={k: v for k, v in request.headers.items()
-                         if k.lower() not in ("host", "content-length")},
+                headers=forwarded_headers,
                 data=await request.read(),
                 allow_redirects=False,
             ) as resp:
