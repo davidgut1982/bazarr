@@ -45,15 +45,20 @@ class Server:
 
     def configure_server(self):
         try:
-            # clear_untrusted_proxy_headers=False so X-Forwarded-Host / -Proto
-            # survive into Flask's request.headers. The compat endpoint reads
-            # these for cosmetic URL reconstruction (login base_url, absolute
-            # download links); we do not trust them for any security decision.
+            # Trust X-Forwarded-* only from 127.0.0.1 (the supervisor proxy
+            # in docker/supervisor.py). Direct clients that inject these
+            # headers are untrusted and Waitress strips them. The compat
+            # endpoint reads X-Forwarded-Host/Proto for download-link
+            # construction; trusting arbitrary client values would let an
+            # attacker forge stream URLs and exfiltrate the Api-Key.
             self.server = create_server(app,
                                         host=self.address,
                                         port=self.port,
                                         threads=100,
-                                        clear_untrusted_proxy_headers=False)
+                                        trusted_proxy='127.0.0.1',
+                                        trusted_proxy_headers={'x-forwarded-host',
+                                                               'x-forwarded-proto',
+                                                               'x-forwarded-for'})
             self.connected = True
         except OSError as error:
             if error.errno == errno.EADDRNOTAVAIL:
