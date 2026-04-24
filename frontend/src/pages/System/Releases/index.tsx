@@ -43,7 +43,7 @@ const ReleaseCard: FunctionComponent<ReleaseInfo> = ({
   current,
   repo,
 }) => {
-  const normalized = Array.isArray(body) ? body.join("\n") : body;
+  const normalized = Array.isArray(body) ? body.join("\n\n") : body;
 
   return (
     <Card p="lg">
