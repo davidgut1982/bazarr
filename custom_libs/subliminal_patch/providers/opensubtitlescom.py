@@ -389,7 +389,7 @@ class OpenSubtitlesComProvider(ProviderRetryMixin, Provider):
 
         result = res.json()
 
-        if not result['data'] and file_hash and (imdb_id or title_id):
+        if not result['data'] and file_hash:
             logger.debug("Hash query returned 0 results, retrying without moviehash")
             params_no_hash = [(k, v) for k, v in params if k != 'moviehash']
             res = self.retry(
