@@ -200,7 +200,10 @@ const SystemStatusView: FunctionComponent = () => {
             </Label>
           </Row>
           <Row title="Wiki">
-            <Label icon={faWikipediaW} link="https://lavx.github.io/bazarr/guides/">
+            <Label
+              icon={faWikipediaW}
+              link="https://lavx.github.io/bazarr/guides/"
+            >
               Bazarr+ Wiki
             </Label>
           </Row>
