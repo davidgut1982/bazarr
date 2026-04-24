@@ -22,6 +22,7 @@ import { useDocumentTitle } from "@mantine/hooks";
 import { IconDefinition } from "@fortawesome/fontawesome-common-types";
 import {
   faDiscord,
+  faFontAwesome,
   faGithub,
   faWikipediaW,
 } from "@fortawesome/free-brands-svg-icons";
@@ -199,7 +200,7 @@ const SystemStatusView: FunctionComponent = () => {
             </Label>
           </Row>
           <Row title="Wiki">
-            <Label icon={faWikipediaW} link={`${GithubRepoRoot}/wiki`}>
+            <Label icon={faWikipediaW} link="https://lavx.github.io/bazarr/guides/">
               Bazarr+ Wiki
             </Label>
           </Row>
@@ -214,7 +215,7 @@ const SystemStatusView: FunctionComponent = () => {
             </Label>
           </Row>
         </InfoContainer>
-        <InfoContainer title="Metadata Sources">
+        <InfoContainer title="Credits">
           <Row title="TheTVDB">
             <Label icon={faPaperPlane} link="https://thetvdb.com">
               TV series metadata
@@ -223,6 +224,16 @@ const SystemStatusView: FunctionComponent = () => {
           <Row title="OMDb">
             <Label icon={faPaperPlane} link="https://www.omdbapi.com">
               Movie metadata fallback
+            </Label>
+          </Row>
+          <Row title="Apprise">
+            <Label icon={faGithub} link="https://github.com/caronc/apprise">
+              Notification backend by caronc
+            </Label>
+          </Row>
+          <Row title="Font Awesome">
+            <Label icon={faFontAwesome} link="https://fontawesome.com">
+              Icons under CC BY 4.0
             </Label>
           </Row>
         </InfoContainer>
