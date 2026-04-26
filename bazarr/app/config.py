@@ -505,6 +505,15 @@ validators = [
     # per_provider_timeout is not a user-facing knob: it's derived as
     # 60% of the wall timeout inside _do_fanout. The log-label threshold
     # should scale with the wall, not be tuned independently.
+    # Compat fanout shares one process-wide bounded ThreadPoolExecutor
+    # so repeated timed-out searches cannot keep spawning provider
+    # threads. fanout_max_workers caps total background provider
+    # threads; max_concurrent_fanouts caps simultaneous fanouts so a
+    # burst of requests cannot drain the pool with abandoned work.
+    Validator('compat_endpoint.fanout_max_workers',
+              default=32, cast=int, gte=4, lte=256),
+    Validator('compat_endpoint.max_concurrent_fanouts',
+              default=4, cast=int, gte=1, lte=16),
     Validator('compat_endpoint.file_id_ttl_seconds',
               default=3600, cast=int, gte=300, lte=86400),
     Validator('compat_endpoint.stream_token_ttl_seconds',
@@ -723,6 +732,7 @@ def save_settings(settings_items):
     undefined_subtitles_track_default_changed = False
     audio_tracks_parsing_changed = False
     reset_providers = False
+    reset_fanout_pool = False
 
     # Subzero Mods
     update_subzero = False
@@ -906,6 +916,15 @@ def save_settings(settings_items):
             except Exception:
                 pass
 
+        if key in ('settings-compat_endpoint-fanout_max_workers',
+                   'settings-compat_endpoint-max_concurrent_fanouts'):
+            # Defer the reset until AFTER all values in this batch are
+            # written. Resetting in-loop opens a window where a
+            # concurrent compat request could re-init the shared
+            # executor by reading the OLD value before the assignment
+            # at the bottom of the loop body lands.
+            reset_fanout_pool = True
+
         if reset_providers:
             from .get_providers import reset_throttled_providers
             reset_throttled_providers(only_auth_or_conf_error=True)
@@ -971,6 +990,15 @@ def save_settings(settings_items):
 
     if update_subzero:
         settings.general.subzero_mods = ','.join(subzero_mods)
+
+    if reset_fanout_pool:
+        # All in-loop assignments have committed by now, so the next
+        # _get_pool() call will read the new sizing values.
+        try:
+            from subliminal_patch.core_persistent import reset_pool as _reset_fanout
+            _reset_fanout()
+        except Exception:
+            pass
 
     try:
         settings.validators.validate()
