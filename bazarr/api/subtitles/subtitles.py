@@ -18,6 +18,7 @@ from subtitles.sync import sync_subtitles
 from app.config import settings, empty_values, get_array_from
 from app.event_handler import event_stream
 from plex.operations import plex_refresh_item
+from jellyfin.operations import jellyfin_refresh_item
 
 
 from ..utils import authenticate
@@ -124,8 +125,9 @@ class Subtitles(Resource):
 
         if media_type == 'episode':
             metadata = database.execute(
-                select(TableEpisodes.path, TableEpisodes.sonarrSeriesId, TableEpisodes.season,
-                       TableEpisodes.episode, TableShows.imdbId)
+                select(TableEpisodes.path, TableEpisodes.sonarrSeriesId, TableEpisodes.subtitles, TableEpisodes.season,
+                       TableEpisodes.episode, TableShows.imdbId, TableShows.tvdbId)
+                .join(TableShows)
                 .where(TableEpisodes.sonarrEpisodeId == id)) \
                 .first()
 
@@ -135,7 +137,7 @@ class Subtitles(Resource):
             video_path = path_mappings.path_replace(metadata.path)
         else:
             metadata = database.execute(
-                select(TableMovies.path, TableMovies.imdbId)
+                select(TableMovies.path, TableMovies.imdbId, TableMovies.tmdbId)
                 .where(TableMovies.radarrId == id))\
                 .first()
 
@@ -183,7 +185,7 @@ class Subtitles(Resource):
                 try:
                     translate_subtitles_file(video_path=video_path, source_srt_file=subtitles_path,
                                              from_lang=from_language, to_lang=dest_language, forced=forced, hi=hi,
-                                             media_type="series" if media_type == "episode" else "movies",
+                                             media_type=media_type,
                                              sonarr_series_id=metadata.sonarrSeriesId if media_type == "episode" else None,
                                              sonarr_episode_id=id,
                                              radarr_id=id,
@@ -216,11 +218,17 @@ def postprocess_subtitles(subtitles_path, video_path, media_type, metadata, id):
             if settings.general.use_plex and settings.plex.update_series_library:
                 plex_refresh_item(metadata.imdbId, is_movie=False, season=metadata.season,
                                   episode=metadata.episode)
+            if settings.general.use_jellyfin and settings.jellyfin.update_series_library:
+                jellyfin_refresh_item(metadata.imdbId, is_movie=False, season=metadata.season,
+                                      episode=metadata.episode, tvdb_id=metadata.tvdbId)
         else:
             store_subtitles_movie(id)
             event_stream(type='movie', payload=id)
 
-        if settings.general.use_plex and settings.plex.update_movie_library:
-            plex_refresh_item(metadata.imdbId, is_movie=True)
+            if settings.general.use_plex and settings.plex.update_movie_library:
+                plex_refresh_item(metadata.imdbId, is_movie=True)
+            if settings.general.use_jellyfin and settings.jellyfin.update_movie_library:
+                jellyfin_refresh_item(metadata.imdbId, is_movie=True,
+                                      tmdb_id=metadata.tmdbId)
 
         return '', 204

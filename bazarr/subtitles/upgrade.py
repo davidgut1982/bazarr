@@ -149,7 +149,7 @@ def upgrade_episodes_subtitles(job_id=None, wait_for_completion=False):
                 result = result[0]
             store_subtitles(episode['sonarrEpisodeId'])
             history_log(3, episode['sonarrSeriesId'], episode['sonarrEpisodeId'], result,
-                        upgraded_from_id=episode['original_id'])
+                        upgraded_from_id=episode['original_id'] or episode['id'])  # we use or to handle None values on initial upgrade
             send_notifications(episode['sonarrSeriesId'], episode['sonarrEpisodeId'], result.message)
             event_stream(type="episode-history")
     jobs_queue.update_job_name(job_id=job_id, new_job_name='Tried to upgrade episodes subtitles')
@@ -253,7 +253,7 @@ def upgrade_movies_subtitles(job_id=None, wait_for_completion=False):
             if isinstance(result, tuple) and len(result):
                 result = result[0]
             store_subtitles_movie(movie['radarrId'])
-            history_log_movie(3, movie['radarrId'], result, upgraded_from_id=movie['original_id'])
+            history_log_movie(3, movie['radarrId'], result, upgraded_from_id=movie['original_id'] or movie['id'])  # we use or to handle None values on initial upgrade
             send_notifications_movie(movie['radarrId'], result.message)
             event_stream(type="movie-history")
     jobs_queue.update_job_name(job_id=job_id, new_job_name='Tried to upgrade movies subtitles')
@@ -294,17 +294,18 @@ def get_upgradable_episode_subtitles(history_id_list=None):
         logging.debug("Subtitles upgrade is disabled so we wont go further.")
         return {}
 
+    minimum_timestamp, query_actions = get_queries_condition_parameters()
+    logging.debug(f"Minimum timestamp used for subtitles upgrade: {minimum_timestamp}")
+    logging.debug(f"These actions are considered for subtitles upgrade: {query_actions}")
+
     logging.debug("Determining upgradable episode subtitles")
     max_id_timestamp = select(TableHistory.video_path,
                               TableHistory.language,
                               func.max(TableHistory.timestamp).label('timestamp')) \
         .group_by(TableHistory.video_path, TableHistory.language) \
+        .where(TableHistory.action.in_(query_actions)) \
         .distinct() \
         .subquery()
-
-    minimum_timestamp, query_actions = get_queries_condition_parameters()
-    logging.debug(f"Minimum timestamp used for subtitles upgrade: {minimum_timestamp}")
-    logging.debug(f"These actions are considered for subtitles upgrade: {query_actions}")
 
     upgradable_episodes_conditions = [(TableHistory.action.in_(query_actions)),
                                       (TableHistory.timestamp > minimum_timestamp),
@@ -361,17 +362,18 @@ def get_upgradable_movies_subtitles(history_id_list=None):
         logging.debug("Subtitles upgrade is disabled so we won't go further.")
         return {}
 
+    minimum_timestamp, query_actions = get_queries_condition_parameters()
+    logging.debug(f"Minimum timestamp used for subtitles upgrade: {minimum_timestamp}")
+    logging.debug(f"These actions are considered for subtitles upgrade: {query_actions}")
+
     logging.debug("Determining upgradable movie subtitles")
     max_id_timestamp = select(TableHistoryMovie.video_path,
                               TableHistoryMovie.language,
                               func.max(TableHistoryMovie.timestamp).label('timestamp')) \
         .group_by(TableHistoryMovie.video_path, TableHistoryMovie.language) \
+        .where(TableHistoryMovie.action.in_(query_actions)) \
         .distinct() \
         .subquery()
-
-    minimum_timestamp, query_actions = get_queries_condition_parameters()
-    logging.debug(f"Minimum timestamp used for subtitles upgrade: {minimum_timestamp}")
-    logging.debug(f"These actions are considered for subtitles upgrade: {query_actions}")
 
     upgradable_movies_conditions = [(TableHistoryMovie.action.in_(query_actions)),
                                     (TableHistoryMovie.timestamp > minimum_timestamp),

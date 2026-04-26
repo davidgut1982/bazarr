@@ -171,6 +171,12 @@ def store_subtitles(sonarr_episode_id, use_cache=True):
                 subtitle_path = get_external_subtitles_path(mapped_path, subtitle)
 
                 # We get custom language external subtitles
+                try:
+                    subtitle_size = os.stat(subtitle_path).st_size
+                except FileNotFoundError:
+                    logging.debug(f"BAZARR skipping missing subtitle file: {subtitle_path}")
+                    continue
+
                 custom = CustomLanguage.found_external(subtitle, subtitle_path)
                 if custom is not None:
                     logging.debug(f"BAZARR external subtitles detected: {custom}")
@@ -180,7 +186,7 @@ def store_subtitles(sonarr_episode_id, use_cache=True):
                                                'forced': custom.endswith(':forced'),
                                                'hi': custom.endswith(':hi'),
                                                'path': path_mappings.path_replace_reverse(subtitle_path),
-                                               'size': os.stat(subtitle_path).st_size})
+                                               'size': subtitle_size})
 
                 # We get defined and supported language external subtitles
                 elif str(language.basename) != 'und':
@@ -193,7 +199,7 @@ def store_subtitles(sonarr_episode_id, use_cache=True):
                                                'forced': language.forced,
                                                'hi': language.hi,
                                                'path': path_mappings.path_replace_reverse(subtitle_path),
-                                               'size': os.stat(subtitle_path).st_size})
+                                               'size': subtitle_size})
 
             # We store external subtitles in the database or update existing ones
             if len(external_subtitles):

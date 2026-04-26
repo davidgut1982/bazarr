@@ -12,7 +12,7 @@ from .services.translator_factory import TranslatorFactory
 from languages.get_languages import alpha3_from_alpha2
 from app.config import settings
 from app.jobs_queue import jobs_queue
-from subtitles.indexer.utils import get_external_subtitles_path
+from utilities.helper import get_target_folder
 
 
 def translate_subtitles_file(video_path, source_srt_file, from_lang, to_lang, forced, hi,
@@ -42,10 +42,14 @@ def translate_subtitles_file(video_path, source_srt_file, from_lang, to_lang, fo
 
         # get the real destination path taking into account if the user set up Bazarr to store external subtitles in
         #  a custom folder or relative folder
-        dest_srt_file = get_external_subtitles_path(
-            file=video_path,
-            subtitle=os.path.basename(dest_srt_file_if_alongside_video)
-        )
+        dest_dir_for_srt = get_target_folder(video_path)
+        if dest_dir_for_srt:
+            # if the user has set up Bazarr to store external subtitles in a custom folder, we need to add the custom
+            # folder to the destination path
+            dest_srt_file = os.path.join(dest_dir_for_srt, os.path.basename(dest_srt_file_if_alongside_video))
+        else:
+            # otherwise, we just use the destination path as it is
+            dest_srt_file = dest_srt_file_if_alongside_video
 
         translator_type = settings.translator.translator_type or 'google'
         logging.debug(f'Using translator type: {translator_type}')
@@ -74,7 +78,7 @@ def translate_subtitles_file(video_path, source_srt_file, from_lang, to_lang, fo
         logging.debug(f'BAZARR saved translated subtitles to {dest_srt_file}')
         from api.subtitles.subtitles import postprocess_subtitles
         # Call postprocess_subtitles after translation
-        postprocess_subtitles(dest_srt_file, video_path, media_type, metadata, sonarr_episode_id if media_type == 'series' else radarr_id)
+        postprocess_subtitles(dest_srt_file, video_path, media_type, metadata, sonarr_episode_id if media_type == 'episode' else radarr_id)
         return result
 
     except Exception as e:
