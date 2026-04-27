@@ -85,6 +85,11 @@ validators = [
     # general section
     Validator('general.flask_secret_key', must_exist=True, default=hexlify(os.urandom(16)).decode(),
               is_type_of=str),
+    # Master key for the bazarr.secrets crypto module (encrypts every
+    # user-visible credential at rest). Default empty so the key is
+    # generated lazily on first read - matches the pattern of the legacy
+    # plex.encryption_key. Never round-trips through the API.
+    Validator('general.secrets_encryption_key', must_exist=True, default='', is_type_of=str),
     Validator('general.ip', must_exist=True, default='*', is_type_of=str, condition=validate_ip_address),
     Validator('general.port', must_exist=True, default=6767, is_type_of=int, gte=1, lte=65535),
     Validator('general.hostname', must_exist=True, default=platform.node(), is_type_of=str),
