@@ -8,10 +8,10 @@ from babelfish import Language
 from subliminal.video import Episode, Movie, Video
 from subliminal_patch.core_persistent import list_all_subtitles_parallel
 
-from bazarr.app.config import settings
-from bazarr.app.get_providers import get_providers_sorted, get_providers_auth
-from bazarr.compat import auth, cache as C, response_mapper as M
-from bazarr.utilities.url_guard import assert_safe_outbound, UnsafeURLError
+from app.config import settings
+from app.get_providers import get_providers_sorted, get_providers_auth
+from . import auth, cache as C, response_mapper as M
+from utilities.url_guard import assert_safe_outbound, UnsafeURLError
 
 logger = logging.getLogger("bazarr.compat.service")
 
@@ -77,8 +77,8 @@ def _lookup_library_metadata(imdb_id: str, media_type: str,
     native manual search). Returns {} if the imdb_id is not in the library.
     """
     try:
-        from bazarr.app.database import (database, select, TableMovies,
-                                         TableShows, TableEpisodes)
+        from app.database import (database, select, TableMovies,
+                                  TableShows, TableEpisodes)
     except Exception:
         return {}
     imdb = imdb_id if str(imdb_id).startswith("tt") else f"tt{imdb_id}"
@@ -150,7 +150,7 @@ def _parse_video_from_library(path: str, meta: dict, media_type: str,
     if not os.path.exists(path):
         return None
     try:
-        from bazarr.subtitles.utils import get_video
+        from subtitles.utils import get_video
     except Exception as e:
         logger.debug("compat: get_video import failed: %s", e)
         return None

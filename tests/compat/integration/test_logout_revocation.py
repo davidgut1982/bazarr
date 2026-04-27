@@ -9,8 +9,8 @@ FID_SECRET = "f" * 32
 
 @pytest.fixture(autouse=True)
 def _secrets():
-    from bazarr.app.config import settings
-    from bazarr.compat import jwt_denylist
+    from app.config import settings
+    from compat import jwt_denylist
     settings["compat_endpoint"]["token"] = API_KEY
     settings["compat_endpoint"]["jwt_secret"] = JWT_SECRET
     settings["compat_endpoint"]["file_id_secret"] = FID_SECRET
@@ -21,14 +21,14 @@ def _secrets():
 
 
 def _app():
-    from bazarr.compat.routes import compat_bp
+    from compat.routes import compat_bp
     app = Flask(__name__)
     app.register_blueprint(compat_bp, url_prefix="/api/v1")
     return app
 
 
 def test_logout_revokes_jwt():
-    from bazarr.compat import auth
+    from compat import auth
     c = _app().test_client()
     tok = auth.mint_jwt()
 

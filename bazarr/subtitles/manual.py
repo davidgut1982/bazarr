@@ -25,7 +25,7 @@ from subtitles.indexer.series import store_subtitles
 from subtitles.indexer.movies import store_subtitles_movie
 from subtitles.processing import ProcessSubtitlesResult
 
-from bazarr.subtitles.cache import subtitle_cache
+from .cache import subtitle_cache
 from .pool import update_pools, _get_pool
 from .utils import get_video, _get_lang_obj, _get_scores, _set_forced_providers
 from .processing import process_subtitle

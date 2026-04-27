@@ -1,40 +1,55 @@
 # coding=utf-8
-"""Symmetric crypto primitives for secrets at rest.
+"""Symmetric AEAD crypto for secrets at rest.
 
-Wraps `itsdangerous.URLSafeSerializer` (the same primitive `plex/security.py`
-uses) but adds:
+Uses `cryptography.fernet.Fernet` - AES-128-CBC + HMAC-SHA256 in a single
+authenticated primitive. Replaces an earlier signed-only design (Codex
+flagged URLSafeSerializer.dumps as encoding-not-encryption: anyone with
+config.yaml could base64-decode the JSON payload and recover the secret
+without the master key).
 
-1. A versioned marker prefix (`enc:v1:`) on the stored ciphertext. The
-   prefix lets the read path tell "this value is already encrypted, decrypt
-   it" apart from "this value is still plaintext, the auto-migrator hasn't
-   touched it yet" without a separate boolean flag per field.
+Format:
+- Stored value: `enc:v1:<urlsafe-base64 Fernet token>`
+- Marker prefix is intentionally NOT cryptographic. An attacker with
+  write access to config.yaml can drop a value without the marker; the
+  read path treats anything without `enc:v1:` as plaintext (passthrough).
+  We are protecting against accidental disclosure (logs, screenshots,
+  support bundles), not a local attacker who already owns the host.
+- Each encrypt produces a fresh ciphertext (Fernet bakes in a random IV
+  + timestamp), so two encryptions of the same plaintext will not equal
+  byte-for-byte. Defends against equality inference if config.yaml leaks.
 
-2. A salt + timestamp inside the signed payload so two encryptions of the
-   same plaintext produce different ciphertext (defends against equality
-   inference if config.yaml leaks).
+Master key derivation:
+- The master key on disk (`general.secrets_encryption_key`) can be any
+  string - we generate it as `secrets.token_urlsafe(32)` (a base64-ish
+  string), but a hand-edited master can be any length.
+- Fernet itself requires a 32-byte key, urlsafe-b64-encoded. We derive
+  it deterministically with SHA-256: `b64(sha256(master_key.utf8))`. This
+  KDF is intentionally simple - the master IS already high-entropy
+  random; we are not stretching a low-entropy passphrase.
 
-3. A single master key (`general.secrets_encryption_key`) instead of a
-   per-namespace key like `plex.encryption_key`. One key to rotate, one
-   key to redact.
-
-The marker is intentionally NOT cryptographic. An attacker who can write
-config.yaml can drop a value in plaintext without the marker; the read
-path will treat it as plaintext and either decrypt-fail (signed payload
-loaded as raw text) or hand it back as-is. We are protecting against
-accidental disclosure (logs, screenshots, support bundles), not a local
-attacker who already owns the host.
+Migration window:
+- Predecessor format (also marker-prefixed `enc:v1:`) used
+  URLSafeSerializer with a JSON payload (`{"secret": "...", "salt": ...,
+  "ts": ...}`). Anything written before this commit reads as that shape.
+- decrypt_secret first attempts Fernet decryption; on InvalidToken it
+  falls back to the legacy URLSafeSerializer reader. Either way the
+  caller gets plaintext. The next write_config rewrites all secrets in
+  the new Fernet format.
 """
 
+import base64
+import hashlib
 import logging
 import secrets as _secrets
-import time
 
+from cryptography.fernet import Fernet, InvalidToken
 from itsdangerous import BadPayload, BadSignature, URLSafeSerializer
 
 logger = logging.getLogger(__name__)
 
 # Versioned marker. Bumping the suffix lets a future change rotate the
-# format (e.g. AEAD-based payload) and still detect legacy ciphertext.
+# format and still detect legacy ciphertext via the byte shape after the
+# prefix (Fernet tokens vs URLSafeSerializer dumps look different).
 SECRET_MARKER_PREFIX = "enc:v1:"
 
 # Generated key length in bytes (token_urlsafe doubles to ~43 chars).
@@ -43,6 +58,22 @@ _MASTER_KEY_BYTES = 32
 
 def _generate_master_key() -> str:
     return _secrets.token_urlsafe(_MASTER_KEY_BYTES)
+
+
+def _fernet_key_from_master(master_key: str) -> bytes:
+    """Derive a Fernet-shaped 32-byte key (urlsafe-b64 encoded) from a
+    free-form master key. Deterministic; same master always maps to the
+    same Fernet key, so encrypt/decrypt agree across boots.
+
+    The master is already high-entropy random (`token_urlsafe(32)`), so
+    SHA-256 is sufficient as a KDF here - we are NOT stretching a
+    low-entropy passphrase. If a future version migrates to user-typed
+    passphrases, swap this for HKDF / Argon2.
+    """
+    if not isinstance(master_key, str):
+        raise TypeError("master_key must be a string")
+    digest = hashlib.sha256(master_key.encode("utf-8")).digest()
+    return base64.urlsafe_b64encode(digest)
 
 
 def get_master_key(settings_obj=None) -> str:
@@ -78,8 +109,8 @@ def is_encrypted(value) -> bool:
     return isinstance(value, str) and value.startswith(SECRET_MARKER_PREFIX)
 
 
-def encrypt_secret(plaintext: str, master_key: str = None) -> str:
-    """Encrypt `plaintext` and return a marker-prefixed ciphertext.
+def encrypt_secret(plaintext, master_key: str = None) -> str:
+    """Encrypt `plaintext` and return a marker-prefixed Fernet token.
 
     Empty / falsy plaintext is returned unchanged - we don't waste bytes
     encrypting an empty string, and the read path treats empty as
@@ -98,14 +129,9 @@ def encrypt_secret(plaintext: str, master_key: str = None) -> str:
     if master_key is None:
         master_key = get_master_key()
 
-    serializer = URLSafeSerializer(master_key)
-    payload = {
-        "v": 1,
-        "secret": plaintext,
-        "salt": _secrets.token_hex(16),
-        "ts": int(time.time()),
-    }
-    return SECRET_MARKER_PREFIX + serializer.dumps(payload)
+    fernet = Fernet(_fernet_key_from_master(master_key))
+    token = fernet.encrypt(plaintext.encode("utf-8"))
+    return SECRET_MARKER_PREFIX + token.decode("ascii")
 
 
 def decrypt_secret(value, master_key: str = None) -> str:
@@ -114,12 +140,17 @@ def decrypt_secret(value, master_key: str = None) -> str:
     Tolerant by design: the read path may encounter a freshly-installed
     value (plaintext, no marker) or an encrypted one. Both must work, so
     a value without the marker is returned unchanged. The auto-migrator
-    in commit 2 is responsible for rewriting plaintext to ciphertext.
+    is responsible for rewriting plaintext to ciphertext.
+
+    Tries the current Fernet format first, then falls back to the legacy
+    URLSafeSerializer payload shape (pre-AEAD migration) so installs
+    written before this change keep working until the next write_config
+    rewrites the file.
 
     Raises `ValueError` only on tampered / mis-keyed ciphertext (marker
-    present, but URLSafeSerializer rejects the payload). Callers that
-    boot with the wrong master key will see this and can surface a clear
-    error instead of silently serving garbage.
+    present, but neither Fernet nor the legacy reader accepts the
+    payload). Callers that boot with the wrong master key see this and
+    can surface a clear error instead of silently serving garbage.
     """
     if not isinstance(value, str) or not value:
         return value
@@ -130,9 +161,20 @@ def decrypt_secret(value, master_key: str = None) -> str:
         master_key = get_master_key()
 
     payload_text = value[len(SECRET_MARKER_PREFIX):]
-    serializer = URLSafeSerializer(master_key)
+
+    # Current format: Fernet (AES-128-CBC + HMAC-SHA256, authenticated).
     try:
-        payload = serializer.loads(payload_text)
+        fernet = Fernet(_fernet_key_from_master(master_key))
+        return fernet.decrypt(payload_text.encode("ascii")).decode("utf-8")
+    except (InvalidToken, ValueError):
+        # ValueError catches malformed base64; fall through to legacy.
+        pass
+
+    # Legacy format: URLSafeSerializer.dumps({"secret": ..., "salt": ..., "ts": ...})
+    # Pre-AEAD shipped ciphertext under the same marker prefix; decoding
+    # both lets a writer-then-reader cycle migrate without manual steps.
+    try:
+        payload = URLSafeSerializer(master_key).loads(payload_text)
     except (BadSignature, BadPayload, ValueError) as e:
         raise ValueError(
             "Failed to decrypt secret: ciphertext was tampered with or the "

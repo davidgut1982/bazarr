@@ -1,5 +1,5 @@
 import time
-from bazarr.compat import jwt_denylist as D
+from compat import jwt_denylist as D
 
 
 def test_fresh_jti_is_not_revoked():

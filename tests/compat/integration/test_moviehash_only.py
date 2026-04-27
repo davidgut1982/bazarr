@@ -5,8 +5,8 @@ from babelfish import Language
 
 @pytest.fixture(autouse=True)
 def _secrets_and_cache():
-    from bazarr.app.config import settings
-    from bazarr.compat import cache as C
+    from app.config import settings
+    from compat import cache as C
     settings["compat_endpoint"]["file_id_secret"] = "f" * 32
     C.invalidate_all()
     yield
@@ -26,11 +26,11 @@ def _mk(provider_name, sub_id, matches):
 
 
 def test_moviehash_only_drops_non_hash_rows():
-    from bazarr.compat import service
+    from compat import service
     hash_sub = _mk("os", "1", {"hash", "series"})
     plain_sub = _mk("os", "2", {"series"})
-    with patch("bazarr.compat.service._get_compat_pool") as gp, \
-         patch("bazarr.compat.service.list_all_subtitles_parallel") as lf:
+    with patch("compat.service._get_compat_pool") as gp, \
+         patch("compat.service.list_all_subtitles_parallel") as lf:
         gp.return_value.providers = ["os"]
         lf.return_value = {MagicMock(): [hash_sub, plain_sub]}
         res = service.search("tt1", None, None, [Language("eng")],
@@ -41,11 +41,11 @@ def test_moviehash_only_drops_non_hash_rows():
 
 
 def test_moviehash_include_keeps_all_rows():
-    from bazarr.compat import service
+    from compat import service
     hash_sub = _mk("os", "1", {"hash"})
     plain_sub = _mk("os", "2", {"series"})
-    with patch("bazarr.compat.service._get_compat_pool") as gp, \
-         patch("bazarr.compat.service.list_all_subtitles_parallel") as lf:
+    with patch("compat.service._get_compat_pool") as gp, \
+         patch("compat.service.list_all_subtitles_parallel") as lf:
         gp.return_value.providers = ["os"]
         lf.return_value = {MagicMock(): [hash_sub, plain_sub]}
         res = service.search("tt1", None, None, [Language("eng")],
@@ -54,10 +54,10 @@ def test_moviehash_include_keeps_all_rows():
 
 
 def test_moviehash_match_only_marks_matched_rows_true():
-    from bazarr.compat import service
+    from compat import service
     hash_sub = _mk("os", "1", {"hash"})
-    with patch("bazarr.compat.service._get_compat_pool") as gp, \
-         patch("bazarr.compat.service.list_all_subtitles_parallel") as lf:
+    with patch("compat.service._get_compat_pool") as gp, \
+         patch("compat.service.list_all_subtitles_parallel") as lf:
         gp.return_value.providers = ["os"]
         lf.return_value = {MagicMock(): [hash_sub]}
         res = service.search("tt1", None, None, [Language("eng")],

@@ -25,13 +25,16 @@ from pathlib import Path
 
 from aiohttp import ClientSession, ClientTimeout, WSMsgType, web
 
-# Add bundled libs to path so we can import yaml (PyYAML) + itsdangerous
-# (used to decrypt the at-rest apikey before injecting into index.html;
-# the supervisor reads config.yaml directly without going through the
-# bazarr settings pipeline, so it has to do the decrypt itself).
+# Add bundled libs to path so we can import yaml (PyYAML), cryptography
+# (Fernet), and itsdangerous (legacy URLSafeSerializer fallback). The
+# supervisor reads config.yaml directly without going through the bazarr
+# settings pipeline, so it has to do the decrypt itself.
 APP_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(APP_DIR / "libs"))
+import base64  # noqa: E402
+import hashlib  # noqa: E402
 import yaml  # noqa: E402
+from cryptography.fernet import Fernet, InvalidToken  # noqa: E402
 from itsdangerous import BadPayload, BadSignature, URLSafeSerializer  # noqa: E402
 
 # Same marker as bazarr.secret_store.crypto.SECRET_MARKER_PREFIX. Kept as
@@ -41,10 +44,20 @@ from itsdangerous import BadPayload, BadSignature, URLSafeSerializer  # noqa: E4
 _SECRET_MARKER_PREFIX = "enc:v1:"
 
 
+def _fernet_key_from_master(master_key: str) -> bytes:
+    """Mirrors bazarr.secret_store.crypto._fernet_key_from_master. Same KDF
+    so encrypt-via-bazarr and decrypt-via-supervisor agree on the key."""
+    digest = hashlib.sha256(master_key.encode("utf-8")).digest()
+    return base64.urlsafe_b64encode(digest)
+
+
 def _decrypt_apikey_if_encrypted(apikey: str, master_key: str) -> str:
-    """If the apikey carries the secret_store marker prefix, decrypt it
-    with URLSafeSerializer + master_key. Mirrors the read half of
-    bazarr.secret_store.crypto.decrypt_secret without importing it.
+    """If the apikey carries the secret_store marker prefix, decrypt it.
+
+    Tries Fernet (current AEAD format) first, then falls back to the
+    legacy URLSafeSerializer payload shape so a config written before
+    the AEAD migration still serves login bytes correctly until the
+    backend re-saves under Fernet.
 
     Tolerant: a missing master_key, a corrupt payload, or a value with no
     marker is returned unchanged. The supervisor MUST keep starting even
@@ -55,8 +68,19 @@ def _decrypt_apikey_if_encrypted(apikey: str, master_key: str) -> str:
         return apikey
     if not master_key:
         return apikey
+    payload_text = apikey[len(_SECRET_MARKER_PREFIX):]
+
+    # Current format: Fernet (AES-128-CBC + HMAC-SHA256)
     try:
-        payload = URLSafeSerializer(master_key).loads(apikey[len(_SECRET_MARKER_PREFIX):])
+        return Fernet(_fernet_key_from_master(master_key)).decrypt(
+            payload_text.encode("ascii")
+        ).decode("utf-8")
+    except (InvalidToken, ValueError):
+        pass
+
+    # Legacy URLSafeSerializer payload (pre-AEAD)
+    try:
+        payload = URLSafeSerializer(master_key).loads(payload_text)
     except (BadSignature, BadPayload, ValueError):
         return apikey
     if isinstance(payload, dict) and "secret" in payload:

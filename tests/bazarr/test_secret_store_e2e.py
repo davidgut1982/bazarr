@@ -24,12 +24,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 from itsdangerous import URLSafeSerializer
 
-from bazarr.secret_store.crypto import (
+from secret_store.crypto import (
     SECRET_MARKER_PREFIX,
     encrypt_secret,
     is_encrypted,
 )
-from bazarr.secret_store.migration import (
+from secret_store.migration import (
     decrypt_settings_dict,
     decrypt_settings_in_place,
     encrypt_settings_dict,
@@ -41,7 +41,7 @@ from bazarr.secret_store.migration import (
 def stable_master_key(monkeypatch):
     key = "deterministic-test-master-key-do-not-rotate-during-test"
     monkeypatch.setattr(
-        "bazarr.secret_store.crypto.get_master_key",
+        "secret_store.crypto.get_master_key",
         lambda settings_obj=None: key,
     )
     yield key
@@ -126,6 +126,37 @@ def test_e2e_plaintext_first_boot_persists_ciphertext_then_decrypts_on_reboot():
     assert rebooted.translator.gemini_keys == ["g1", "g2"]
 
 
+def test_e2e_first_save_persists_master_key_alongside_ciphertext():
+    """Codex P1 regression: the master key MUST land in the snapshot
+    that gets written to disk. Bug pre-fix: encrypt_settings_dict
+    deep-copies the input, then encrypt_secret lazy-generates the
+    master key on the LIVE settings object - the snapshot still has
+    empty general.secrets_encryption_key, so disk gets enc:v1: values
+    paired with no key, and next reboot can't decrypt anything (and
+    silently uses ciphertext as the credential)."""
+    # Input shape: post-validate, pre-first-save. master key is empty;
+    # user-visible secrets are non-empty plaintext.
+    initial = {
+        "general": {"secrets_encryption_key": "", "flask_secret_key": "f"},
+        "sonarr": {"apikey": "real-sonarr-key"},
+    }
+    encrypted = encrypt_settings_dict(initial)
+
+    # The snapshot we'd persist must have the master key set.
+    persisted_master = encrypted["general"]["secrets_encryption_key"]
+    assert persisted_master  # non-empty
+    assert persisted_master != ""
+
+    # That same master must successfully decrypt the ciphertext we
+    # produced (otherwise the disk file is unrecoverable).
+    from secret_store.crypto import decrypt_secret
+    decrypted = decrypt_secret(
+        encrypted["sonarr"]["apikey"],
+        master_key=persisted_master,
+    )
+    assert decrypted == "real-sonarr-key"
+
+
 def test_e2e_save_after_first_boot_does_not_double_encrypt():
     """Once a credential is on disk in ciphertext form, a normal save
     cycle (no user edit) must not produce a fresh ciphertext - encrypt
@@ -169,7 +200,7 @@ def test_e2e_master_key_change_is_detected_and_isolates_failure():
     # Simulate boot under a different master key by patching get_master_key
     # to return something else.
     with patch(
-        "bazarr.secret_store.crypto.get_master_key",
+        "secret_store.crypto.get_master_key",
         lambda settings_obj=None: "completely-different-master-key-aaa",
     ):
         decrypt_settings_in_place(settings)
@@ -202,7 +233,7 @@ def test_e2e_api_serializer_masks_only_system_secrets():
     """Reproduces the get_settings() behavior: USER_VISIBLE pass plaintext,
     SYSTEM are masked with ***, empty system stays empty (so UI can tell
     'configured-but-hidden' from 'not configured')."""
-    from bazarr.secret_store import is_system_secret
+    from secret_store import is_system_secret
 
     settings_dict = {
         "auth": {"apikey": "user-can-see-this"},

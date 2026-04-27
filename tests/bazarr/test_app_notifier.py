@@ -1,4 +1,4 @@
-from bazarr.app import notifier
+from app import notifier
 
 
 class DummyRecord:

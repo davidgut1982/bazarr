@@ -1,7 +1,7 @@
 # coding=utf-8
 """Tests for bazarr.secrets.registry classification."""
 
-from bazarr.secret_store.registry import (
+from secret_store.registry import (
     SYSTEM_SECRETS,
     USER_VISIBLE_SECRET_LISTS,
     USER_VISIBLE_SECRETS,

@@ -1,11 +1,11 @@
 import pytest
 from flask import Flask
-from bazarr.compat.auth import compat_auth, compat_error
+from compat.auth import compat_auth, compat_error
 
 
 @pytest.fixture
 def app(monkeypatch):
-    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.token", "a" * 32)
+    monkeypatch.setattr("compat.auth.settings.compat_endpoint.token", "a" * 32)
     app = Flask(__name__)
 
     @app.route("/protected")
@@ -34,10 +34,10 @@ def test_jwt_failures_still_use_401(monkeypatch):
     """401 is reserved for JWT-specific failures so the plugin can
     retry with a fresh login."""
     from flask import Flask
-    from bazarr.compat.auth import compat_auth
-    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.token",
+    from compat.auth import compat_auth
+    monkeypatch.setattr("compat.auth.settings.compat_endpoint.token",
                         "a" * 32)
-    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.jwt_secret",
+    monkeypatch.setattr("compat.auth.settings.compat_endpoint.jwt_secret",
                         "b" * 32)
     app = Flask(__name__)
 

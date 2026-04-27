@@ -1,5 +1,5 @@
 from flask import Flask
-from bazarr.compat.routes import compat_stub_bp
+from compat.routes import compat_stub_bp
 
 
 def test_stub_returns_json_404_with_x_reason():

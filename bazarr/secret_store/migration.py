@@ -27,6 +27,9 @@ import logging
 from copy import deepcopy
 from typing import Any, Dict
 
+from . import crypto as _crypto  # module reference so test patches on
+                                  # _crypto.get_master_key apply uniformly
+                                  # across this module's call sites
 from .crypto import decrypt_secret, encrypt_secret, is_encrypted
 from .registry import USER_VISIBLE_SECRET_LISTS, USER_VISIBLE_SECRETS
 
@@ -223,13 +226,32 @@ def encrypt_settings_dict(plaintext_dict: Dict[str, Any]) -> Dict[str, Any]:
     idempotent on its own ciphertext) - that handles the case where a
     config save races with a fresh load and the live settings already
     carry marker prefixes.
+
+    First-boot ordering: get_master_key() lazily generates the master key
+    when general.secrets_encryption_key is empty. We must call it ONCE up
+    front and write the result into the snapshot we're about to persist;
+    otherwise the lazy generator only mutates the live settings object,
+    while the disk file gets `enc:v1:` ciphertext alongside an empty
+    secrets_encryption_key - on next boot, decrypt_settings_in_place
+    would generate a DIFFERENT master key, decryption would silently
+    fail, and the application would start using the bad ciphertext as
+    the credential. (Codex P1 finding.)
     """
     out = deepcopy(plaintext_dict)
+
+    # Resolve the master key once and pass it explicitly to every
+    # encrypt_secret call so the snapshot's general.secrets_encryption_key
+    # ends up consistent with the ciphertext we generate from it.
+    master_key = _crypto.get_master_key()
+    out.setdefault("general", {})
+    if not out["general"].get("secrets_encryption_key"):
+        out["general"]["secrets_encryption_key"] = master_key
+
     for path in USER_VISIBLE_SECRETS:
         try:
             section_key, attr, value = _read_section_key(out, path)
             if isinstance(value, str) and value:
-                out[section_key][attr] = encrypt_secret(value)
+                out[section_key][attr] = encrypt_secret(value, master_key=master_key)
         except KeyError:
             continue
 
@@ -238,7 +260,7 @@ def encrypt_settings_dict(plaintext_dict: Dict[str, Any]) -> Dict[str, Any]:
             section_key, attr, value = _read_section_key(out, path)
             if isinstance(value, list):
                 out[section_key][attr] = [
-                    encrypt_secret(v) if isinstance(v, str) and v else v
+                    encrypt_secret(v, master_key=master_key) if isinstance(v, str) and v else v
                     for v in value
                 ]
         except KeyError:

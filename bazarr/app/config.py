@@ -971,7 +971,7 @@ def save_settings(settings_items):
 
         if key == 'settings-general-enabled_providers':
             try:
-                from bazarr.compat.service import reset_compat_pool
+                from compat.service import reset_compat_pool
                 reset_compat_pool()
             except Exception:
                 pass
@@ -989,7 +989,7 @@ def save_settings(settings_items):
             from .get_providers import reset_throttled_providers
             reset_throttled_providers(only_auth_or_conf_error=True)
             try:
-                from bazarr.compat.service import reset_compat_pool
+                from compat.service import reset_compat_pool
                 reset_compat_pool()
             except Exception:
                 pass

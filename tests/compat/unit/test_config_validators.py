@@ -9,7 +9,7 @@ from dynaconf.validator import ValidationError
 # Pull the real validators list from the application config module.
 # This is the source of truth: the same Validator objects registered
 # into the production `settings` singleton at startup.
-from bazarr.app.config import validators as app_validators
+from app.config import validators as app_validators
 
 
 def _compat_validators():

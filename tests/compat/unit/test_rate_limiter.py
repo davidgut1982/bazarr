@@ -1,5 +1,5 @@
 import time
-from bazarr.compat import rate_limiter as R
+from compat import rate_limiter as R
 
 
 def test_first_consume_returns_allowed():

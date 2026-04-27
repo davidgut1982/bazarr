@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 from babelfish import Language
-from bazarr.compat import response_mapper as M
+from compat import response_mapper as M
 
 
 def make_sub():
@@ -58,7 +58,7 @@ def test_search_envelope_paginates_total_pages():
 
 
 def test_download_response_emits_remaining_and_reset():
-    from bazarr.compat import response_mapper as M
+    from compat import response_mapper as M
     r = M.download_response("https://example/link",
                              remaining=42,
                              reset_iso="2099-01-01T00:00:00Z")
@@ -72,7 +72,7 @@ def test_download_response_emits_remaining_and_reset():
 
 
 def test_user_info_response_takes_real_counters():
-    from bazarr.compat import response_mapper as M
+    from compat import response_mapper as M
     r = M.user_info_response(remaining=17, allowed=1000,
                               reset_iso="2099-01-01T00:00:00Z")
     d = r["data"]
@@ -133,7 +133,7 @@ def test_upload_date_tz_aware_does_not_double_suffix():
     """Regression: tz-aware isoformat() + 'Z' produced '+00:00Z'."""
     from datetime import datetime, timezone
     from unittest.mock import MagicMock
-    from bazarr.compat import response_mapper as M
+    from compat import response_mapper as M
     aware = datetime(2023, 1, 15, 12, 34, 56, tzinfo=timezone.utc)
     sub = MagicMock(upload_date=aware, id="1",
                     language=MagicMock(alpha2="en"),
@@ -148,7 +148,7 @@ def test_upload_date_tz_aware_does_not_double_suffix():
 def test_upload_date_naive_gets_z_suffix():
     from datetime import datetime
     from unittest.mock import MagicMock
-    from bazarr.compat import response_mapper as M
+    from compat import response_mapper as M
     naive = datetime(2023, 1, 15, 12, 34, 56)
     sub = MagicMock(upload_date=naive, id="1",
                     language=MagicMock(alpha2="en"),
@@ -163,7 +163,7 @@ def test_provider_attributes_pass_through():
     """ai_translated, machine_translated, foreign_parts_only, fps are no
     longer hardcoded."""
     from unittest.mock import MagicMock
-    from bazarr.compat import response_mapper as M
+    from compat import response_mapper as M
     sub = MagicMock(
         upload_date=None, id="1", language=MagicMock(alpha2="en"),
         download_count=0, ratings=0.0, release_info="Movie.2020.1080p.WEB-DL",
@@ -180,7 +180,7 @@ def test_provider_attributes_pass_through():
 
 def test_hd_derived_from_release_info():
     from unittest.mock import MagicMock
-    from bazarr.compat import response_mapper as M
+    from compat import response_mapper as M
 
     def mk(release):
         return MagicMock(
@@ -197,7 +197,7 @@ def test_hd_derived_from_release_info():
 def test_comments_field_populated_from_release_info():
     """Plugin reads attributes.comments; used to be dropped."""
     from unittest.mock import MagicMock
-    from bazarr.compat import response_mapper as M
+    from compat import response_mapper as M
     sub = MagicMock(
         upload_date=None, id="1", language=MagicMock(alpha2="en"),
         download_count=0, ratings=0.0,
@@ -210,7 +210,7 @@ def test_comments_field_populated_from_release_info():
 
 def test_moviehash_match_reflects_hash_in_matches():
     from unittest.mock import MagicMock
-    from bazarr.compat import response_mapper as M
+    from compat import response_mapper as M
     sub = MagicMock(
         upload_date=None, id="1", language=MagicMock(alpha2="en"),
         download_count=0, ratings=0.0, release_info="",
@@ -223,7 +223,7 @@ def test_moviehash_match_reflects_hash_in_matches():
 
 def test_moviehash_match_false_when_hash_missing():
     from unittest.mock import MagicMock
-    from bazarr.compat import response_mapper as M
+    from compat import response_mapper as M
     sub = MagicMock(
         upload_date=None, id="1", language=MagicMock(alpha2="en"),
         download_count=0, ratings=0.0, release_info="",
@@ -236,7 +236,7 @@ def test_moviehash_match_false_when_hash_missing():
 
 def test_file_name_uses_provider_filename_when_available():
     from unittest.mock import MagicMock
-    from bazarr.compat import response_mapper as M
+    from compat import response_mapper as M
     sub = MagicMock(
         upload_date=None, id="1", language=MagicMock(alpha2="en"),
         download_count=0, ratings=0.0, release_info="",
@@ -249,7 +249,7 @@ def test_file_name_uses_provider_filename_when_available():
 
 def test_file_name_never_starts_with_dot_when_imdb_empty():
     from unittest.mock import MagicMock
-    from bazarr.compat import response_mapper as M
+    from compat import response_mapper as M
     sub = MagicMock(
         upload_date=None, id="1", language=MagicMock(alpha2="en"),
         download_count=0, ratings=0.0, release_info="",
@@ -265,7 +265,7 @@ def test_file_name_never_starts_with_dot_when_imdb_empty():
 def test_ratings_derived_from_score_tuple():
     """When caller threads (score, max_score), ratings is 0.0-10.0."""
     from unittest.mock import MagicMock
-    from bazarr.compat import response_mapper as M
+    from compat import response_mapper as M
     sub = MagicMock(
         upload_date=None, id="1", language=MagicMock(alpha2="en"),
         download_count=0, ratings=0.0, release_info="",
@@ -278,7 +278,7 @@ def test_ratings_derived_from_score_tuple():
 
 def test_requested_language_is_preserved_for_region_subtag():
     from unittest.mock import MagicMock
-    from bazarr.compat import response_mapper as M
+    from compat import response_mapper as M
     sub = MagicMock(
         upload_date=None, id="1",
         language=MagicMock(alpha2="zh"),
@@ -296,7 +296,7 @@ def test_provider_rating_wins_over_score_derived():
     used. Score-derived is only the fallback for providers without a
     native rating."""
     from unittest.mock import MagicMock
-    from bazarr.compat import response_mapper as M
+    from compat import response_mapper as M
     sub = MagicMock(
         upload_date=None, id="1", language=MagicMock(alpha2="en"),
         download_count=1000, ratings=8.5, release_info="",

@@ -4,7 +4,7 @@ from flask import Flask
 
 @pytest.fixture(autouse=True)
 def _reset_compat_secrets():
-    from bazarr.app.config import settings
+    from app.config import settings
     original = {
         name: getattr(settings.compat_endpoint, name, "")
         for name in ("token", "jwt_secret", "file_id_secret",
@@ -23,7 +23,7 @@ def _reset_compat_secrets():
 
 
 def _make_app():
-    from bazarr.compat.routes import compat_bp
+    from compat.routes import compat_bp
     app = Flask(__name__)
     app.register_blueprint(compat_bp, url_prefix="/api/v1")
     return app
@@ -62,8 +62,8 @@ def test_login_base_url_honors_x_forwarded_host():
 def test_download_link_uses_forwarded_host_for_fqdn():
     """When X-Forwarded-Host/Proto are set, the download link is absolute so
     OS-compat clients can hand it to an HTTP client without computing a base."""
-    from bazarr.compat import auth
-    from bazarr.compat.file_id_store import reset_store
+    from compat import auth
+    from compat.file_id_store import reset_store
     from unittest.mock import MagicMock
     reset_store()
     fake_sub = MagicMock(provider_name="os", id="1", language=MagicMock(),
@@ -91,8 +91,8 @@ def test_download_link_is_always_absolute():
     crash HttpClient.GetAsync when the plugin has no BaseAddress set.
     With only loopback visible we fall back to request.host_url, which
     is at least a valid absolute URL the client actually hit."""
-    from bazarr.compat import auth
-    from bazarr.compat.file_id_store import reset_store
+    from compat import auth
+    from compat.file_id_store import reset_store
     from unittest.mock import MagicMock
     reset_store()
     fake_sub = MagicMock(provider_name="os", id="1")

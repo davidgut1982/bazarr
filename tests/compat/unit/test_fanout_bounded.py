@@ -132,7 +132,7 @@ def test_concurrent_fanout_cap_blocks_extra_callers():
     from subliminal_patch.core_persistent import (
         list_all_subtitles_parallel,
     )
-    from bazarr.app.config import settings
+    from app.config import settings
 
     cap = int(settings.compat_endpoint.max_concurrent_fanouts)
 
@@ -198,7 +198,7 @@ def test_queued_futures_cancelled_after_wall_timeout(monkeypatch):
     picked up by a worker must be cancelled, not left to run after the
     caller returned. This guards against unbounded queue growth under
     repeated timed-out searches when provider count exceeds workers."""
-    from bazarr.app.config import settings
+    from app.config import settings
     from subliminal_patch.core_persistent import (
         list_all_subtitles_parallel, reset_pool,
     )
@@ -259,7 +259,7 @@ def test_wall_timeout_includes_semaphore_wait(monkeypatch):
     """The wall timeout is a hard total budget. Time spent waiting for
     the concurrency semaphore must count toward it, so a saturated cap
     cannot cause the request to spend nearly 2 * wall_timeout."""
-    from bazarr.app.config import settings
+    from app.config import settings
     from subliminal_patch.core_persistent import (
         list_all_subtitles_parallel, reset_pool,
     )

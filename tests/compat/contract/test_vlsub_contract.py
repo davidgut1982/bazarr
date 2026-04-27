@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 from babelfish import Language
-from bazarr.compat import service, cache as C
+from compat import service, cache as C
 
 
 def _resolve(obj, path):
@@ -33,7 +33,7 @@ def _check_type(value, type_name: str) -> bool:
 def test_vlsub_contract(monkeypatch):
     """Every JSON path VLSub reads from a subtitle search response must resolve
     with the correct primitive type. Extracted from the VLSub audit report."""
-    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.file_id_secret", "f" * 32)
+    monkeypatch.setattr("compat.auth.settings.compat_endpoint.file_id_secret", "f" * 32)
     contract_file = Path(__file__).parent.parent / "fixtures" / "client_contracts" / "vlsub_required.json"
     contract = json.loads(contract_file.read_text())
     C.invalidate_all()
@@ -46,9 +46,9 @@ def test_vlsub_contract(monkeypatch):
         ratings=0, uploader="Anon", upload_date=None,
     )
 
-    with patch("bazarr.compat.service._get_compat_pool") as gp, \
-         patch("bazarr.compat.service.list_all_subtitles_parallel") as lf, \
-         patch("bazarr.compat.service.auth.mint_file_id", return_value=42):
+    with patch("compat.service._get_compat_pool") as gp, \
+         patch("compat.service.list_all_subtitles_parallel") as lf, \
+         patch("compat.service.auth.mint_file_id", return_value=42):
         lf.return_value = {MagicMock(): [fake_sub]}
         gp.return_value.providers = ["opensubtitlescom"]
         gp.return_value.discarded_providers = set()

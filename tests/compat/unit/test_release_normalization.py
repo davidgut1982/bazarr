@@ -4,7 +4,7 @@ Providers pack multiple releases into one field with inconsistent separators.
 These tests pin the picking rule: prefer the part with the most release-
 quality markers (resolution/source/codec), tiebreak on length.
 """
-from bazarr.compat.response_mapper import _normalize_release
+from compat.response_mapper import _normalize_release
 
 
 def test_empty_returns_empty():
@@ -96,7 +96,7 @@ def test_comma_is_NOT_a_separator():
 def test_response_mapper_applies_normalization():
     """End-to-end: subtitle_to_os_entry uses the normalizer."""
     from unittest.mock import MagicMock
-    from bazarr.compat.response_mapper import subtitle_to_os_entry
+    from compat.response_mapper import subtitle_to_os_entry
     sub = MagicMock(
         language=MagicMock(alpha2="hu"),
         release_info="WEB-DL\nx264",

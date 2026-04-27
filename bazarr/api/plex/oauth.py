@@ -1,6 +1,7 @@
 # coding=utf-8
 
 import os
+import secrets as _secrets
 import time
 import uuid
 import requests
@@ -16,6 +17,20 @@ from plexapi.exceptions import BadRequest
 from . import api_ns_plex
 from .exceptions import *
 from .security import sanitize_log_data, pin_cache, sanitize_server_url
+
+
+def _generate_state_token() -> str:
+    """OAuth CSRF state token. Just a high-entropy random string - the
+    encryption-at-rest pipeline owns the apikey/token persistence, but
+    the per-PIN state token is purely for protecting the redirect from
+    forged requests. Lives in pin_cache only, never on disk."""
+    return _secrets.token_urlsafe(32)
+
+
+def _validate_state_token(state: str, stored_state: str) -> bool:
+    if not state or not stored_state:
+        return False
+    return _secrets.compare_digest(state, stored_state)
 from app.config import get_ssl_verify
 from app.config import settings, write_config
 from app.logger import logger
@@ -233,7 +248,7 @@ class PlexPin(Resource):
             instance_name = settings.general.get('instance_name', 'Bazarr')
             bazarr_version = os.environ.get('BAZARR_VERSION', 'unknown')
 
-            state_token = get_token_manager().generate_state_token()
+            state_token = _generate_state_token()
 
             headers = {
                 'Accept': 'application/json',
@@ -302,7 +317,7 @@ class PlexPinCheck(Resource):
 
             stored_state = cached_pin.get('state_token')
             if stored_state:
-                if not state_param or not get_token_manager().validate_state_token(state_param, stored_state):
+                if not state_param or not _validate_state_token(state_param, stored_state):
                     logger.warning(f"CSRF state validation failed for PIN {pin_id}")
                     abort(403, "Request validation failed")
 

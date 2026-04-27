@@ -1,5 +1,5 @@
 import pytest
-from bazarr.utilities.url_guard import assert_safe_outbound, UnsafeURLError
+from utilities.url_guard import assert_safe_outbound, UnsafeURLError
 
 @pytest.mark.parametrize("url", [
     "https://api.opensubtitles.com/api/v1/subtitles",

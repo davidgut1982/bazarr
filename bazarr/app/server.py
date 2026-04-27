@@ -18,7 +18,7 @@ from .database import close_database
 from .app import create_app
 
 app = create_app()
-from bazarr.compat import register as register_compat
+from compat import register as register_compat
 register_compat(app, base_url=base_url)
 app.register_blueprint(api_bp, url_prefix=base_url.rstrip('/') + '/api')
 app.register_blueprint(ui_bp, url_prefix=base_url.rstrip('/'))

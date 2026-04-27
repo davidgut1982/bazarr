@@ -16,9 +16,9 @@ import pytest
 # upstream design used `sys.modules.setdefault("app.config", ...)` which
 # becomes a no-op once any other test imports app.config and so the mock
 # never won when run with the broader suite).
-import bazarr.jellyfin.operations as _ops_module  # noqa: E402
+import jellyfin.operations as _ops_module  # noqa: E402
 
-from bazarr.jellyfin.operations import (  # noqa: E402
+from jellyfin.operations import (  # noqa: E402
     jellyfin_test_connection,
     jellyfin_get_libraries,
     jellyfin_refresh_item,
@@ -46,7 +46,7 @@ def _isolated_settings():
 def fake():
     """Provide a FakeJellyfinClient and patch get_jellyfin_client to return it."""
     client = FakeJellyfinClient()
-    with patch("bazarr.jellyfin.operations.get_jellyfin_client", return_value=client):
+    with patch("jellyfin.operations.get_jellyfin_client", return_value=client):
         yield client
 
 
@@ -57,7 +57,7 @@ def settings(_isolated_settings):
 
 
 def test_test_connection_success():
-    with patch("bazarr.jellyfin.operations.get_jellyfin_client") as mock_get:
+    with patch("jellyfin.operations.get_jellyfin_client") as mock_get:
         client = FakeJellyfinClient()
         mock_get.return_value = client
         result = jellyfin_test_connection()
@@ -71,7 +71,7 @@ def test_test_connection_failure():
     text. Server banners, URLs, and any echoed Authorization data must stay
     server-side (logged after redaction). The api_key in particular must NEVER
     appear in the response payload."""
-    with patch("bazarr.jellyfin.operations.get_jellyfin_client",
+    with patch("jellyfin.operations.get_jellyfin_client",
                side_effect=Exception("refused at https://jf:8096 SECRET")):
         result = jellyfin_test_connection()
     assert result["success"] is False
@@ -87,7 +87,7 @@ def test_test_connection_configuration_error():
     """Missing url / apikey are configuration errors (raised by our own
     get_jellyfin_client). Surface a distinct error_code so the UI can prompt
     correctly."""
-    with patch("bazarr.jellyfin.operations.get_jellyfin_client",
+    with patch("jellyfin.operations.get_jellyfin_client",
                side_effect=ValueError("Jellyfin URL not configured.")):
         result = jellyfin_test_connection()
     assert result["success"] is False
@@ -95,7 +95,7 @@ def test_test_connection_configuration_error():
 
 
 def test_test_connection_with_explicit_params():
-    with patch("bazarr.jellyfin.operations.get_jellyfin_client") as mock_get:
+    with patch("jellyfin.operations.get_jellyfin_client") as mock_get:
         mock_get.return_value = FakeJellyfinClient()
         jellyfin_test_connection(url="http://custom:8096", apikey="key")
         mock_get.assert_called_once_with("http://custom:8096", "key",
@@ -105,14 +105,14 @@ def test_test_connection_with_explicit_params():
 def test_test_connection_passes_verify_ssl_override():
     """When the UI toggle is honored without saving first, the override must
     flow all the way to JellyfinClient via get_jellyfin_client."""
-    with patch("bazarr.jellyfin.operations.get_jellyfin_client") as mock_get:
+    with patch("jellyfin.operations.get_jellyfin_client") as mock_get:
         mock_get.return_value = FakeJellyfinClient()
         jellyfin_test_connection(url="https://j", apikey="k", verify_ssl=False)
         mock_get.assert_called_once_with("https://j", "k", verify_ssl=False)
 
 
 def test_get_libraries_passes_verify_ssl_override():
-    with patch("bazarr.jellyfin.operations.get_jellyfin_client") as mock_get:
+    with patch("jellyfin.operations.get_jellyfin_client") as mock_get:
         mock_get.return_value = FakeJellyfinClient()
         jellyfin_get_libraries(url="https://j", apikey="k", verify_ssl=False)
         mock_get.assert_called_once_with("https://j", "k", verify_ssl=False)
@@ -120,7 +120,7 @@ def test_get_libraries_passes_verify_ssl_override():
 
 
 def test_get_libraries_filters_by_collection_type():
-    with patch("bazarr.jellyfin.operations.get_jellyfin_client") as mock_get:
+    with patch("jellyfin.operations.get_jellyfin_client") as mock_get:
         client = FakeJellyfinClient()
         client.libraries.append({
             "Name": "Music", "Locations": [], "CollectionType": "music", "ItemId": "lib-music",
@@ -140,7 +140,7 @@ def test_get_libraries_handles_null_collection_type():
     content libraries before classification). The filter must drop them, not
     crash. Note: bypasses the fake's OpenAPI validator (jsonschema rejects
     null where OpenAPI 3.0 marks `nullable: true`)."""
-    with patch("bazarr.jellyfin.operations.get_jellyfin_client") as mock_get:
+    with patch("jellyfin.operations.get_jellyfin_client") as mock_get:
         client = FakeJellyfinClient()
         client.get_libraries = lambda: [
             {"Name": "Misc", "Locations": [], "CollectionType": None, "ItemId": "x"},
@@ -155,7 +155,7 @@ def test_get_libraries_returns_connection_failed_on_error():
     """Connection/auth/TLS failures must surface as `connection_failed`, NOT
     silently as an empty list. Otherwise the UI cannot distinguish 'server
     unreachable' from 'no libraries exist' and renders the wrong guidance."""
-    with patch("bazarr.jellyfin.operations.get_jellyfin_client", side_effect=Exception("fail")):
+    with patch("jellyfin.operations.get_jellyfin_client", side_effect=Exception("fail")):
         result = jellyfin_get_libraries()
     assert result == {"libraries": [], "error_code": "connection_failed"}
 
@@ -189,7 +189,7 @@ def test_test_connection_falls_back_when_overrides_are_None(settings):
     callers like jellyfin_refresh_item()."""
     settings.jellyfin.url = "https://saved.example"
     settings.jellyfin.apikey = "saved-key"
-    with patch("bazarr.jellyfin.operations.JellyfinClient") as mock_client:
+    with patch("jellyfin.operations.JellyfinClient") as mock_client:
         mock_client.return_value.get_system_info.return_value = {
             "ServerName": "S", "Version": "1.0",
         }
@@ -202,7 +202,7 @@ def test_get_libraries_returns_configuration_when_url_or_key_missing():
     """ValueErrors from get_jellyfin_client (missing URL/apikey) get a
     distinct error_code so the UI guides 'configure URL/key first'
     instead of conflating with connectivity failures."""
-    with patch("bazarr.jellyfin.operations.get_jellyfin_client",
+    with patch("jellyfin.operations.get_jellyfin_client",
                side_effect=ValueError("Jellyfin URL not configured.")):
         result = jellyfin_get_libraries()
     assert result == {"libraries": [], "error_code": "configuration"}
@@ -381,7 +381,7 @@ def test_refresh_all_success_counts(fake, settings):
 def test_refresh_all_no_libraries_configured(settings):
     settings.jellyfin.movie_library_ids = []
     settings.jellyfin.series_library_ids = []
-    with patch("bazarr.jellyfin.operations.get_jellyfin_client",
+    with patch("jellyfin.operations.get_jellyfin_client",
                return_value=FakeJellyfinClient()):
         result = jellyfin_refresh_all_libraries()
     assert result["success"] is False
@@ -389,7 +389,7 @@ def test_refresh_all_no_libraries_configured(settings):
 
 
 def test_refresh_all_configuration_error():
-    with patch("bazarr.jellyfin.operations.get_jellyfin_client",
+    with patch("jellyfin.operations.get_jellyfin_client",
                side_effect=ValueError("Jellyfin URL not configured.")):
         result = jellyfin_refresh_all_libraries()
     assert result["success"] is False
@@ -397,7 +397,7 @@ def test_refresh_all_configuration_error():
 
 
 def test_refresh_all_connection_failure():
-    with patch("bazarr.jellyfin.operations.get_jellyfin_client",
+    with patch("jellyfin.operations.get_jellyfin_client",
                side_effect=Exception("connection refused at https://x SECRET")):
         result = jellyfin_refresh_all_libraries()
     assert result["success"] is False
@@ -461,7 +461,7 @@ def test_redact_strips_override_apikey_when_test_connection_fails(settings):
     override = "override-key-LEAK-CANDIDATE"
     err = f"401 Unauthorized for /System/Info?api_key={override}"
 
-    with patch("bazarr.jellyfin.operations.get_jellyfin_client",
+    with patch("jellyfin.operations.get_jellyfin_client",
                side_effect=Exception(err)):
         with patch.object(_ops_module.logger, "error") as mock_error:
             result = jellyfin_test_connection(url="https://j", apikey=override,
@@ -508,7 +508,7 @@ def test_redact_strips_override_apikey_when_get_libraries_fails(settings):
     override = "override-libs-LEAK-CANDIDATE"
     err = f"timeout fetching /Library/VirtualFolders for token {override}"
 
-    with patch("bazarr.jellyfin.operations.get_jellyfin_client",
+    with patch("jellyfin.operations.get_jellyfin_client",
                side_effect=Exception(err)):
         with patch.object(_ops_module.logger, "error") as mock_error:
             result = jellyfin_get_libraries(url="https://j", apikey=override,

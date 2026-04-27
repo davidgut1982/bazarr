@@ -11,7 +11,7 @@ from typing import Tuple
 import jwt as pyjwt
 from flask import jsonify, make_response, request
 
-from bazarr.app.config import settings
+from app.config import settings
 
 
 _XREASON_ALLOWED = frozenset({
@@ -63,7 +63,7 @@ def validate_jwt(token: str | None) -> Tuple[bool, dict]:
         claims = pyjwt.decode(token, secret, algorithms=["HS256"])
     except pyjwt.PyJWTError:
         return False, {}
-    from bazarr.compat import jwt_denylist
+    from . import jwt_denylist
     jti = claims.get("jti")
     if jti and jwt_denylist.is_revoked(jti):
         return False, {}
@@ -72,7 +72,7 @@ def validate_jwt(token: str | None) -> Tuple[bool, dict]:
 
 def revoke_jwt(jti: str, exp: int) -> None:
     """Add a jti to the server-side revocation denylist. Called by /logout."""
-    from bazarr.compat import jwt_denylist
+    from . import jwt_denylist
     jwt_denylist.revoke(jti, exp)
 
 
@@ -112,7 +112,7 @@ def mint_file_id(provider: str, native_id: str, language: str, release_info: str
     it straight to the pool's `download_subtitle(sub)`, which is the only
     reliable way to fetch content across providers.
     """
-    from bazarr.compat.file_id_store import get_store
+    from .file_id_store import get_store
     ttl = int(settings.compat_endpoint.file_id_ttl_seconds)
     release_hash = hashlib.sha1((release_info or "").encode()).hexdigest()[:10]
     payload = {"p": provider, "i": str(native_id), "l": str(language),
@@ -122,7 +122,7 @@ def mint_file_id(provider: str, native_id: str, language: str, release_info: str
 
 def parse_file_id(fid) -> Tuple[bool, dict]:
     """Resolve an int (or digit string) file_id to its stored payload."""
-    from bazarr.compat.file_id_store import get_store
+    from .file_id_store import get_store
     return get_store().get(fid)
 
 

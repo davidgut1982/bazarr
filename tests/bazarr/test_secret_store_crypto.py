@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from bazarr.secret_store.crypto import (
+from secret_store.crypto import (
     SECRET_MARKER_PREFIX,
     decrypt_secret,
     encrypt_secret,

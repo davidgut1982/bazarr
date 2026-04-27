@@ -2,7 +2,7 @@ import time
 
 import pytest
 
-from bazarr.subtitles.tools.translate.services import gemini_translator
+from subtitles.tools.translate.services import gemini_translator
 
 
 def _build_service():

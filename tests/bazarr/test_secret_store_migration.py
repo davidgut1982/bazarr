@@ -10,13 +10,13 @@ from unittest.mock import patch
 
 import pytest
 
-from bazarr.secret_store.crypto import (
+from secret_store.crypto import (
     SECRET_MARKER_PREFIX,
     encrypt_secret,
     get_master_key,
     is_encrypted,
 )
-from bazarr.secret_store.migration import (
+from secret_store.migration import (
     decrypt_settings_dict,
     decrypt_settings_in_place,
     encrypt_settings_dict,
@@ -28,7 +28,7 @@ def fixed_master_key(monkeypatch):
     """Patch get_master_key so tests don't reach for app.config.settings."""
     key = "test-master-key-not-secret-but-stable-for-tests"
     monkeypatch.setattr(
-        "bazarr.secret_store.crypto.get_master_key",
+        "secret_store.crypto.get_master_key",
         lambda settings_obj=None: key,
     )
     yield key
@@ -37,7 +37,16 @@ def fixed_master_key(monkeypatch):
 @pytest.fixture
 def plaintext_dict():
     return {
-        "general": {"flask_secret_key": "system", "instance_name": "Bazarr+"},
+        # Mirrors the post-bootstrap shape: get_master_key has already
+        # generated and persisted general.secrets_encryption_key. The
+        # encrypt-settings-dict path expects the master key to be in
+        # the snapshot so on-disk ciphertext stays paired with the key
+        # that decrypts it (Codex P1 fix on a first-write race).
+        "general": {
+            "flask_secret_key": "system",
+            "instance_name": "Bazarr+",
+            "secrets_encryption_key": "test-master-key-not-secret-but-stable-for-tests",
+        },
         "sonarr": {"apikey": "sonarr-plain-key", "url": "http://sonarr"},
         "radarr": {"apikey": "radarr-plain-key"},
         "translator": {

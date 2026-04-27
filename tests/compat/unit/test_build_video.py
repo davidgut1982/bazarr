@@ -13,13 +13,13 @@ import pytest
 def _no_library(monkeypatch):
     """Force the library metadata lookup to return empty by default; tests
     that care about it patch the function explicitly."""
-    from bazarr.compat import service
+    from compat import service
     monkeypatch.setattr(service, "_lookup_library_metadata",
                         lambda imdb_id, media_type, season=None, episode=None: {})
 
 
 def test_movie_without_query_is_bare_but_has_imdb_id():
-    from bazarr.compat.service import _build_video
+    from compat.service import _build_video
     from subliminal.video import Movie
     v = _build_video("tt0111161", None, None, "movie")
     assert isinstance(v, Movie)
@@ -30,7 +30,7 @@ def test_movie_without_query_is_bare_but_has_imdb_id():
 
 def test_movie_with_filename_extracts_release_metadata():
     """guessit should populate source/release_group/resolution/codec."""
-    from bazarr.compat.service import _build_video
+    from compat.service import _build_video
     v = _build_video(
         "tt0111161", None, None, "movie",
         query="The.Shawshank.Redemption.1994.1080p.BluRay.x264-RARBG.mkv",
@@ -44,8 +44,8 @@ def test_movie_with_filename_extracts_release_metadata():
 
 
 def test_movie_uses_library_title_when_available():
-    from bazarr.compat import service
-    from bazarr.compat.service import _build_video
+    from compat import service
+    from compat.service import _build_video
     with patch.object(service, "_lookup_library_metadata",
                        return_value={"title": "The Shawshank Redemption", "year": "1994"}):
         v = _build_video("tt0111161", None, None, "movie")
@@ -54,7 +54,7 @@ def test_movie_uses_library_title_when_available():
 
 
 def test_episode_sets_series_imdb_and_season_episode():
-    from bazarr.compat.service import _build_video
+    from compat.service import _build_video
     from subliminal.video import Episode
     v = _build_video("tt0903747", 1, 2, "episode",
                      query="Breaking.Bad.S01E02.720p.HDTV.x264-GROUP.mkv")
@@ -67,7 +67,7 @@ def test_episode_sets_series_imdb_and_season_episode():
 
 def test_moviehash_is_wired_for_opensubtitles_providers():
     """OS-style moviehash enables exact-hash matching on the OS providers."""
-    from bazarr.compat.service import _build_video
+    from compat.service import _build_video
     v = _build_video("tt0111161", None, None, "movie",
                      moviehash="8e245d9679d31e12")
     assert v.hashes.get("opensubtitles") == "8e245d9679d31e12"
@@ -78,7 +78,7 @@ def test_imdb_id_normalized_to_tt_prefix():
     """OS-compat clients (Jellyfin plugin) strip 'tt' before sending.
     OMDB / TVDB v1 / v4 all reject the bare numeric form, so we normalize
     at Video construction and carry the tt-prefixed value downstream."""
-    from bazarr.compat.service import _tt, _build_video
+    from compat.service import _tt, _build_video
     assert _tt("9198004") == "tt9198004"
     assert _tt("tt9198004") == "tt9198004"
     assert _tt("TT9198004") == "tt9198004"
@@ -95,8 +95,8 @@ def test_imdb_id_normalized_to_tt_prefix():
 def test_library_title_wins_over_guessit_title_but_guessit_fills_gaps():
     """When both sources have info, library title wins (curated); guessit
     provides the release-quality fields library lookup can't supply."""
-    from bazarr.compat import service
-    from bazarr.compat.service import _build_video
+    from compat import service
+    from compat.service import _build_video
     with patch.object(service, "_lookup_library_metadata",
                        return_value={"title": "The Shawshank Redemption", "year": "1994"}):
         v = _build_video(
@@ -114,8 +114,8 @@ def test_library_path_delegates_to_parse_video():
     native manual search). Falls back to virtual Video when the file is
     missing or parse_video fails."""
     from unittest.mock import MagicMock
-    from bazarr.compat import service
-    from bazarr.compat.service import _build_video
+    from compat import service
+    from compat.service import _build_video
     from subliminal.video import Movie
 
     fake_video = Movie(name="Shawshank.2160p.BluRay.mkv",
@@ -131,7 +131,7 @@ def test_library_path_delegates_to_parse_video():
                                      "path": "/storage/shawshank.mkv",
                                      "sceneName": "shawshank.2160p.bluray"}), \
          patch("os.path.exists", return_value=True), \
-         patch("bazarr.subtitles.utils.get_video",
+         patch("subtitles.utils.get_video",
                 return_value=fake_video) as gv:
         v = _build_video("tt0111161", None, None, "movie")
 
@@ -144,8 +144,8 @@ def test_library_path_delegates_to_parse_video():
 def test_library_path_missing_file_falls_back_to_virtual():
     """If the library has a path but the file isn't accessible, build the
     virtual Video rather than erroring."""
-    from bazarr.compat import service
-    from bazarr.compat.service import _build_video
+    from compat import service
+    from compat.service import _build_video
     with patch.object(service, "_lookup_library_metadata",
                        return_value={"title": "Shawshank", "year": "1994",
                                      "path": "/nonexistent/file.mkv"}), \
