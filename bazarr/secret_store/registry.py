@@ -50,8 +50,13 @@ USER_VISIBLE_SECRETS = frozenset({
     # Network proxy + database
     "proxy.password",
     "postgresql.password",
-    # AI Subtitle Translator
+    # AI Subtitle Translator. The "encryption_key" here is a USER-managed
+    # secret - the Translator settings page exposes it as a Password field
+    # ("Encryption Key (optional)") that the user enters and rotates. It
+    # is NOT a master key that signs other secrets, so it's user-visible
+    # at rest and decrypted before the API returns it.
     "translator.openrouter_api_key",
+    "translator.openrouter_encryption_key",
     "translator.lingarr_token",
     # Subtitle providers - passwords
     "opensubtitles.password",
@@ -96,8 +101,6 @@ SYSTEM_SECRETS = frozenset({
     # path still has it masked in API responses during the migration
     # window)
     "plex.encryption_key",
-    # AI Subtitle Translator's local OpenRouter encryption key
-    "translator.openrouter_encryption_key",
 })
 
 

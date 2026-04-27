@@ -656,8 +656,6 @@ def write_config():
 
 base_url = settings.general.base_url.rstrip('/')
 
-ignore_keys = ['flask_secret_key']
-
 array_keys = ['excluded_tags',
               'exclude',
               'included_codecs',
@@ -723,14 +721,23 @@ write_config()
 
 
 def get_settings():
-    # return {k.lower(): v for k, v in settings.as_dict().items()}
+    # API serializer for /api/system/settings. SYSTEM_SECRETS are masked
+    # with '***' (key still present so the wire shape is stable, value
+    # hidden); USER_VISIBLE_SECRETS pass through unchanged because the
+    # in-memory settings already hold their decrypted plaintext.
+    from secret_store import is_system_secret  # noqa: PLC0415
     settings_to_return = {}
     for k, v in settings.as_dict().items():
         if isinstance(v, dict):
             k = k.lower()
             settings_to_return[k] = dict()
             for subk, subv in v.items():
-                if subk.lower() in ignore_keys:
+                full_path = f"{k}.{subk.lower()}"
+                if is_system_secret(full_path):
+                    # Keep empty values literally empty so the UI can
+                    # distinguish "not configured" from "configured but
+                    # hidden". Non-empty system secrets get the mask.
+                    settings_to_return[k][subk] = '***' if subv else subv
                     continue
                 if subv in empty_values and subk.lower() in array_keys:
                     settings_to_return[k].update({subk: []})

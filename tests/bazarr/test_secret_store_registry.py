@@ -51,9 +51,17 @@ def test_system_includes_master_and_signing_keys():
                 "general.secrets_encryption_key",
                 "compat_endpoint.jwt_secret",
                 "compat_endpoint.file_id_secret",
-                "plex.encryption_key",
-                "translator.openrouter_encryption_key"):
+                "plex.encryption_key"):
         assert is_system_secret(key), f"{key} should be system-only"
+
+
+def test_translator_openrouter_encryption_key_is_user_visible():
+    """The Translator settings page exposes a 'Encryption Key (optional)'
+    Password field for translator.openrouter_encryption_key. It's a
+    user-managed credential, NOT a master key - so it's user-visible at
+    rest and decrypted before the API returns it."""
+    assert is_user_visible_secret("translator.openrouter_encryption_key")
+    assert not is_system_secret("translator.openrouter_encryption_key")
 
 
 def test_translator_gemini_keys_classified_as_list():
