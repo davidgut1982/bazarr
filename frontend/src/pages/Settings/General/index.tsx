@@ -1,5 +1,10 @@
 import { FunctionComponent, useState } from "react";
-import { Box, Group as MantineGroup, Text as MantineText } from "@mantine/core";
+import {
+  Box,
+  Group as MantineGroup,
+  PasswordInput,
+  Text as MantineText,
+} from "@mantine/core";
 import { useClipboard } from "@mantine/hooks";
 import {
   faCheck,
@@ -22,9 +27,63 @@ import {
   Selector,
   Text,
 } from "@/pages/Settings/components";
+import { useBaseInput } from "@/pages/Settings/utilities/hooks";
 import { Environment, toggleState } from "@/utilities";
 import ExternalWebhookSelector from "./ExternalWebhookSelector";
 import { branchOptions, proxyOptions, securityOptions } from "./options";
+
+// Auth password input that NEVER displays the stored value.
+//
+// At rest, settings.auth.password holds a one-way hash (PBKDF2 since the
+// post-md5 migration). Pre-populating the input with that hash would
+// either reveal it via the eye toggle (useless to the user, but harmful
+// in screen-shares / support bundles) or, on submit, round-trip the hash
+// back to the backend. save_settings's `value != settings.auth.password`
+// check would catch that exact case - but ONLY when the value sent in
+// matches the stored hash byte-for-byte, which fails the moment a hash
+// is encrypted-then-decrypted across a single character (the
+// equality compare is strict). So we never read the stored value into
+// the input at all.
+//
+// State machine:
+// - User loads page: input empty, draft="", touched=false. No setValue
+//   call -> form has no pending change for this key -> save preserves
+//   the existing hash.
+// - User types "newpw": draft="newpw", touched=true, update("newpw")
+//   stages the new password. save_settings hashes it via hash_password.
+// - User clears the field after typing: draft="", touched=true. We push
+//   the existing stored hash back in via update(stored) so the
+//   save_settings comparison `value == settings.auth.password` is true
+//   and no re-hash happens. Without this, a stray clear would submit
+//   None (or "") and either null out the password or hash an empty
+//   string.
+const AuthPasswordInput: FunctionComponent = () => {
+  const { value: stored, update } = useBaseInput<
+    { settingKey: string },
+    string
+  >({
+    settingKey: "settings-auth-password",
+  });
+  const [draft, setDraft] = useState("");
+  const [touched, setTouched] = useState(false);
+  return (
+    <PasswordInput
+      label="Password"
+      placeholder="Leave empty to keep current password"
+      value={draft}
+      onChange={(e) => {
+        const next = e.currentTarget.value;
+        setDraft(next);
+        if (next.length > 0) {
+          if (!touched) setTouched(true);
+          update(next);
+        } else if (touched) {
+          update(stored ?? null);
+        }
+      }}
+    />
+  );
+};
 
 const characters = "abcdef0123456789";
 const settingApiKey = "settings-auth-apikey";
@@ -97,10 +156,7 @@ const SettingsGeneralView: FunctionComponent = () => {
         ></Selector>
         <CollapseBox settingKey="settings-auth-type">
           <Text label="Username" settingKey="settings-auth-username"></Text>
-          <Password
-            label="Password"
-            settingKey="settings-auth-password"
-          ></Password>
+          <AuthPasswordInput />
         </CollapseBox>
         <Text
           label="API Key"
