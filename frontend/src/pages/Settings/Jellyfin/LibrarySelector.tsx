@@ -68,11 +68,14 @@ const LibrarySelector: FunctionComponent<LibrarySelectorProps> = (props) => {
 
   if (!isConfigured) {
     return (
-      <Alert color="brand" variant="light" className={styles.alertMessage}>
-        Configure Jellyfin URL and API Key above to discover libraries.
+      <Alert color="gray" variant="light" className={styles.alertMessage}>
+        Enter your Jellyfin Server URL and API Key in the Connection section
+        above; libraries will appear here once Bazarr+ can reach the server.
       </Alert>
     );
   }
+
+  const libraryNoun = libraryType === "movies" ? "movie" : "TV show";
 
   return (
     <div className={styles.librarySelector}>
@@ -95,12 +98,15 @@ const LibrarySelector: FunctionComponent<LibrarySelectorProps> = (props) => {
         )}
         {error && !isLoading && (
           <Alert color="red" variant="light" className={styles.alertMessage}>
-            Failed to load libraries from Jellyfin.
+            Failed to load libraries from Jellyfin. Saved selections are shown
+            above. Verify the Server URL and API Key in the Connection section,
+            and that the API key's user has access to the libraries.
           </Alert>
         )}
         {!error && !isLoading && selectData.length === 0 && (
           <Alert color="gray" variant="light" className={styles.alertMessage}>
-            No {libraryType === "movies" ? "movie" : "TV show"} libraries found.
+            No {libraryNoun} libraries found on this Jellyfin server. Make sure
+            at least one is visible to the API key's user account.
           </Alert>
         )}
       </Stack>
