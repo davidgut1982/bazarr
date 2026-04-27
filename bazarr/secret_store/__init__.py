@@ -28,6 +28,11 @@ from .crypto import (
     get_master_key,
     is_encrypted,
 )
+from .migration import (
+    decrypt_settings_dict,
+    decrypt_settings_in_place,
+    encrypt_settings_dict,
+)
 from .registry import (
     SYSTEM_SECRETS,
     USER_VISIBLE_SECRET_LISTS,
@@ -43,7 +48,10 @@ __all__ = [
     "USER_VISIBLE_SECRET_LISTS",
     "USER_VISIBLE_SECRETS",
     "decrypt_secret",
+    "decrypt_settings_dict",
+    "decrypt_settings_in_place",
     "encrypt_secret",
+    "encrypt_settings_dict",
     "get_master_key",
     "is_encrypted",
     "is_system_secret",

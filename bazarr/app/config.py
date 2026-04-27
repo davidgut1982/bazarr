@@ -608,26 +608,50 @@ while failed_validator:
                              f"Bazarr won't work until it's been fixed.")
             stop_bazarr(EXIT_VALIDATION_ERROR)
 
+# Decrypt every USER_VISIBLE_SECRET in the live settings object so the
+# rest of bazarr reads plaintext credentials. On a freshly-upgraded
+# instance the values are still plaintext (no marker prefix) and this
+# call is a no-op; on subsequent boots the values come from disk as
+# ciphertext and get decrypted in place. The complementary encryption
+# happens inside write_config() before the dict hits config.yaml.
+from secret_store import (  # noqa: E402
+    decrypt_settings_dict,
+    decrypt_settings_in_place,
+    encrypt_settings_dict,
+)
+
+decrypt_settings_in_place(settings)
+
 
 def write_config():
-    if settings.as_dict() == Dynaconf(
-        settings_file=config_yaml_file,
-        core_loaders=['YAML']
-    ).as_dict():
+    # On-disk shape compared in plaintext form: encrypt_secret is non-
+    # deterministic (per-payload salt + timestamp), so naive ciphertext
+    # comparison would always diff and rewrite config.yaml on every save.
+    in_memory_plaintext = {k.lower(): v for k, v in settings.as_dict().items()}
+    on_disk_dict = {
+        k.lower(): v for k, v in Dynaconf(
+            settings_file=config_yaml_file,
+            core_loaders=['YAML'],
+        ).as_dict().items()
+    }
+    on_disk_plaintext = decrypt_settings_dict(on_disk_dict)
+
+    if in_memory_plaintext == on_disk_plaintext:
         logging.debug("Nothing changed when comparing to config file. Skipping write to file.")
+        return
+
+    try:
+        write(settings_path=config_yaml_file + '.tmp',
+              settings_data=encrypt_settings_dict(in_memory_plaintext),
+              merge=False)
+    except Exception as error:
+        logging.exception(f"Exception raised while trying to save temporary settings file: {error}")
     else:
         try:
-            write(settings_path=config_yaml_file + '.tmp',
-                  settings_data={k.lower(): v for k, v in settings.as_dict().items()},
-                  merge=False)
+            move(config_yaml_file + '.tmp', config_yaml_file)
         except Exception as error:
-            logging.exception(f"Exception raised while trying to save temporary settings file: {error}")
-        else:
-            try:
-                move(config_yaml_file + '.tmp', config_yaml_file)
-            except Exception as error:
-                logging.exception(f"Exception raised while trying to overwrite settings file with temporary settings "
-                                  f"file: {error}")
+            logging.exception(f"Exception raised while trying to overwrite settings file with temporary settings "
+                              f"file: {error}")
 
 
 base_url = settings.general.base_url.rstrip('/')
