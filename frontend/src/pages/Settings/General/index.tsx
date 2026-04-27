@@ -1,4 +1,4 @@
-import { FunctionComponent, useState } from "react";
+import { FunctionComponent, useRef, useState } from "react";
 import {
   Box,
   Group as MantineGroup,
@@ -41,9 +41,8 @@ import { branchOptions, proxyOptions, securityOptions } from "./options";
 // back to the backend. save_settings's `value != settings.auth.password`
 // check would catch that exact case - but ONLY when the value sent in
 // matches the stored hash byte-for-byte, which fails the moment a hash
-// is encrypted-then-decrypted across a single character (the
-// equality compare is strict). So we never read the stored value into
-// the input at all.
+// is encrypted-then-decrypted across a single character. So we never
+// read the stored value into the input at all.
 //
 // State machine:
 // - User loads page: input empty, draft="", touched=false. No setValue
@@ -52,11 +51,19 @@ import { branchOptions, proxyOptions, securityOptions } from "./options";
 // - User types "newpw": draft="newpw", touched=true, update("newpw")
 //   stages the new password. save_settings hashes it via hash_password.
 // - User clears the field after typing: draft="", touched=true. We push
-//   the existing stored hash back in via update(stored) so the
-//   save_settings comparison `value == settings.auth.password` is true
-//   and no re-hash happens. Without this, a stray clear would submit
-//   None (or "") and either null out the password or hash an empty
-//   string.
+//   the ORIGINAL hash (snapshotted on first render via originalRef)
+//   back in via update(...) so save_settings's
+//   `value == settings.auth.password` matches and no re-hash happens.
+//
+// originalRef vs reading `stored` directly: useBaseInput returns the
+// staged form value, which becomes whatever update() last set it to.
+// After typing "newpw", a fresh `stored` read returns "newpw", so a
+// fall-back to `stored` on clear would re-stage the new password
+// instead of the original hash - silently saving the typed-then-
+// cancelled password. Codex flagged this. The ref captures the value
+// once on first render (before any user interaction can stage anything)
+// and stays pinned to the loaded hash for the lifetime of the
+// component.
 const AuthPasswordInput: FunctionComponent = () => {
   const { value: stored, update } = useBaseInput<
     { settingKey: string },
@@ -64,6 +71,14 @@ const AuthPasswordInput: FunctionComponent = () => {
   >({
     settingKey: "settings-auth-password",
   });
+  const originalRef = useRef<string | null>(null);
+  if (
+    originalRef.current === null &&
+    typeof stored === "string" &&
+    stored.length > 0
+  ) {
+    originalRef.current = stored;
+  }
   const [draft, setDraft] = useState("");
   const [touched, setTouched] = useState(false);
   return (
@@ -78,7 +93,7 @@ const AuthPasswordInput: FunctionComponent = () => {
           if (!touched) setTouched(true);
           update(next);
         } else if (touched) {
-          update(stored ?? null);
+          update(originalRef.current);
         }
       }}
     />

@@ -788,8 +788,15 @@ def _fetch_subtitle_bytes(sub) -> bytes:
     # in these fields and construct the actual fetch URL inside their own
     # download_subtitle(). Running the guard on a non-URL string would reject
     # perfectly legitimate providers for the wrong reason.
+    #
+    # Scheme detection is case-insensitive: HTTP clients treat schemes as
+    # case-insensitive per RFC 3986, so a hostile provider returning
+    # `HTTP://169.254.169.254/...` (uppercase) must NOT slip past the
+    # guard just because `startswith` is byte-exact. Codex flagged this
+    # as a bypass: the request would still hit the cloud-metadata
+    # endpoint via pool.download_subtitle() with no SSRF check applied.
     url = getattr(sub, "download_link", None) or getattr(sub, "url", None)
-    if isinstance(url, str) and url.startswith(("http://", "https://")):
+    if isinstance(url, str) and url[:8].lower().startswith(("http://", "https://")):
         assert_safe_outbound(url)  # raises UnsafeURLError on private/loopback/etc.
 
     provider_name = getattr(sub, "provider_name", None)
@@ -809,7 +816,7 @@ def _fetch_subtitle_bytes(sub) -> bytes:
     # SSRF guard. Check the post-download URL if the provider updated it.
     post_url = getattr(sub, "download_link", None) or getattr(sub, "url", None)
     if (isinstance(post_url, str)
-            and post_url.startswith(("http://", "https://"))
+            and post_url[:8].lower().startswith(("http://", "https://"))
             and post_url != url):
         assert_safe_outbound(post_url)
     content = getattr(sub, "content", None)

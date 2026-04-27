@@ -372,6 +372,40 @@ def test_legacy_plex_migration_skips_when_flag_unset():
     assert settings.plex.apikey == "fresh-install-plaintext"
 
 
+def test_legacy_plex_migration_recovers_oauth_token_without_apikey_flag():
+    """The Plex OAuth flow stored `settings.plex.token = encrypt_token(...)`
+    but never set `apikey_encrypted` - that flag was scoped to the
+    apikey path only. Codex flagged that gating migration on the flag
+    leaves OAuth users with a legacy ciphertext that the unified
+    pipeline then re-encrypts as if it were plaintext, breaking login
+    after upgrade.
+
+    Detection has to be value-shaped (try legacy decrypt; succeed -> use
+    plaintext) so the OAuth-no-flag case is covered alongside the
+    apikey-with-flag case."""
+    legacy_key = "legacy-plex-encryption-key-pre-unification"
+    plaintext_token = "real-plex-oauth-token-from-myplex-account"
+    legacy_token = _legacy_plex_encrypt(plaintext_token, legacy_key)
+
+    settings = _FakeSettings({
+        "plex": {
+            # apikey path NOT used by this OAuth install
+            "apikey": "",
+            # OAuth token IS encrypted under the legacy scheme
+            "token": legacy_token,
+            "encryption_key": legacy_key,
+            # Critically: NO apikey_encrypted=True flag, because OAuth
+            # never wrote it.
+            "apikey_encrypted": False,
+        },
+    })
+
+    migrate_legacy_plex_encryption(settings)
+
+    assert settings.plex.token == plaintext_token
+    assert settings.plex.encryption_key == legacy_key
+
+
 def test_legacy_plex_migration_handles_missing_encryption_key():
     """An install with apikey_encrypted=True but no encryption_key is in
     an inconsistent state. The migration must clear the flag (so it
