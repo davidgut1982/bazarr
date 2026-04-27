@@ -1,5 +1,5 @@
 import pytest
-from bazarr.compat import service
+from compat import service
 
 
 def test_guessit_returns_native_dict():

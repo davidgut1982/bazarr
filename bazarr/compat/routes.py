@@ -1,7 +1,12 @@
 from __future__ import annotations
 from flask import Blueprint, request, jsonify, Response
-from bazarr.compat.auth import compat_error
-from bazarr.utilities.url_guard import UnsafeURLError
+# Intra-package and intra-app imports MUST drop the `bazarr.` prefix - the
+# rest of bazarr resolves modules from `bazarr/` as sys.path root, and a
+# `bazarr.foo` import resolves to a SECOND module instance with its own
+# state. Codex flagged duplicate settings/database instances on writes
+# from /system/compat/regenerate.
+from .auth import compat_error
+from utilities.url_guard import UnsafeURLError
 
 compat_stub_bp = Blueprint("compat_stub", __name__)
 
@@ -13,8 +18,8 @@ def _all_disabled(path):
 
 
 import datetime as _dt
-from bazarr.compat import auth, service, response_mapper as M, rate_limiter
-from bazarr.compat.auth import compat_auth
+from . import auth, service, response_mapper as M, rate_limiter
+from .auth import compat_auth
 
 
 _SUPPORTED_SUB_FORMATS = frozenset({"srt"})
@@ -41,7 +46,7 @@ def _resolve_tmdb_to_imdb(tmdb_id: str) -> str:
     resolution fails or the movie is not in the library.
     """
     try:
-        from bazarr.app.database import database, select, TableMovies
+        from app.database import database, select, TableMovies
         row = database.execute(
             select(TableMovies.imdbId)
             .where(TableMovies.tmdbId == str(tmdb_id))
@@ -54,7 +59,7 @@ def _resolve_tmdb_to_imdb(tmdb_id: str) -> str:
 
 
 def _quota_config() -> tuple[int, int]:
-    from bazarr.app.config import settings
+    from app.config import settings
     return (int(settings.compat_endpoint.downloads_per_window),
             int(settings.compat_endpoint.downloads_window_seconds))
 

@@ -5,7 +5,7 @@ import pytest
 from unittest.mock import Mock, patch
 from flask import Flask
 
-from bazarr.app.ui import check_login
+from app.ui import check_login
 
 
 def test_check_login_decorator_preserves_function_signature():
@@ -58,7 +58,7 @@ def test_check_login_no_authentication():
         return "success_response"
 
     # Mock settings for no authentication
-    with patch('bazarr.app.ui.settings') as mock_settings:
+    with patch('app.ui.settings') as mock_settings:
         mock_settings.auth.type = None
 
         decorated_function = check_login(test_function)
@@ -77,8 +77,8 @@ def test_check_login_basic_auth_success():
     # Mock Flask request context with basic auth
     app = Flask(__name__)
     with app.test_request_context(headers={'Authorization': 'Basic dGVzdDp0ZXN0'}):
-        with patch('bazarr.app.ui.settings') as mock_settings, \
-             patch('bazarr.app.ui.check_credentials', return_value=True):
+        with patch('app.ui.settings') as mock_settings, \
+             patch('app.ui.check_credentials', return_value=True):
 
             mock_settings.auth.type = 'basic'
 
@@ -98,8 +98,8 @@ def test_check_login_basic_auth_failure():
     # Mock Flask request context with invalid basic auth
     app = Flask(__name__)
     with app.test_request_context(headers={'Authorization': 'Basic aW52YWxpZA=='}):
-        with patch('bazarr.app.ui.settings') as mock_settings, \
-             patch('bazarr.app.ui.check_credentials', return_value=False):
+        with patch('app.ui.settings') as mock_settings, \
+             patch('app.ui.check_credentials', return_value=False):
 
             mock_settings.auth.type = 'basic'
 
@@ -122,7 +122,7 @@ def test_check_login_basic_auth_missing():
     # Mock Flask request context without authorization header
     app = Flask(__name__)
     with app.test_request_context():
-        with patch('bazarr.app.ui.settings') as mock_settings:
+        with patch('app.ui.settings') as mock_settings:
             mock_settings.auth.type = 'basic'
 
             decorated_function = check_login(test_function)
@@ -146,8 +146,8 @@ def test_check_login_form_auth_success():
     app.secret_key = 'test_secret'
 
     with app.test_request_context():
-        with patch('bazarr.app.ui.settings') as mock_settings, \
-             patch('bazarr.app.ui.session', {'logged_in': True}):
+        with patch('app.ui.settings') as mock_settings, \
+             patch('app.ui.session', {'logged_in': True}):
 
             mock_settings.auth.type = 'form'
 
@@ -166,9 +166,9 @@ def test_check_login_form_auth_failure():
 
     app = Flask(__name__)
     with app.test_request_context():
-        with patch('bazarr.app.ui.settings') as mock_settings, \
-             patch('bazarr.app.ui.session', {}) as mock_session, \
-             patch('bazarr.app.ui.abort') as mock_abort:
+        with patch('app.ui.settings') as mock_settings, \
+             patch('app.ui.session', {}) as mock_session, \
+             patch('app.ui.abort') as mock_abort:
 
             mock_settings.auth.type = 'form'
             mock_abort.return_value = ('Unauthorized', 401)
@@ -187,7 +187,7 @@ def test_check_login_preserves_function_arguments():
     def test_function(arg1, arg2, kwarg1=None):
         return f"args:{arg1},{arg2} kwargs:{kwarg1}"
 
-    with patch('bazarr.app.ui.settings') as mock_settings:
+    with patch('app.ui.settings') as mock_settings:
         mock_settings.auth.type = None
 
         decorated_function = check_login(test_function)
@@ -203,7 +203,7 @@ def test_check_login_preserves_function_exceptions():
     def test_function():
         raise ValueError("Test exception")
 
-    with patch('bazarr.app.ui.settings') as mock_settings:
+    with patch('app.ui.settings') as mock_settings:
         mock_settings.auth.type = None
 
         decorated_function = check_login(test_function)
@@ -224,7 +224,7 @@ def test_check_login_with_different_return_types():
         (None, type(None)),
     ]
 
-    with patch('bazarr.app.ui.settings') as mock_settings:
+    with patch('app.ui.settings') as mock_settings:
         mock_settings.auth.type = None
 
         for expected_value, expected_type in test_cases:

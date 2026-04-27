@@ -28,7 +28,7 @@ def _resolve_omdb_apikey():
     the envelope is malformed.
     """
     try:
-        from bazarr.app.config import settings
+        from app.config import settings
         apikey = (settings.omdb.apikey or "").strip()
         if apikey:
             return apikey

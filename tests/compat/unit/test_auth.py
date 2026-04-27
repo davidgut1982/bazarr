@@ -1,5 +1,5 @@
 import pytest
-from bazarr.compat import auth as A
+from compat import auth as A
 
 
 @pytest.fixture(autouse=True)
@@ -10,7 +10,7 @@ def _reset_compat_secrets():
     Dynaconf attributes between tests, causing full-suite ordering flakes.
     Setting and restoring directly on the live DynaBox is deterministic.
     """
-    from bazarr.app.config import settings
+    from app.config import settings
     original = {
         name: getattr(settings.compat_endpoint, name, "")
         for name in ("token", "jwt_secret", "file_id_secret",
@@ -31,17 +31,17 @@ def _reset_compat_secrets():
 
 
 def test_validate_compat_token_accepts_exact_match(monkeypatch):
-    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.token", "a" * 32)
+    monkeypatch.setattr("compat.auth.settings.compat_endpoint.token", "a" * 32)
     assert A.validate_compat_token("a" * 32) is True
 
 
 def test_validate_compat_token_rejects_wrong(monkeypatch):
-    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.token", "a" * 32)
+    monkeypatch.setattr("compat.auth.settings.compat_endpoint.token", "a" * 32)
     assert A.validate_compat_token("b" * 32) is False
 
 
 def test_validate_compat_token_empty_returns_false(monkeypatch):
-    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.token", "a" * 32)
+    monkeypatch.setattr("compat.auth.settings.compat_endpoint.token", "a" * 32)
     assert A.validate_compat_token("") is False
     assert A.validate_compat_token(None) is False
 
@@ -57,16 +57,16 @@ import time
 
 
 def test_mint_and_validate_jwt_roundtrip(monkeypatch):
-    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.jwt_secret", "j" * 32)
-    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.jwt_ttl_seconds", 60)
+    monkeypatch.setattr("compat.auth.settings.compat_endpoint.jwt_secret", "j" * 32)
+    monkeypatch.setattr("compat.auth.settings.compat_endpoint.jwt_ttl_seconds", 60)
     tok = A.mint_jwt()
     ok, claims = A.validate_jwt(tok)
     assert ok is True and "exp" in claims
 
 
 def test_validate_jwt_rejects_expired(monkeypatch):
-    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.jwt_secret", "j" * 32)
-    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.jwt_ttl_seconds", 1)
+    monkeypatch.setattr("compat.auth.settings.compat_endpoint.jwt_secret", "j" * 32)
+    monkeypatch.setattr("compat.auth.settings.compat_endpoint.jwt_ttl_seconds", 1)
     tok = A.mint_jwt()
     time.sleep(2)
     ok, _ = A.validate_jwt(tok)
@@ -74,7 +74,7 @@ def test_validate_jwt_rejects_expired(monkeypatch):
 
 
 def test_validate_jwt_rejects_bad_signature(monkeypatch):
-    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.jwt_secret", "j" * 32)
+    monkeypatch.setattr("compat.auth.settings.compat_endpoint.jwt_secret", "j" * 32)
     tok = A.mint_jwt()
     # Replace the signature segment entirely with a clearly invalid payload.
     header_payload, _ = tok.rsplit(".", 1)
@@ -84,14 +84,14 @@ def test_validate_jwt_rejects_bad_signature(monkeypatch):
 
 
 def test_boot_hmac_selftest_passes_with_valid_secrets(monkeypatch):
-    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.token", "t" * 32)
-    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.jwt_secret", "j" * 32)
-    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.file_id_secret", "f" * 32)
+    monkeypatch.setattr("compat.auth.settings.compat_endpoint.token", "t" * 32)
+    monkeypatch.setattr("compat.auth.settings.compat_endpoint.jwt_secret", "j" * 32)
+    monkeypatch.setattr("compat.auth.settings.compat_endpoint.file_id_secret", "f" * 32)
     A.boot_hmac_selftest()  # no exception
 
 
 def test_boot_hmac_selftest_fails_closed_with_empty_secret(monkeypatch):
-    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.jwt_secret", "")
+    monkeypatch.setattr("compat.auth.settings.compat_endpoint.jwt_secret", "")
     with pytest.raises(A.CompatBootError):
         A.boot_hmac_selftest()
 
@@ -99,9 +99,9 @@ def test_boot_hmac_selftest_fails_closed_with_empty_secret(monkeypatch):
 def test_file_id_roundtrip(monkeypatch):
     """mint_file_id now returns an int (OS.com wire contract); parse resolves
     via the in-memory store."""
-    from bazarr.compat.file_id_store import reset_store
+    from compat.file_id_store import reset_store
     reset_store()
-    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.file_id_ttl_seconds", 60)
+    monkeypatch.setattr("compat.auth.settings.compat_endpoint.file_id_ttl_seconds", 60)
     fid = A.mint_file_id(
         provider="opensubtitlescom",
         native_id="12345",
@@ -118,9 +118,9 @@ def test_file_id_roundtrip(monkeypatch):
 
 def test_file_id_unknown_rejected(monkeypatch):
     """An int that was never minted must return (False, {})."""
-    from bazarr.compat.file_id_store import reset_store
+    from compat.file_id_store import reset_store
     reset_store()
-    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.file_id_ttl_seconds", 60)
+    monkeypatch.setattr("compat.auth.settings.compat_endpoint.file_id_ttl_seconds", 60)
     ok, _ = A.parse_file_id(999999999)
     assert not ok
     ok, _ = A.parse_file_id("not-a-number")
@@ -130,9 +130,9 @@ def test_file_id_unknown_rejected(monkeypatch):
 
 
 def test_file_id_expired_rejected(monkeypatch):
-    from bazarr.compat.file_id_store import reset_store
+    from compat.file_id_store import reset_store
     reset_store()
-    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.file_id_ttl_seconds", 1)
+    monkeypatch.setattr("compat.auth.settings.compat_endpoint.file_id_ttl_seconds", 1)
     fid = A.mint_file_id("p", "i", "eng", "")
     time.sleep(2)
     ok, _ = A.parse_file_id(fid)
@@ -140,7 +140,7 @@ def test_file_id_expired_rejected(monkeypatch):
 
 
 def test_stream_token_roundtrip():
-    from bazarr.app.config import settings
+    from app.config import settings
     settings["compat_endpoint"]["file_id_secret"] = "f" * 32
     settings["compat_endpoint"]["stream_token_ttl_seconds"] = 60
     tok = A.mint_stream_token("p", "i")
@@ -154,7 +154,7 @@ def test_stream_token_roundtrip_all_byte_values_in_sig():
     makes the parser deterministic regardless of signature content.
     1000 iterations with varying payloads should exercise a signature
     whose last byte is b'.' (0x2e) many times over."""
-    from bazarr.app.config import settings
+    from app.config import settings
     settings["compat_endpoint"]["file_id_secret"] = "f" * 32
     settings["compat_endpoint"]["stream_token_ttl_seconds"] = 60
     for i in range(1000):
@@ -167,7 +167,7 @@ def test_stream_token_roundtrip_all_byte_values_in_sig():
 
 def test_stream_token_expiry():
     """Expiry path: TTL=1, sleep 2s, parse must reject."""
-    from bazarr.app.config import settings
+    from app.config import settings
     settings["compat_endpoint"]["file_id_secret"] = "f" * 32
     settings["compat_endpoint"]["stream_token_ttl_seconds"] = 1
     tok = A.mint_stream_token("p", "i")
@@ -178,8 +178,8 @@ def test_stream_token_expiry():
 
 def test_mint_jwt_includes_jti_claim():
     import jwt as pyjwt
-    from bazarr.compat import auth
-    from bazarr.app.config import settings
+    from compat import auth
+    from app.config import settings
     settings["compat_endpoint"]["jwt_secret"] = "j" * 32
     tok = auth.mint_jwt()
     claims = pyjwt.decode(tok, "j" * 32, algorithms=["HS256"])
@@ -187,8 +187,8 @@ def test_mint_jwt_includes_jti_claim():
 
 
 def test_validate_jwt_rejects_revoked_jti():
-    from bazarr.compat import auth, jwt_denylist
-    from bazarr.app.config import settings
+    from compat import auth, jwt_denylist
+    from app.config import settings
     settings["compat_endpoint"]["jwt_secret"] = "j" * 32
     jwt_denylist.reset()
     tok = auth.mint_jwt()
@@ -203,5 +203,5 @@ def test_validate_jwt_rejects_revoked_jti():
 
 
 def test_revoke_jwt_is_noop_for_empty_jti():
-    from bazarr.compat import auth
+    from compat import auth
     auth.revoke_jwt("", 9999999999)  # must not raise

@@ -2,9 +2,9 @@ from __future__ import annotations
 import secrets
 from flask_restx import Namespace, Resource
 from ..utils import authenticate
-from bazarr.app.config import settings, write_config
-from bazarr.compat.cache import compat_region
-from bazarr.compat import service as compat_service
+from app.config import settings, write_config
+from compat.cache import compat_region
+from compat import service as compat_service
 
 api_ns_compat_admin = Namespace("compat_admin", description="Compat endpoint admin")
 
@@ -42,7 +42,7 @@ def regenerate_all_secrets(write_fn=None) -> str:
         write_config()
     compat_region.invalidate(hard=True)
     compat_service.reset_compat_pool()
-    from bazarr.compat.file_id_store import reset_store
+    from compat.file_id_store import reset_store
     reset_store()
     return new_token
 

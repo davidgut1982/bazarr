@@ -1,5 +1,5 @@
 import time
-from bazarr.compat.file_id_store import FileIdStore, get_store, reset_store
+from compat.file_id_store import FileIdStore, get_store, reset_store
 
 
 def test_put_returns_monotonic_int():

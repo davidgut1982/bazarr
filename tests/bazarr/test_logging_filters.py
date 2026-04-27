@@ -1,6 +1,6 @@
 import logging
 
-from bazarr.app.logger import UnwantedWaitressMessageFilter
+from app.logger import UnwantedWaitressMessageFilter
 
 def test_true_for_bazarr():
   record = logging.LogRecord("", logging.INFO, "", 0, "a message from BAZARR for logging", (), None)

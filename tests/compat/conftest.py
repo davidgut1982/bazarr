@@ -7,7 +7,7 @@ os.environ["NO_CLI"] = "true"
 os.environ.setdefault("SZ_USER_AGENT", "test")
 os.environ.setdefault("BAZARR_VERSION", "test")
 
-# Add bazarr source trees to sys.path so that `from bazarr.app.config import ...`
+# Add bazarr source trees to sys.path so that `from app.config import ...`
 # resolves correctly, matching what tests/bazarr/conftest.py does.
 _repo = os.path.join(os.path.dirname(__file__), "../..")
 sys.path.insert(0, os.path.join(_repo, "libs"))
@@ -35,7 +35,7 @@ def _guarantee_compat_secrets():
     monkeypatches touch. Hitting both guarantees the values are in
     sync regardless of which layer any individual caller reads.
     """
-    from bazarr.app.config import settings
+    from app.config import settings
     _defaults = {
         "token": "t" * 32,
         "jwt_secret": "j" * 32,

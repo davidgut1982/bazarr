@@ -21,8 +21,8 @@ FID_SECRET = "f" * 32
 
 @pytest.fixture(autouse=True)
 def _compat_secrets():
-    from bazarr.app.config import settings
-    from bazarr.compat.file_id_store import reset_store
+    from app.config import settings
+    from compat.file_id_store import reset_store
     originals = {
         n: getattr(settings.compat_endpoint, n, "")
         for n in ("token", "jwt_secret", "file_id_secret",
@@ -43,7 +43,7 @@ def _compat_secrets():
 
 
 def _app():
-    from bazarr.compat.routes import compat_bp
+    from compat.routes import compat_bp
     app = Flask(__name__)
     app.register_blueprint(compat_bp, url_prefix="/api/v1")
     return app
@@ -112,7 +112,7 @@ def test_logout_requires_bearer_to_revoke():
 
 
 def test_logout_with_bearer_returns_2xx_and_revokes():
-    from bazarr.compat import auth, jwt_denylist
+    from compat import auth, jwt_denylist
     jwt_denylist.reset()
     tok = auth.mint_jwt()
     r = _app().test_client().delete(
@@ -201,7 +201,7 @@ def _fake_search_result(attrs_override=None):
 
 def test_subtitles_envelope_has_all_strict_fields():
     """total_pages, total_count, per_page, page are all strict."""
-    with patch("bazarr.compat.service.search",
+    with patch("compat.service.search",
                 return_value=_fake_search_result()):
         r = _app().test_client().get(
             "/api/v1/subtitles?imdb_id=111161&languages=en&type=movie",
@@ -221,7 +221,7 @@ def test_subtitles_upload_date_is_never_empty_string():
     System.Text.Json.JsonException in the plugin. Must be a valid ISO
     datetime, with 1970 epoch as the fallback."""
     # Mock the response_mapper directly so we test the mapper path.
-    from bazarr.compat import response_mapper as M
+    from compat import response_mapper as M
     sub = MagicMock(upload_date=None, id="1", language=MagicMock(alpha2="en"),
                     download_count=0, ratings=0.0, release_info="",
                     uploader=None, provider_name="os")
@@ -240,7 +240,7 @@ def test_subtitles_upload_date_from_provider_is_preserved():
     """When a provider DOES expose upload_date, we must pass it through,
     not replace it with the epoch fallback."""
     from datetime import datetime
-    from bazarr.compat import response_mapper as M
+    from compat import response_mapper as M
     provider_date = datetime(2023, 1, 15, 12, 34, 56)
     sub = MagicMock(upload_date=provider_date, id="1",
                     language=MagicMock(alpha2="en"),
@@ -253,7 +253,7 @@ def test_subtitles_upload_date_from_provider_is_preserved():
 
 def test_subtitles_feature_details_imdb_id_is_int_not_string():
     """Filter-inducing: plugin drops results where imdb_id is a string."""
-    from bazarr.compat import response_mapper as M
+    from compat import response_mapper as M
     sub = MagicMock(upload_date=None, id="1", language=MagicMock(alpha2="en"),
                     download_count=0, ratings=0.0, release_info="",
                     uploader=None, provider_name="os")
@@ -265,7 +265,7 @@ def test_subtitles_feature_details_imdb_id_is_int_not_string():
 
 def test_subtitles_feature_details_feature_type_case_exact():
     """'Movie' vs 'movie' matters - plugin does case-SENSITIVE compare."""
-    from bazarr.compat import response_mapper as M
+    from compat import response_mapper as M
     sub = MagicMock(upload_date=None, id="1", language=MagicMock(alpha2="en"),
                     download_count=0, ratings=0.0, release_info="",
                     uploader=None, provider_name="os")
@@ -280,7 +280,7 @@ def test_subtitles_feature_details_feature_type_case_exact():
 
 def test_subtitles_files_has_positive_int_file_id():
     """String or null file_id → result silently dropped by plugin."""
-    from bazarr.compat import response_mapper as M
+    from compat import response_mapper as M
     sub = MagicMock(upload_date=None, id="1", language=MagicMock(alpha2="en"),
                     download_count=0, ratings=0.0, release_info="",
                     uploader=None, provider_name="os")
@@ -294,7 +294,7 @@ def test_subtitles_files_has_positive_int_file_id():
 
 def test_subtitles_episode_season_episode_numbers_are_ints():
     """Filter-inducing: wrong type or 0/0 on an episode search gets dropped."""
-    from bazarr.compat import response_mapper as M
+    from compat import response_mapper as M
     sub = MagicMock(upload_date=None, id="1", language=MagicMock(alpha2="en"),
                     download_count=0, ratings=0.0, release_info="",
                     uploader=None, provider_name="os")
@@ -309,7 +309,7 @@ def test_subtitles_route_accepts_query_only_search():
     """Plugin sends either imdb_id OR query+season+episode. Query-only
     must not 400, and must not smuggle the filename into imdb_id."""
     result = _fake_search_result()
-    with patch("bazarr.compat.service.search", return_value=result) as s:
+    with patch("compat.service.search", return_value=result) as s:
         r = _app().test_client().get(
             "/api/v1/subtitles?query=For.All.Mankind.S01E01.mkv"
             "&languages=en&type=episode&season_number=1&episode_number=1",
@@ -332,7 +332,7 @@ def test_subtitles_route_accepts_query_only_search():
 def test_download_link_is_absolute_url():
     """Plugin runs HttpClient.GetAsync(link) - relative URL throws when no
     BaseAddress. Must be scheme://host/path."""
-    from bazarr.compat import auth
+    from compat import auth
     fake_sub = MagicMock(provider_name="os", id="1")
     fid = auth.mint_file_id("os", "1", "eng", "", subtitle=fake_sub)
     jwt_tok = auth.mint_jwt()
@@ -349,7 +349,7 @@ def test_download_link_is_absolute_url():
 
 
 def test_download_link_honors_forwarded_headers():
-    from bazarr.compat import auth
+    from compat import auth
     fake_sub = MagicMock(provider_name="os", id="1")
     fid = auth.mint_file_id("os", "1", "eng", "", subtitle=fake_sub)
     jwt_tok = auth.mint_jwt()
@@ -375,9 +375,9 @@ def test_download_stream_url_accepts_no_auth_headers():
     The HMAC-signed stream token IS the auth - the route MUST NOT gate on
     Api-Key or Bearer. If it did, the plugin's follow-up GET of the link
     would 403 immediately after every successful download-link mint."""
-    from bazarr.compat import auth
+    from compat import auth
     # Patch serve_subtitle_content so we don't need a real provider backend.
-    with patch("bazarr.compat.service.serve_subtitle_content",
+    with patch("compat.service.serve_subtitle_content",
                 return_value=(b"1\n00:00:01,000 --> 00:00:02,000\nhi\n",
                               "application/x-subrip")):
         token = auth.mint_file_stream_token(1)
@@ -417,7 +417,7 @@ def test_missing_jwt_on_download_returns_401():
 
 
 def test_contract_attributes_include_comments():
-    from bazarr.compat import response_mapper as M
+    from compat import response_mapper as M
     sub = MagicMock(
         upload_date=None, id="1", language=MagicMock(alpha2="en"),
         download_count=0, ratings=0.0, release_info="Rel.info",
@@ -428,7 +428,7 @@ def test_contract_attributes_include_comments():
 
 
 def test_contract_moviehash_match_is_hash_aware():
-    from bazarr.compat import response_mapper as M
+    from compat import response_mapper as M
     sub_with = MagicMock(
         upload_date=None, id="1", language=MagicMock(alpha2="en"),
         download_count=0, ratings=0.0, release_info="",
@@ -446,7 +446,7 @@ def test_contract_moviehash_match_is_hash_aware():
 
 
 def test_contract_ratings_is_in_0_to_10_range():
-    from bazarr.compat import response_mapper as M
+    from compat import response_mapper as M
     sub = MagicMock(
         upload_date=None, id="1", language=MagicMock(alpha2="en"),
         download_count=0, ratings=0.0, release_info="",
@@ -459,7 +459,7 @@ def test_contract_ratings_is_in_0_to_10_range():
 
 
 def test_contract_file_name_never_leading_dot():
-    from bazarr.compat import response_mapper as M
+    from compat import response_mapper as M
     sub = MagicMock(
         upload_date=None, id="1", language=MagicMock(alpha2="en"),
         download_count=0, ratings=0.0, release_info="",
@@ -472,8 +472,8 @@ def test_contract_file_name_never_leading_dot():
 def test_contract_stream_accepts_api_key_header_too():
     """Plugin actually sends Api-Key on the follow-up even though HMAC
     is the auth. Route must still 200."""
-    from bazarr.compat import auth
-    with patch("bazarr.compat.service.serve_subtitle_content",
+    from compat import auth
+    with patch("compat.service.serve_subtitle_content",
                 return_value=(b"hi", "application/x-subrip")):
         token = auth.mint_file_stream_token(1)
         r = _app().test_client().get(

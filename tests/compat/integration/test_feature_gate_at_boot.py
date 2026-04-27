@@ -4,8 +4,8 @@ import pytest
 
 def test_disabled_state_404s_json(monkeypatch):
     """enabled=False: all /api/v1/* return stub JSON 404."""
-    from bazarr.compat import register
-    monkeypatch.setattr("bazarr.app.config.settings.compat_endpoint.enabled", False)
+    from compat import register
+    monkeypatch.setattr("app.config.settings.compat_endpoint.enabled", False)
     app = Flask(__name__)
     register(app, base_url="")
     r = app.test_client().get("/api/v1/subtitles")
@@ -23,9 +23,9 @@ def test_enabled_state_auto_generates_missing_secrets(monkeypatch):
     would crash the Flask app on next boot. Auto-generation is the recovery
     path.
     """
-    import bazarr.api.system.compat_admin as admin
-    from bazarr.app.config import settings
-    from bazarr.compat import register
+    import api.system.compat_admin as admin
+    from app.config import settings
+    from compat import register
 
     monkeypatch.setattr(settings.compat_endpoint, "enabled", True)
     monkeypatch.setattr(settings.compat_endpoint, "token", "")

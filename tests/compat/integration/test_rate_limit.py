@@ -7,8 +7,8 @@ API_KEY = "t" * 32
 
 @pytest.fixture(autouse=True)
 def _secrets():
-    from bazarr.app.config import settings
-    from bazarr.compat import rate_limiter, jwt_denylist
+    from app.config import settings
+    from compat import rate_limiter, jwt_denylist
     settings["compat_endpoint"]["token"] = API_KEY
     settings["compat_endpoint"]["jwt_secret"] = "j" * 32
     settings["compat_endpoint"]["file_id_secret"] = "f" * 32
@@ -22,14 +22,14 @@ def _secrets():
 
 
 def _app():
-    from bazarr.compat.routes import compat_bp
+    from compat.routes import compat_bp
     app = Flask(__name__)
     app.register_blueprint(compat_bp, url_prefix="/api/v1")
     return app
 
 
 def test_download_emits_406_after_quota_exhausted():
-    from bazarr.compat import auth
+    from compat import auth
     fake_sub = MagicMock(provider_name="os", id="1")
     fid = auth.mint_file_id("os", "1", "eng", "", subtitle=fake_sub)
     jwt_tok = auth.mint_jwt()
@@ -54,7 +54,7 @@ def test_download_emits_406_after_quota_exhausted():
 
 
 def test_download_remaining_decrements():
-    from bazarr.compat import auth
+    from compat import auth
     fake_sub = MagicMock(provider_name="os", id="1")
     fid = auth.mint_file_id("os", "1", "eng", "", subtitle=fake_sub)
     jwt_tok = auth.mint_jwt()
@@ -73,7 +73,7 @@ def test_download_remaining_decrements():
 
 
 def test_infos_user_reports_real_remaining():
-    from bazarr.compat import auth
+    from compat import auth
     fake_sub = MagicMock(provider_name="os", id="1")
     fid = auth.mint_file_id("os", "1", "eng", "", subtitle=fake_sub)
     jwt_tok = auth.mint_jwt()

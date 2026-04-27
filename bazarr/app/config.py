@@ -85,6 +85,11 @@ validators = [
     # general section
     Validator('general.flask_secret_key', must_exist=True, default=hexlify(os.urandom(16)).decode(),
               is_type_of=str),
+    # Master key for the bazarr.secrets crypto module (encrypts every
+    # user-visible credential at rest). Default empty so the key is
+    # generated lazily on first read - matches the pattern of the legacy
+    # plex.encryption_key. Never round-trips through the API.
+    Validator('general.secrets_encryption_key', must_exist=True, default='', is_type_of=str),
     Validator('general.ip', must_exist=True, default='*', is_type_of=str, condition=validate_ip_address),
     Validator('general.port', must_exist=True, default=6767, is_type_of=int, gte=1, lte=65535),
     Validator('general.hostname', must_exist=True, default=platform.node(), is_type_of=str),
@@ -603,31 +608,75 @@ while failed_validator:
                              f"Bazarr won't work until it's been fixed.")
             stop_bazarr(EXIT_VALIDATION_ERROR)
 
+# Decrypt every USER_VISIBLE_SECRET in the live settings object so the
+# rest of bazarr reads plaintext credentials. On a freshly-upgraded
+# instance the values are still plaintext (no marker prefix) and this
+# call is a no-op; on subsequent boots the values come from disk as
+# ciphertext and get decrypted in place. The complementary encryption
+# happens inside write_config() before the dict hits config.yaml.
+from secret_store import (  # noqa: E402
+    decrypt_settings_dict,
+    decrypt_settings_in_place,
+    encrypt_settings_dict,
+    has_plaintext_secrets_on_disk,
+    migrate_legacy_plex_encryption,
+)
+
+# Legacy Plex encryption (URLSafeSerializer + plex.encryption_key) used a
+# different at-rest format with no marker prefix. If we hand its
+# ciphertext to decrypt_settings_in_place, the marker check fails and the
+# bytes get treated as plaintext - the next save would re-encrypt them
+# under the unified key and the user's Plex creds would be unrecoverable.
+# Migrate FIRST so the rest of the pipeline only sees plaintext.
+migrate_legacy_plex_encryption(settings)
+
+# Detect plaintext credentials BEFORE decrypt_settings_in_place runs - it
+# is a passthrough on plaintext, so afterwards the in-memory state and
+# the on-disk state match for plaintext fields and write_config's
+# comparison would skip the rewrite. Capture the "needs migration" bit
+# now and force a write below.
+_force_first_save_migration = has_plaintext_secrets_on_disk(settings)
+
+decrypt_settings_in_place(settings)
+
 
 def write_config():
-    if settings.as_dict() == Dynaconf(
-        settings_file=config_yaml_file,
-        core_loaders=['YAML']
-    ).as_dict():
+    # On-disk shape compared in plaintext form: encrypt_secret is non-
+    # deterministic (per-payload salt + timestamp), so naive ciphertext
+    # comparison would always diff and rewrite config.yaml on every save.
+    global _force_first_save_migration
+    in_memory_plaintext = {k.lower(): v for k, v in settings.as_dict().items()}
+    on_disk_dict = {
+        k.lower(): v for k, v in Dynaconf(
+            settings_file=config_yaml_file,
+            core_loaders=['YAML'],
+        ).as_dict().items()
+    }
+    on_disk_plaintext = decrypt_settings_dict(on_disk_dict)
+
+    if in_memory_plaintext == on_disk_plaintext and not _force_first_save_migration:
         logging.debug("Nothing changed when comparing to config file. Skipping write to file.")
+        return
+
+    if _force_first_save_migration:
+        logging.info("secret_store: forcing config rewrite to encrypt plaintext credentials on disk")
+        _force_first_save_migration = False
+
+    try:
+        write(settings_path=config_yaml_file + '.tmp',
+              settings_data=encrypt_settings_dict(in_memory_plaintext),
+              merge=False)
+    except Exception as error:
+        logging.exception(f"Exception raised while trying to save temporary settings file: {error}")
     else:
         try:
-            write(settings_path=config_yaml_file + '.tmp',
-                  settings_data={k.lower(): v for k, v in settings.as_dict().items()},
-                  merge=False)
+            move(config_yaml_file + '.tmp', config_yaml_file)
         except Exception as error:
-            logging.exception(f"Exception raised while trying to save temporary settings file: {error}")
-        else:
-            try:
-                move(config_yaml_file + '.tmp', config_yaml_file)
-            except Exception as error:
-                logging.exception(f"Exception raised while trying to overwrite settings file with temporary settings "
-                                  f"file: {error}")
+            logging.exception(f"Exception raised while trying to overwrite settings file with temporary settings "
+                              f"file: {error}")
 
 
 base_url = settings.general.base_url.rstrip('/')
-
-ignore_keys = ['flask_secret_key']
 
 array_keys = ['excluded_tags',
               'exclude',
@@ -694,14 +743,23 @@ write_config()
 
 
 def get_settings():
-    # return {k.lower(): v for k, v in settings.as_dict().items()}
+    # API serializer for /api/system/settings. SYSTEM_SECRETS are masked
+    # with '***' (key still present so the wire shape is stable, value
+    # hidden); USER_VISIBLE_SECRETS pass through unchanged because the
+    # in-memory settings already hold their decrypted plaintext.
+    from secret_store import is_system_secret  # noqa: PLC0415
     settings_to_return = {}
     for k, v in settings.as_dict().items():
         if isinstance(v, dict):
             k = k.lower()
             settings_to_return[k] = dict()
             for subk, subv in v.items():
-                if subk.lower() in ignore_keys:
+                full_path = f"{k}.{subk.lower()}"
+                if is_system_secret(full_path):
+                    # Keep empty values literally empty so the UI can
+                    # distinguish "not configured" from "configured but
+                    # hidden". Non-empty system secrets get the mask.
+                    settings_to_return[k][subk] = '***' if subv else subv
                     continue
                 if subv in empty_values and subk.lower() in array_keys:
                     settings_to_return[k].update({subk: []})
@@ -927,7 +985,7 @@ def save_settings(settings_items):
 
         if key == 'settings-general-enabled_providers':
             try:
-                from bazarr.compat.service import reset_compat_pool
+                from compat.service import reset_compat_pool
                 reset_compat_pool()
             except Exception:
                 pass
@@ -945,7 +1003,7 @@ def save_settings(settings_items):
             from .get_providers import reset_throttled_providers
             reset_throttled_providers(only_auth_or_conf_error=True)
             try:
-                from bazarr.compat.service import reset_compat_pool
+                from compat.service import reset_compat_pool
                 reset_compat_pool()
             except Exception:
                 pass

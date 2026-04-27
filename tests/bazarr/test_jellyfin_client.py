@@ -7,7 +7,7 @@ import os
 from unittest.mock import patch, MagicMock
 
 import pytest
-from bazarr.jellyfin.client import JellyfinClient
+from jellyfin.client import JellyfinClient
 from fake_jellyfin import (
     FakeJellyfinClient,
     OPENAPI_PATH,
@@ -103,7 +103,7 @@ def test_session_can_opt_out_of_tls_verification():
 def test_redact_secret_strips_token_and_key():
     """Helper underpinning operations._redact: api_key never appears in
     redacted output; the Authorization Token form is also masked."""
-    from bazarr.jellyfin.client import _redact_secret
+    from jellyfin.client import _redact_secret
     raw = 'GET https://x/y Token="SECRET-LEAK" failed: bad SECRET-LEAK'
     assert "SECRET-LEAK" not in _redact_secret(raw, "SECRET-LEAK")
     # Token="..." form is masked even when the literal secret is unknown

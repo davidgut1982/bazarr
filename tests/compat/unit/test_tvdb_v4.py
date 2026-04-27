@@ -66,7 +66,7 @@ def test_client_survives_login_failure():
 def test_v4_episode_lookup_populates_series_and_episode_fields():
     """Given a v4 match with episode+seriesId, populate tvdb_id, series name,
     year, and fall through to subliminal v1 get_series for anything missing."""
-    from bazarr.compat.service import _tvdb_v4_episode_lookup
+    from compat.service import _tvdb_v4_episode_lookup
     video = MagicMock(spec=["series_imdb_id", "tvdb_id", "title",
                             "series", "year", "series_tvdb_id"])
     video.series_imdb_id = "tt1480055"
@@ -92,7 +92,7 @@ def test_v4_episode_lookup_populates_series_and_episode_fields():
 
 
 def test_v4_episode_lookup_returns_false_on_miss():
-    from bazarr.compat.service import _tvdb_v4_episode_lookup
+    from compat.service import _tvdb_v4_episode_lookup
     video = MagicMock(spec=["series_imdb_id"])
     video.series_imdb_id = "tt0000000"
     with patch("subliminal_patch.refiners.tvdb_v4.get_client") as gc:

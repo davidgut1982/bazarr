@@ -129,7 +129,7 @@ _abandoned_total = 0  # all-time counter, for diagnostics
 def _read_settings() -> Tuple[int, int]:
     """Pool-sizing knobs from settings, with defensive fallbacks."""
     try:
-        from bazarr.app.config import settings
+        from app.config import settings
         max_workers = max(4, int(getattr(
             settings.compat_endpoint, "fanout_max_workers",
             _DEFAULT_MAX_WORKERS,

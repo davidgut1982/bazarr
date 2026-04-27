@@ -82,7 +82,7 @@ _patches = {
     'utilities.path_mappings': MagicMock(),
     'utilities.binaries': MagicMock(),
     'api.utils': _api_utils_mock,
-    'bazarr.api.utils': _api_utils_mock,
+    'api.utils': _api_utils_mock,
     'api.subtitles.content': MagicMock(),
     'flask_restx': _fake_flask_restx,
     'init': MagicMock(startTime=0),
@@ -93,7 +93,7 @@ for mod_name, mock_obj in _patches.items():
     sys.modules.setdefault(mod_name, mock_obj)
 
 # Now safe to import
-from bazarr.api.editor.editor import (
+from api.editor.editor import (
     _resolve_video_path,
     _probe_video,
     _validate_params,
@@ -105,7 +105,7 @@ from bazarr.api.editor.editor import (
 )
 
 # Re-import database and path_mappings as the module sees them
-from bazarr.api.editor import editor as editor_module
+from api.editor import editor as editor_module
 
 
 # ---------------------------------------------------------------------------
@@ -470,9 +470,9 @@ class TestRunEditorSync:
         mock_subsync_cls = MagicMock(return_value=mock_subsync)
         mock_jobs_queue = MagicMock()
 
-        with patch('bazarr.api.editor.editor.SubSyncer', mock_subsync_cls, create=True), \
+        with patch('api.editor.editor.SubSyncer', mock_subsync_cls, create=True), \
              patch.dict('sys.modules', {'subtitles.tools.subsyncer': MagicMock(SubSyncer=mock_subsync_cls)}), \
-             patch('bazarr.api.editor.editor.jobs_queue', mock_jobs_queue, create=True), \
+             patch('api.editor.editor.jobs_queue', mock_jobs_queue, create=True), \
              patch.dict('sys.modules', {'app.jobs_queue': MagicMock(jobs_queue=mock_jobs_queue)}), \
              patch('threading.Timer'):  # prevent cleanup timer
 
@@ -506,9 +506,9 @@ class TestRunEditorSync:
         mock_subsync_cls = MagicMock(return_value=mock_subsync)
         mock_jobs_queue = MagicMock()
 
-        with patch('bazarr.api.editor.editor.SubSyncer', mock_subsync_cls, create=True), \
+        with patch('api.editor.editor.SubSyncer', mock_subsync_cls, create=True), \
              patch.dict('sys.modules', {'subtitles.tools.subsyncer': MagicMock(SubSyncer=mock_subsync_cls)}), \
-             patch('bazarr.api.editor.editor.jobs_queue', mock_jobs_queue, create=True), \
+             patch('api.editor.editor.jobs_queue', mock_jobs_queue, create=True), \
              patch.dict('sys.modules', {'app.jobs_queue': MagicMock(jobs_queue=mock_jobs_queue)}), \
              patch('threading.Timer'):
             run_editor_sync(
@@ -542,9 +542,9 @@ class TestRunEditorSync:
         mock_subsync_cls = MagicMock(return_value=mock_subsync)
         mock_jobs_queue = MagicMock()
 
-        with patch('bazarr.api.editor.editor.SubSyncer', mock_subsync_cls, create=True), \
+        with patch('api.editor.editor.SubSyncer', mock_subsync_cls, create=True), \
              patch.dict('sys.modules', {'subtitles.tools.subsyncer': MagicMock(SubSyncer=mock_subsync_cls)}), \
-             patch('bazarr.api.editor.editor.jobs_queue', mock_jobs_queue, create=True), \
+             patch('api.editor.editor.jobs_queue', mock_jobs_queue, create=True), \
              patch.dict('sys.modules', {'app.jobs_queue': MagicMock(jobs_queue=mock_jobs_queue)}), \
              patch('threading.Timer'):
             run_editor_sync(
@@ -580,9 +580,9 @@ class TestRunEditorSync:
         mock_subsync_cls = MagicMock(return_value=mock_subsync)
         mock_jobs_queue = MagicMock()
 
-        with patch('bazarr.api.editor.editor.SubSyncer', mock_subsync_cls, create=True), \
+        with patch('api.editor.editor.SubSyncer', mock_subsync_cls, create=True), \
              patch.dict('sys.modules', {'subtitles.tools.subsyncer': MagicMock(SubSyncer=mock_subsync_cls)}), \
-             patch('bazarr.api.editor.editor.jobs_queue', mock_jobs_queue, create=True), \
+             patch('api.editor.editor.jobs_queue', mock_jobs_queue, create=True), \
              patch.dict('sys.modules', {'app.jobs_queue': MagicMock(jobs_queue=mock_jobs_queue)}), \
              patch('threading.Timer'):
             run_editor_sync(
@@ -777,7 +777,7 @@ class TestEditorSyncPost:
              patch('os.write'), \
              patch('os.close'), \
              patch.dict('sys.modules', {'app.jobs_queue': MagicMock(jobs_queue=mock_jobs_queue)}), \
-             patch('bazarr.api.editor.editor.jobs_queue', mock_jobs_queue, create=True), \
+             patch('api.editor.editor.jobs_queue', mock_jobs_queue, create=True), \
              patch('threading.Thread') as mock_thread:
 
             # Need to also patch the import inside the method

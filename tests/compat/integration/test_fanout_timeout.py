@@ -1,11 +1,11 @@
 import time
 from unittest.mock import MagicMock
-from bazarr.compat import cache as C
+from compat import cache as C
 
 
 def test_fanout_respects_wall_timeout(monkeypatch):
     """A slow provider dropped at wall_timeout; fast provider results included."""
-    monkeypatch.setattr("bazarr.compat.auth.settings.compat_endpoint.file_id_secret", "f" * 32)
+    monkeypatch.setattr("compat.auth.settings.compat_endpoint.file_id_secret", "f" * 32)
     C.invalidate_all()
     from subliminal_patch.core_persistent import list_all_subtitles_parallel
 

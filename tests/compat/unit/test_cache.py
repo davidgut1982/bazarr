@@ -1,4 +1,4 @@
-from bazarr.compat import cache as C
+from compat import cache as C
 from subzero.language import Language
 
 

@@ -1,4 +1,4 @@
-from bazarr.app import config
+from app import config
 
 
 def test_get_settings():
