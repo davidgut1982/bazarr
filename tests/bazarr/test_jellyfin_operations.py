@@ -160,6 +160,44 @@ def test_get_libraries_returns_connection_failed_on_error():
     assert result == {"libraries": [], "error_code": "connection_failed"}
 
 
+def test_test_connection_rejects_empty_override_apikey(settings):
+    """If the user clears the API key field on the Settings page and clicks
+    Test, the override apikey arrives as an empty string. The previous
+    `apikey or settings.jellyfin.apikey` semantics would silently fall back
+    to the saved key and the test would 'succeed' against the old one - so
+    the user could save a broken empty config thinking it had been
+    validated. Empty string is invalid input, NOT a 'use saved' signal."""
+    settings.jellyfin.url = "https://saved.example"
+    settings.jellyfin.apikey = "saved-key-must-not-be-used"
+    result = jellyfin_test_connection(url="https://override", apikey="",
+                                      verify_ssl=False)
+    assert result == {"success": False, "error_code": "configuration"}
+
+
+def test_test_connection_rejects_empty_override_url(settings):
+    """Same protection for the URL field."""
+    settings.jellyfin.url = "https://saved.example"
+    settings.jellyfin.apikey = "saved-key"
+    result = jellyfin_test_connection(url="", apikey="override-key",
+                                      verify_ssl=False)
+    assert result == {"success": False, "error_code": "configuration"}
+
+
+def test_test_connection_falls_back_when_overrides_are_None(settings):
+    """A None override (caller passed nothing) DOES still use saved values -
+    that's the legitimate 'use saved config' signal from non-Settings
+    callers like jellyfin_refresh_item()."""
+    settings.jellyfin.url = "https://saved.example"
+    settings.jellyfin.apikey = "saved-key"
+    with patch("bazarr.jellyfin.operations.JellyfinClient") as mock_client:
+        mock_client.return_value.get_system_info.return_value = {
+            "ServerName": "S", "Version": "1.0",
+        }
+        jellyfin_test_connection()  # no overrides at all
+        mock_client.assert_called_once_with("https://saved.example",
+                                            "saved-key", verify_ssl=None)
+
+
 def test_get_libraries_returns_configuration_when_url_or_key_missing():
     """ValueErrors from get_jellyfin_client (missing URL/apikey) get a
     distinct error_code so the UI guides 'configure URL/key first'

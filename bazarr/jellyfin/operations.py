@@ -35,13 +35,22 @@ def get_jellyfin_client(url: str = None, apikey: str = None,
                         verify_ssl: bool = None) -> JellyfinClient:
     """Create a JellyfinClient from settings or explicit parameters.
 
+    Falls back to saved settings ONLY when the argument is None ("caller
+    did not provide an override"). An explicit empty string is treated as
+    invalid input, NOT as "use saved", so a user clearing the API-key
+    field on the Settings page and clicking Test cannot accidentally
+    validate against the previously-saved key and "succeed" - they'd save
+    a broken config thinking it had been validated.
+
     verify_ssl=None means "use the saved setting" (the JellyfinClient
     constructor reads it lazily). Pass an explicit True/False to override
     for a single call - used by Test Connection / Libraries previews so
     the user can flip the verify_ssl checkbox and see the effect before
     saving."""
-    url = url or settings.jellyfin.url
-    apikey = apikey or settings.jellyfin.apikey
+    if url is None:
+        url = settings.jellyfin.url
+    if apikey is None:
+        apikey = settings.jellyfin.apikey
 
     if not url:
         raise ValueError("Jellyfin URL not configured.")

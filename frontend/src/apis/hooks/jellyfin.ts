@@ -2,6 +2,24 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { QueryKeys } from "@/apis/queries/keys";
 import api from "@/apis/raw";
 
+// Non-cryptographic FNV-1a 32-bit hash, returned as 8-char hex. Used as a
+// fingerprint of the Jellyfin apikey for the React Query cache key: same
+// key -> same fingerprint -> cache hit; changed key -> different
+// fingerprint -> cache miss and refetch (different Jellyfin accounts can
+// see different libraries, so stale cache would show wrong options).
+// Crucially the fingerprint is NOT the apikey - the cache key never
+// contains secret material that could be exposed via React Query devtools
+// or other cache instrumentation.
+export const apikeyFingerprint = (apikey: string | undefined): string => {
+  if (!apikey) return "";
+  let h = 0x811c9dc5;
+  for (let i = 0; i < apikey.length; i++) {
+    h ^= apikey.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, "0");
+};
+
 export const useJellyfinLibrariesQuery = (
   enabled: boolean = true,
   url?: string,
@@ -9,15 +27,13 @@ export const useJellyfinLibrariesQuery = (
   verifySsl?: boolean,
 ) => {
   return useQuery({
-    // The apikey deliberately does NOT enter the query key. Every keystroke
-    // while editing credentials would otherwise spawn a fresh cache entry
-    // containing partial secret material, visible to React Query devtools
-    // and any instrumentation that walks the cache. The secret only rides
-    // in the request body. If the user changes apikey for the same URL,
-    // they'll Test Connection (separate mutation) and Save before the
-    // libraries panel matters again - and a page rerender mints a fresh
-    // query instance.
-    queryKey: [QueryKeys.Jellyfin, "libraries", url, verifySsl],
+    queryKey: [
+      QueryKeys.Jellyfin,
+      "libraries",
+      url,
+      apikeyFingerprint(apikey),
+      verifySsl,
+    ],
     queryFn: () => api.jellyfin.libraries(url, apikey, verifySsl),
     enabled,
     staleTime: 1000 * 60 * 5,
