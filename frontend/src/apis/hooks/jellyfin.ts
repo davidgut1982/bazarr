@@ -6,10 +6,11 @@ export const useJellyfinLibrariesQuery = (
   enabled: boolean = true,
   url?: string,
   apikey?: string,
+  verifySsl?: boolean,
 ) => {
   return useQuery({
-    queryKey: [QueryKeys.Jellyfin, "libraries", url, apikey],
-    queryFn: () => api.jellyfin.libraries(url, apikey),
+    queryKey: [QueryKeys.Jellyfin, "libraries", url, apikey, verifySsl],
+    queryFn: () => api.jellyfin.libraries(url, apikey, verifySsl),
     enabled,
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
@@ -21,8 +22,12 @@ export const useJellyfinLibrariesQuery = (
 
 export const useJellyfinTestConnectionMutation = () => {
   return useMutation({
-    mutationFn: (params: { url: string; apikey: string }) =>
-      api.jellyfin.testConnection(params.url, params.apikey),
+    mutationFn: (params: {
+      url: string;
+      apikey: string;
+      verifySsl?: boolean;
+    }) =>
+      api.jellyfin.testConnection(params.url, params.apikey, params.verifySsl),
   });
 };
 

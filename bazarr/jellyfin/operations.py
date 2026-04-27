@@ -21,8 +21,15 @@ def _redact(text) -> str:
     return _redact_secret(str(text), secret)
 
 
-def get_jellyfin_client(url: str = None, apikey: str = None) -> JellyfinClient:
-    """Create a JellyfinClient from settings or explicit parameters."""
+def get_jellyfin_client(url: str = None, apikey: str = None,
+                        verify_ssl: bool = None) -> JellyfinClient:
+    """Create a JellyfinClient from settings or explicit parameters.
+
+    verify_ssl=None means "use the saved setting" (the JellyfinClient
+    constructor reads it lazily). Pass an explicit True/False to override
+    for a single call - used by Test Connection / Libraries previews so
+    the user can flip the verify_ssl checkbox and see the effect before
+    saving."""
     url = url or settings.jellyfin.url
     apikey = apikey or settings.jellyfin.apikey
 
@@ -31,10 +38,11 @@ def get_jellyfin_client(url: str = None, apikey: str = None) -> JellyfinClient:
     if not apikey:
         raise ValueError("Jellyfin API key not configured.")
 
-    return JellyfinClient(url, apikey)
+    return JellyfinClient(url, apikey, verify_ssl=verify_ssl)
 
 
-def jellyfin_test_connection(url: str = None, apikey: str = None) -> dict:
+def jellyfin_test_connection(url: str = None, apikey: str = None,
+                             verify_ssl: bool = None) -> dict:
     """Test connectivity to a Jellyfin server. Returns server info or error.
 
     Error responses do NOT echo exception text back to the caller: a misbehaving
@@ -43,7 +51,7 @@ def jellyfin_test_connection(url: str = None, apikey: str = None) -> dict:
     _redact() before logging. Surface a coarse `error_code` instead so the UI
     can render a friendly message without leaking diagnostics to the network."""
     try:
-        client = get_jellyfin_client(url, apikey)
+        client = get_jellyfin_client(url, apikey, verify_ssl=verify_ssl)
         info = client.get_system_info()
         return {
             'success': True,
@@ -118,10 +126,11 @@ def jellyfin_refresh_all_libraries() -> dict:
     return result
 
 
-def jellyfin_get_libraries(url: str = None, apikey: str = None) -> list:
+def jellyfin_get_libraries(url: str = None, apikey: str = None,
+                           verify_ssl: bool = None) -> list:
     """Get movie and series libraries from the configured Jellyfin server."""
     try:
-        client = get_jellyfin_client(url, apikey)
+        client = get_jellyfin_client(url, apikey, verify_ssl=verify_ssl)
         libraries = client.get_libraries()
 
         logger.debug(f"Jellyfin returned {len(libraries)} library folders: "

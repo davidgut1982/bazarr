@@ -32,19 +32,23 @@ class JellyfinApi extends BaseApi {
     super("/jellyfin");
   }
 
-  async testConnection(url: string, apikey: string) {
-    const response = await this.post<JellyfinTestResult>("/test-connection", {
-      url,
-      apikey,
-    });
+  async testConnection(url: string, apikey: string, verifySsl?: boolean) {
+    const body: Record<string, string> = { url, apikey };
+    if (verifySsl !== undefined) body.verify_ssl = verifySsl ? "true" : "false";
+    const response = await this.post<JellyfinTestResult>(
+      "/test-connection",
+      body,
+    );
 
     return response.data;
   }
 
-  async libraries(url?: string, apikey?: string) {
+  async libraries(url?: string, apikey?: string, verifySsl?: boolean) {
     const params: Record<string, string> = {};
     if (url) params.url = url;
     if (apikey) params.apikey = apikey;
+    if (verifySsl !== undefined)
+      params.verify_ssl = verifySsl ? "true" : "false";
 
     const response = await this.get<{ data: JellyfinLibrary[] }>(
       "/libraries",

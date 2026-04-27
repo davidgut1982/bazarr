@@ -33,6 +33,7 @@ const JellyfinTestButton: FunctionComponent = () => {
 
   const jellyfinUrl = useSettingValue<string>("settings-jellyfin-url");
   const jellyfinApikey = useSettingValue<string>("settings-jellyfin-apikey");
+  const verifySsl = useSettingValue<boolean>("settings-jellyfin-verify_ssl");
 
   const click = useCallback(() => {
     if (!jellyfinUrl || !jellyfinApikey) {
@@ -45,7 +46,11 @@ const JellyfinTestButton: FunctionComponent = () => {
     setColor("primary");
 
     mutation.mutate(
-      { url: jellyfinUrl, apikey: jellyfinApikey },
+      {
+        url: jellyfinUrl,
+        apikey: jellyfinApikey,
+        verifySsl: verifySsl ?? true,
+      },
       {
         onSuccess: (data) => {
           if (data.success) {
@@ -66,7 +71,7 @@ const JellyfinTestButton: FunctionComponent = () => {
         },
       },
     );
-  }, [jellyfinUrl, jellyfinApikey, mutation]);
+  }, [jellyfinUrl, jellyfinApikey, verifySsl, mutation]);
 
   return (
     <Button autoContrast onClick={click} variant={color}>

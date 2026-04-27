@@ -23,6 +23,7 @@ const LibrarySelector: FunctionComponent<LibrarySelectorProps> = (props) => {
 
   const jellyfinUrl = useSettingValue<string>("settings-jellyfin-url");
   const jellyfinApikey = useSettingValue<string>("settings-jellyfin-apikey");
+  const verifySsl = useSettingValue<boolean>("settings-jellyfin-verify_ssl");
   const isConfigured = Boolean(jellyfinUrl && jellyfinApikey);
 
   const {
@@ -33,6 +34,7 @@ const LibrarySelector: FunctionComponent<LibrarySelectorProps> = (props) => {
     isConfigured,
     jellyfinUrl ?? undefined,
     jellyfinApikey ?? undefined,
+    verifySsl ?? undefined,
   );
 
   const libraries = librariesData ?? [];

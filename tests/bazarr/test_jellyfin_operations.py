@@ -98,7 +98,24 @@ def test_test_connection_with_explicit_params():
     with patch("bazarr.jellyfin.operations.get_jellyfin_client") as mock_get:
         mock_get.return_value = FakeJellyfinClient()
         jellyfin_test_connection(url="http://custom:8096", apikey="key")
-        mock_get.assert_called_once_with("http://custom:8096", "key")
+        mock_get.assert_called_once_with("http://custom:8096", "key",
+                                          verify_ssl=None)
+
+
+def test_test_connection_passes_verify_ssl_override():
+    """When the UI toggle is honored without saving first, the override must
+    flow all the way to JellyfinClient via get_jellyfin_client."""
+    with patch("bazarr.jellyfin.operations.get_jellyfin_client") as mock_get:
+        mock_get.return_value = FakeJellyfinClient()
+        jellyfin_test_connection(url="https://j", apikey="k", verify_ssl=False)
+        mock_get.assert_called_once_with("https://j", "k", verify_ssl=False)
+
+
+def test_get_libraries_passes_verify_ssl_override():
+    with patch("bazarr.jellyfin.operations.get_jellyfin_client") as mock_get:
+        mock_get.return_value = FakeJellyfinClient()
+        jellyfin_get_libraries(url="https://j", apikey="k", verify_ssl=False)
+        mock_get.assert_called_once_with("https://j", "k", verify_ssl=False)
 
 
 
