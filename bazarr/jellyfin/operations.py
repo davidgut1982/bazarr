@@ -8,17 +8,27 @@ from .client import JellyfinClient, _redact_secret
 logger = logging.getLogger(__name__)
 
 
-def _redact(text) -> str:
-    """Pull api_key from settings and scrub it (plus any Token="..." form)
-    from text destined for logs or HTTP responses."""
-    secret = ''
+def _redact(text, override_secret: str = None) -> str:
+    """Scrub Jellyfin api_key (saved AND any per-call override) plus any
+    Token="..." form from text destined for logs or HTTP responses.
+
+    Test Connection / Libraries previews accept unsaved override credentials.
+    If those calls fail and Jellyfin reflects the submitted key into an error
+    string, the override key would leak into logs unless we know about it
+    here. Callers that handle override credentials must pass the override
+    via `override_secret`."""
+    out = str(text)
+    saved = ''
     try:
         candidate = settings.jellyfin.apikey
         if isinstance(candidate, str):
-            secret = candidate
+            saved = candidate
     except Exception:
         pass
-    return _redact_secret(str(text), secret)
+    if isinstance(override_secret, str) and override_secret and override_secret != saved:
+        out = _redact_secret(out, override_secret)
+    # _redact_secret also strips Token="..." form regardless of the secret.
+    return _redact_secret(out, saved)
 
 
 def get_jellyfin_client(url: str = None, apikey: str = None,
@@ -61,13 +71,13 @@ def jellyfin_test_connection(url: str = None, apikey: str = None,
     except ValueError as e:
         # Configuration errors (missing url / apikey) are safe to surface —
         # they originate from our own code, not the server.
-        logger.error(f"Failed to connect to Jellyfin server: {_redact(e)}")
+        logger.error(f"Failed to connect to Jellyfin server: {_redact(e, override_secret=apikey)}")
         return {
             'success': False,
             'error_code': 'configuration',
         }
     except Exception as e:
-        logger.error(f"Failed to connect to Jellyfin server: {_redact(e)}")
+        logger.error(f"Failed to connect to Jellyfin server: {_redact(e, override_secret=apikey)}")
         return {
             'success': False,
             'error_code': 'connection_failed',
@@ -146,7 +156,7 @@ def jellyfin_get_libraries(url: str = None, apikey: str = None,
             if (lib.get('CollectionType') or '').lower() in ('movies', 'tvshows')
         ]
     except Exception as e:
-        logger.error(f"Failed to get Jellyfin libraries: {_redact(e)}")
+        logger.error(f"Failed to get Jellyfin libraries: {_redact(e, override_secret=apikey)}")
         return []
 
 
@@ -263,9 +273,17 @@ def jellyfin_refresh_item(imdb_id: str = None, is_movie: bool = True, season: in
                                     f"S{season:02d}E{episode:02d}")
                         return
                 else:
-                    _refresh_or_report(client, immediate, path=series.get('Path'))
+                    # Pass item_id alongside path so _refresh_or_report can
+                    # fall back to a series-level metadata refresh when
+                    # Jellyfin returns a series match with no Path (some
+                    # libraries / API-key permissions strip Path). Without
+                    # the fallback the async branch silently no-ops and the
+                    # episode never gets a refresh nudge.
+                    _refresh_or_report(client, immediate, item_id=series['Id'],
+                                       path=series.get('Path'))
                     logger.info(f"Reported series update to Jellyfin (async): "
-                                f"{series.get('Path')} S{season:02d}E{episode:02d}")
+                                f"{series.get('Path') or series['Id']} "
+                                f"S{season:02d}E{episode:02d}")
                     return
 
         # Fallback: full library update

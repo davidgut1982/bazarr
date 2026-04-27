@@ -367,3 +367,67 @@ def test_refresh_all_partial_success(fake, settings):
     assert result["movies_total"] == 2
     assert result["movies_refreshed"] == 1
     assert "error_code" not in result
+
+
+def test_refresh_episode_async_falls_back_to_item_when_series_path_missing(fake, settings):
+    """If Jellyfin returns a series with no Path (some libraries / API-key
+    permissions strip it), the async branch must NOT silently no-op. It
+    falls back to a series-level metadata refresh so subtitles still
+    trigger SOME jellyfin update."""
+    settings.jellyfin.series_library_ids = ["lib-shows"]
+    settings.jellyfin.get.return_value = "async"
+    # Drop the Path key entirely - that's the wire shape we're guarding
+    # against (Jellyfin omits Path for some library / API-key permissions).
+    series = make_series(id="s1", imdb_id="tt456")
+    series.pop("Path", None)
+    fake.items = [series]
+
+    jellyfin_refresh_item(imdb_id="tt456", is_movie=False, season=1, episode=1)
+
+    # No filesystem-change report (no Path), but the series id was refreshed
+    # so Jellyfin re-reads metadata for that series.
+    assert fake.report_media_updated_calls == []
+    assert fake.refresh_item_calls == ["s1"]
+
+
+def test_redact_strips_override_apikey_when_test_connection_fails(settings):
+    """jellyfin_test_connection accepts an override apikey for the form
+    preview. If the call fails and Jellyfin reflects that key into the
+    error string, _redact must scrub it - even though the key is not the
+    saved one in settings.jellyfin.apikey."""
+    import logging
+
+    settings.jellyfin.apikey = "saved-key-DIFFERENT"
+    override = "override-key-LEAK-CANDIDATE"
+    err = f"401 Unauthorized for /System/Info?api_key={override}"
+
+    with patch("bazarr.jellyfin.operations.get_jellyfin_client",
+               side_effect=Exception(err)):
+        with patch.object(_ops_module.logger, "error") as mock_error:
+            result = jellyfin_test_connection(url="https://j", apikey=override,
+                                              verify_ssl=False)
+
+    assert result["success"] is False
+    assert result["error_code"] == "connection_failed"
+    logged = mock_error.call_args[0][0]
+    assert override not in logged
+    assert "saved-key-DIFFERENT" not in logged
+    assert "***" in logged
+
+
+def test_redact_strips_override_apikey_when_get_libraries_fails(settings):
+    """Same protection on the libraries probe path."""
+    settings.jellyfin.apikey = "saved-key-DIFFERENT"
+    override = "override-libs-LEAK-CANDIDATE"
+    err = f"timeout fetching /Library/VirtualFolders for token {override}"
+
+    with patch("bazarr.jellyfin.operations.get_jellyfin_client",
+               side_effect=Exception(err)):
+        with patch.object(_ops_module.logger, "error") as mock_error:
+            libs = jellyfin_get_libraries(url="https://j", apikey=override,
+                                          verify_ssl=False)
+
+    assert libs == []
+    logged = mock_error.call_args[0][0]
+    assert override not in logged
+    assert "saved-key-DIFFERENT" not in logged
