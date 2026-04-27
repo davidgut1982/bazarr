@@ -118,6 +118,23 @@ const RefreshMethodSelector: FunctionComponent = () => {
   );
 };
 
+const VerifySslCheck: FunctionComponent = () => {
+  // Only show the verify-ssl toggle when the user is using HTTPS. Plain HTTP
+  // doesn't go through TLS, so the setting is meaningless and showing it
+  // would just invite confusion. The setting itself defaults to `true` and
+  // is read by the backend regardless of UI visibility, so hiding the
+  // control on HTTP doesn't change behavior - it just keeps the form clean.
+  const url = useSettingValue<string>("settings-jellyfin-url");
+  const isHttps = (url ?? "").trim().toLowerCase().startsWith("https://");
+  if (!isHttps) return null;
+  return (
+    <Check
+      label="Verify SSL certificate"
+      settingKey="settings-jellyfin-verify_ssl"
+    />
+  );
+};
+
 const SettingsJellyfinView: FunctionComponent = () => {
   return (
     <Layout name="Interface">
@@ -139,6 +156,7 @@ const SettingsJellyfinView: FunctionComponent = () => {
             placeholder="Enter your Jellyfin API key"
             description="Generate an API key in Jellyfin Dashboard > API Keys"
           />
+          <VerifySslCheck />
           <RefreshMethodSelector />
           <JellyfinTestButton />
         </Section>
