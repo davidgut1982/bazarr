@@ -75,3 +75,51 @@ def test_expand_notifier_url_concatenation_blanks_missing_bazarr_key():
 
     assert 'path=%2Fmedia%2FMovies%2FMy%20Movie%20%282024%29.mkv' in result
     assert '{bazarr_episode_path}' not in result
+
+
+# ---------------------------------------------------------------------------
+# _has_custom_notifier gates the expensive full-row + variable-expansion path
+# ---------------------------------------------------------------------------
+
+
+class _Provider:
+    """Tiny stand-in for the named-tuple-ish rows that
+    get_notifier_providers() returns."""
+
+    def __init__(self, name, url):
+        self.name = name
+        self.url = url
+
+
+def test_has_custom_notifier_true_for_form_xml_json():
+    for name in ("Form", "XML", "JSON"):
+        assert notifier._has_custom_notifier([_Provider(name, "x://y")]) is True
+
+
+def test_has_custom_notifier_false_for_regular_providers():
+    assert notifier._has_custom_notifier([
+        _Provider("Discord", "discord://w/t"),
+        _Provider("Telegram", "tgram://x"),
+    ]) is False
+
+
+def test_has_custom_notifier_true_when_any_one_is_custom():
+    """A single Form/XML/JSON entry alongside regular providers still
+    triggers the full-row fetch path; that's correct because the custom
+    one needs the variables."""
+    assert notifier._has_custom_notifier([
+        _Provider("Discord", "discord://w/t"),
+        _Provider("JSON", "json://example/"),
+    ]) is True
+
+
+def test_has_custom_notifier_false_on_empty_list():
+    assert notifier._has_custom_notifier([]) is False
+
+
+def test_format_year_suffix_renders_only_when_populated():
+    assert notifier._format_year_suffix(2024) == ' (2024)'
+    assert notifier._format_year_suffix("2024") == ' (2024)'
+    assert notifier._format_year_suffix(None) == ''
+    assert notifier._format_year_suffix("") == ''
+    assert notifier._format_year_suffix("0") == ''
