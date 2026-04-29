@@ -4,6 +4,7 @@ import requests
 import logging
 
 from app.config import settings, get_ssl_verify
+from sonarr.http_session import sonarr_session
 from sonarr.info import get_sonarr_info, sonarr_headers, url_api_sonarr
 
 
@@ -21,8 +22,8 @@ def get_profile_list():
         url_sonarr_api_series = f"{url_api_sonarr()}languageprofile"
 
     try:
-        profiles_json = requests.get(url_sonarr_api_series, timeout=int(settings.sonarr.http_timeout), verify=get_ssl_verify('sonarr'),
-                                     headers=sonarr_headers(apikey_sonarr))
+        profiles_json = sonarr_session().get(url_sonarr_api_series, timeout=int(settings.sonarr.http_timeout), verify=get_ssl_verify('sonarr'),
+                                             headers=sonarr_headers(apikey_sonarr))
     except requests.exceptions.ConnectionError:
         logging.exception("BAZARR Error trying to get profiles from Sonarr. Connection Error.")
         return None
@@ -54,8 +55,8 @@ def get_tags():
     url_sonarr_api_series = f"{url_api_sonarr()}tag"
 
     try:
-        tagsDict = requests.get(url_sonarr_api_series, timeout=int(settings.sonarr.http_timeout), verify=get_ssl_verify('sonarr'),
-                                headers=sonarr_headers(apikey_sonarr))
+        tagsDict = sonarr_session().get(url_sonarr_api_series, timeout=int(settings.sonarr.http_timeout), verify=get_ssl_verify('sonarr'),
+                                        headers=sonarr_headers(apikey_sonarr))
     except requests.exceptions.ConnectionError:
         logging.exception("BAZARR Error trying to get tags from Sonarr. Connection Error.")
         return []
@@ -72,8 +73,8 @@ def get_tags():
 def get_series_from_sonarr_api(apikey_sonarr, sonarr_series_id=None):
     url_sonarr_api_series = f"{url_api_sonarr()}series/{sonarr_series_id if sonarr_series_id else ''}"
     try:
-        r = requests.get(url_sonarr_api_series, timeout=int(settings.sonarr.http_timeout), verify=get_ssl_verify('sonarr'),
-                         headers=sonarr_headers(apikey_sonarr))
+        r = sonarr_session().get(url_sonarr_api_series, timeout=int(settings.sonarr.http_timeout), verify=get_ssl_verify('sonarr'),
+                                 headers=sonarr_headers(apikey_sonarr))
         r.raise_for_status()
     except requests.exceptions.HTTPError as e:
         if e.response.status_code:
@@ -112,8 +113,8 @@ def get_episodes_from_sonarr_api(apikey_sonarr, series_id=None, episode_id=None)
         return
 
     try:
-        r = requests.get(url_sonarr_api_episode, timeout=int(settings.sonarr.http_timeout), verify=get_ssl_verify('sonarr'),
-                         headers=sonarr_headers(apikey_sonarr))
+        r = sonarr_session().get(url_sonarr_api_episode, timeout=int(settings.sonarr.http_timeout), verify=get_ssl_verify('sonarr'),
+                                 headers=sonarr_headers(apikey_sonarr))
         r.raise_for_status()
     except requests.exceptions.HTTPError:
         logging.exception("BAZARR Error trying to get episodes from Sonarr. Http error.")
@@ -146,8 +147,8 @@ def get_episodesFiles_from_sonarr_api(apikey_sonarr, series_id=None, episode_fil
         return
 
     try:
-        r = requests.get(url_sonarr_api_episodeFiles, timeout=int(settings.sonarr.http_timeout), verify=get_ssl_verify('sonarr'),
-                         headers=sonarr_headers(apikey_sonarr))
+        r = sonarr_session().get(url_sonarr_api_episodeFiles, timeout=int(settings.sonarr.http_timeout), verify=get_ssl_verify('sonarr'),
+                                 headers=sonarr_headers(apikey_sonarr))
         r.raise_for_status()
     except requests.exceptions.HTTPError:
         logging.exception("BAZARR Error trying to get episodeFiles from Sonarr. Http error.")
@@ -175,8 +176,8 @@ def get_history_from_sonarr_api(apikey_sonarr, episode_id):
     url_sonarr_api_history = f"{url_api_sonarr()}history?eventType=1&episodeId={episode_id}"
 
     try:
-        r = requests.get(url_sonarr_api_history, timeout=int(settings.sonarr.http_timeout), verify=get_ssl_verify('sonarr'),
-                         headers=sonarr_headers(apikey_sonarr))
+        r = sonarr_session().get(url_sonarr_api_history, timeout=int(settings.sonarr.http_timeout), verify=get_ssl_verify('sonarr'),
+                                 headers=sonarr_headers(apikey_sonarr))
         r.raise_for_status()
     except requests.exceptions.HTTPError:
         logging.exception("BAZARR Error trying to get history from Sonarr. Http error.")
