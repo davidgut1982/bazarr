@@ -140,6 +140,11 @@ def update_movies(job_id=None, wait_for_completion=False):
             # included because movieParser conditionally emits it for
             # tag-driven matches and the subset check would always fail
             # without it on the DB side.
+            # Lockstep invariant: the dict-comprehension keys below and
+            # the SELECT column tuple after them must enumerate the same
+            # 22 columns. If movieParser starts emitting a new key for
+            # action='update', add it to BOTH lists. A mismatch silently
+            # corrupts the equality check or raises AttributeError.
             current_movies_in_db_dict = {
                 row.radarrId: {
                     'radarrId': row.radarrId,
