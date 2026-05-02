@@ -16,6 +16,7 @@ from app.database import (get_exclusion_clause, get_audio_profile_languages, Tab
                           get_subtitles)
 from app.event_handler import event_stream
 from app.jobs_queue import jobs_queue
+from app.config import settings
 
 from ..adaptive_searching import is_search_active, updateFailedAttempts
 from ..download import generate_subtitles
@@ -51,7 +52,8 @@ def _wanted_movie(movie, providers_list, job_id=None):
                                      'movie',
                                      movie.profileId,
                                      check_if_still_required=True,
-                                     job_id=job_id):
+                                     job_id=job_id,
+                                     fallback_allowed=settings.general.use_whisper_fallback):
 
         if result:
             found_any = True
