@@ -126,15 +126,75 @@ def update_movies(job_id=None, wait_for_completion=False):
         else:
             movies_count = len(movies)
             jobs_queue.update_job_progress(job_id=job_id, progress_max=movies_count)
-            # Get current movies in DB
-            current_movies_id_db = [x.radarrId for x in
-                                    database.execute(
-                                        select(TableMovies.radarrId))
-                                    .all()]
-            current_movies_db_kv = [x.items() for x in [y._asdict()['TableMovies'].__dict__ for y in
-                                                        database.execute(
-                                                            select(TableMovies))
-                                                        .all()]]
+            # Get current movies in DB in ONE narrow-column SELECT keyed
+            # by radarrId. Pre-refactor this issued two queries: a small
+            # one for the id list, then a `select(TableMovies)` that
+            # pulled the FULL row (including the heavy ffprobe_cache
+            # LargeBinary blob plus subtitles/failedAttempts/overview/
+            # fanart) into memory, materialized every row via
+            # `_asdict()['TableMovies'].__dict__`, and then ran an
+            # O(N**2) subset scan (`any(parsed.items() <= x for x in
+            # list)`) for every Radarr movie against every cached row.
+            # Combine into one query that fetches just the parser-output
+            # columns and key by radarrId for O(1) lookup. profileId is
+            # included because movieParser conditionally emits it for
+            # tag-driven matches and the subset check would always fail
+            # without it on the DB side.
+            # Lockstep invariant: the dict-comprehension keys below and
+            # the SELECT column tuple after them must enumerate the same
+            # 22 columns. If movieParser starts emitting a new key for
+            # action='update', add it to BOTH lists. A mismatch silently
+            # corrupts the equality check or raises AttributeError.
+            current_movies_in_db_dict = {
+                row.radarrId: {
+                    'radarrId': row.radarrId,
+                    'title': row.title,
+                    'path': row.path,
+                    'tmdbId': row.tmdbId,
+                    'poster': row.poster,
+                    'fanart': row.fanart,
+                    'audio_language': row.audio_language,
+                    'sceneName': row.sceneName,
+                    'monitored': row.monitored,
+                    'year': row.year,
+                    'sortTitle': row.sortTitle,
+                    'alternativeTitles': row.alternativeTitles,
+                    'format': row.format,
+                    'resolution': row.resolution,
+                    'video_codec': row.video_codec,
+                    'audio_codec': row.audio_codec,
+                    'overview': row.overview,
+                    'imdbId': row.imdbId,
+                    'movie_file_id': row.movie_file_id,
+                    'tags': row.tags,
+                    'file_size': row.file_size,
+                    'profileId': row.profileId,
+                }
+                for row in database.execute(
+                    select(TableMovies.radarrId,
+                           TableMovies.title,
+                           TableMovies.path,
+                           TableMovies.tmdbId,
+                           TableMovies.poster,
+                           TableMovies.fanart,
+                           TableMovies.audio_language,
+                           TableMovies.sceneName,
+                           TableMovies.monitored,
+                           TableMovies.year,
+                           TableMovies.sortTitle,
+                           TableMovies.alternativeTitles,
+                           TableMovies.format,
+                           TableMovies.resolution,
+                           TableMovies.video_codec,
+                           TableMovies.audio_codec,
+                           TableMovies.overview,
+                           TableMovies.imdbId,
+                           TableMovies.movie_file_id,
+                           TableMovies.tags,
+                           TableMovies.file_size,
+                           TableMovies.profileId)).all()
+            }
+            current_movies_id_db = list(current_movies_in_db_dict.keys())
 
             current_movies_radarr = [movie['id'] for movie in movies if movie['hasFile'] and
                                      'movieFile' in movie and
@@ -182,13 +242,14 @@ def update_movies(job_id=None, wait_for_completion=False):
                                 (settings.general.enable_strm_support and movie['movieFile']['path'].lower().endswith('.strm'))):
                             # Add/update movies from Radarr that have a movie file to current movies list
                             trace(f"{i}: (Processing) {movie['title']}")
-                            if movie['id'] in current_movies_id_db:
+                            if movie['id'] in current_movies_in_db_dict:
                                 parsed_movie = movieParser(movie, action='update',
                                                            tags_dict=tagsDict,
                                                            language_profiles=language_profiles,
                                                            movie_default_profile=movie_default_profile,
                                                            audio_profiles=audio_profiles)
-                                if not any([parsed_movie.items() <= x for x in current_movies_db_kv]):
+                                cached_db_row = current_movies_in_db_dict[movie['id']]
+                                if not (parsed_movie.items() <= cached_db_row.items()):
                                     update_movie(parsed_movie)
                                     movies_updated.append(parsed_movie['title'])
                             else:
