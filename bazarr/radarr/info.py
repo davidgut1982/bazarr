@@ -1,7 +1,6 @@
 # coding=utf-8
 
 import logging
-import requests
 import datetime
 import semver
 
@@ -11,6 +10,7 @@ from dogpile.cache import make_region
 
 from app.config import settings, empty_values, get_ssl_verify
 from constants import HEADERS
+from radarr.http_session import radarr_session
 
 region = make_region().configure('dogpile.cache.memory')
 
@@ -32,8 +32,8 @@ class GetRadarrInfo:
             headers = {**HEADERS, "X-Api-Key": settings.radarr.apikey}
             try:
                 rv = f"{url_radarr()}/api/system/status"
-                radarr_json = requests.get(rv, timeout=int(settings.radarr.http_timeout), verify=get_ssl_verify('radarr'),
-                                           headers=headers).json()
+                radarr_json = radarr_session().get(rv, timeout=int(settings.radarr.http_timeout), verify=get_ssl_verify('radarr'),
+                                                   headers=headers).json()
                 if 'version' in radarr_json:
                     radarr_version = radarr_json['version']
                 else:
@@ -41,8 +41,8 @@ class GetRadarrInfo:
             except JSONDecodeError:
                 try:
                     rv = f"{url_radarr()}/api/v3/system/status"
-                    radarr_version = requests.get(rv, timeout=int(settings.radarr.http_timeout), verify=get_ssl_verify('radarr'),
-                                                  headers=headers).json()['version']
+                    radarr_version = radarr_session().get(rv, timeout=int(settings.radarr.http_timeout), verify=get_ssl_verify('radarr'),
+                                                          headers=headers).json()['version']
                 except (RequestException, JSONDecodeError, KeyError):
                     logging.debug('BAZARR cannot get Radarr version')
                     radarr_version = 'unknown'

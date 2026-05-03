@@ -1,12 +1,56 @@
 # coding=utf-8
 import logging
+import threading
+from collections import OrderedDict
 from datetime import datetime
+
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
 from app.config import settings, write_config
 from plexapi.server import PlexServer
 
 logger = logging.getLogger(__name__)
 DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
+
+# Cache PlexServer instances (and their underlying pooled requests.Session)
+# keyed by (baseurl, token, verify). PlexServer is expensive to construct:
+# its initialiser performs a /system/status round trip and warms an internal
+# metadata cache. plex_set_movie_added_date_now / plex_refresh_item / etc.
+# are called once per item processed, so without this cache we were paying
+# a fresh TCP+TLS handshake AND a fresh PlexServer init for every item.
+#
+# The cache is bounded (FIFO eviction) so a credential rotation in the
+# settings UI cannot leak stale PlexServer objects forever.
+_PLEX_CACHE_MAX_ENTRIES = 4
+_plex_cache: "OrderedDict[tuple, PlexServer]" = OrderedDict()
+_plex_cache_lock = threading.Lock()
+
+
+def _build_pooled_session(verify: bool) -> requests.Session:
+    """Build a requests.Session backed by an HTTPAdapter that actually pools
+    connections, so subsequent calls to the same Plex server reuse the
+    existing TCP+TLS connection.
+
+    Retries are limited to transient gateway statuses (502/503/504) so 4xx
+    responses still surface immediately to the caller, matching the
+    pre-existing behaviour of the rest of the code base."""
+    s = requests.Session()
+    s.verify = verify
+    adapter = HTTPAdapter(
+        pool_connections=20,
+        pool_maxsize=50,
+        max_retries=Retry(
+            total=3,
+            backoff_factor=0.3,
+            status_forcelist=(502, 503, 504),
+        ),
+    )
+    s.mount('http://', adapter)
+    s.mount('https://', adapter)
+    return s
+
 
 def get_plex_server() -> PlexServer:
     """Connect to the Plex server and return the server instance.
@@ -16,10 +60,12 @@ def get_plex_server() -> PlexServer:
     plain-text apikey / token directly from settings - no per-call
     decryption ceremony, no auto-encrypt branch, no encryption_key /
     apikey_encrypted bookkeeping.
-    """
-    session = requests.Session()
-    session.verify = False
 
+    The constructed PlexServer (and its pooled Session) is cached by
+    (baseurl, token, verify) so a sync that touches many items does not
+    rebuild the server connection for each one. The cache is FIFO-bounded
+    so a settings rotation evicts old entries.
+    """
     try:
         auth_method = settings.plex.get('auth_method', 'apikey')
 
@@ -28,23 +74,40 @@ def get_plex_server() -> PlexServer:
             if not token:
                 raise ValueError("OAuth token not found. Please re-authenticate with Plex.")
 
-            server_url = settings.plex.get('server_url')
-            if not server_url:
+            baseurl = settings.plex.get('server_url')
+            if not baseurl:
                 raise ValueError("Server URL not configured. Please select a Plex server.")
-
-            plex_server = PlexServer(server_url, token, session=session)
-
         else:
             protocol = "https://" if settings.plex.ssl else "http://"
             baseurl = f"{protocol}{settings.plex.ip}:{settings.plex.port}"
 
-            apikey = settings.plex.get('apikey')
-            if not apikey:
+            token = settings.plex.get('apikey')
+            if not token:
                 raise ValueError("API key not configured. Please configure Plex authentication.")
 
-            plex_server = PlexServer(baseurl, apikey, session=session)
+        # Verify is False here for compatibility with the prior behaviour:
+        # the original code unconditionally set ``session.verify = False``.
+        # If TLS verification ever becomes user-configurable for Plex, plumb
+        # that flag through to the cache key as well.
+        verify = False
+        cache_key = (baseurl, token, verify)
 
-        return plex_server
+        with _plex_cache_lock:
+            cached = _plex_cache.get(cache_key)
+            if cached is not None:
+                # Move-to-end to keep the most-recently-used at the tail
+                # so eviction continues to drop the oldest entry.
+                _plex_cache.move_to_end(cache_key)
+                return cached
+
+            session = _build_pooled_session(verify=verify)
+            plex_server = PlexServer(baseurl, token, session=session)
+
+            _plex_cache[cache_key] = plex_server
+            while len(_plex_cache) > _PLEX_CACHE_MAX_ENTRIES:
+                _plex_cache.popitem(last=False)
+
+            return plex_server
 
     except Exception as e:
         logger.error(f"Failed to connect to Plex server: {e}")
