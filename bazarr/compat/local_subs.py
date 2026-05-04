@@ -312,6 +312,52 @@ def _resolve_format(path: str) -> str | None:
     return ext if ext in _CONVERTIBLE_FORMATS else None
 
 
+def _decode_subtitle_bytes(raw: bytes) -> str:
+    """BOM check -> UTF-8 -> charset_normalizer -> cp1252 fallback.
+
+    Mirrors bazarr/api/subtitles/content.py:read_subtitle_file.
+    """
+    if raw.startswith(b"\xef\xbb\xbf"):
+        return raw[3:].decode("utf-8")
+    if raw.startswith(b"\xff\xfe"):
+        return raw[2:].decode("utf-16-le")
+    if raw.startswith(b"\xfe\xff"):
+        return raw[2:].decode("utf-16-be")
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        pass
+    try:
+        import charset_normalizer
+        result = charset_normalizer.from_bytes(raw).best()
+        if result is not None:
+            return str(result)
+    except Exception:
+        pass
+    return raw.decode("cp1252", errors="replace")
+
+
+def _normalize_srt(raw: bytes) -> bytes:
+    """Decode any incoming SRT bytes, re-emit UTF-8 without BOM."""
+    return _decode_subtitle_bytes(raw).encode("utf-8")
+
+
+def _convert_to_srt(raw: bytes, fmt: str) -> bytes:
+    """Convert ass/ssa/vtt/sub/smi/ttml/dfxp source to SRT bytes via pysubs2.
+
+    Returns b"" on any conversion failure (preserves the plugin's
+    "broken sub, blocklist this file_id" contract -- 200 + empty body).
+    """
+    try:
+        import pysubs2
+        text = _decode_subtitle_bytes(raw)
+        sub = pysubs2.SSAFile.from_string(text, format_=fmt)
+        return sub.to_string("srt").encode("utf-8")
+    except Exception as e:
+        logger.debug("compat local: convert %s -> srt failed: %s", fmt, e)
+        return b""
+
+
 def _fetch_media_row(media_type: str, media_id: int):
     """Fetch the row needed to enumerate subtitles + media path."""
     from app.database import select, TableMovies, TableEpisodes
