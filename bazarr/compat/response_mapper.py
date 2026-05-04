@@ -334,3 +334,37 @@ def languages_response() -> dict:
     ]
     return {"data": [{"language_code": c, "language_name": c.upper()}
                      for c in codes]}
+
+
+def local_to_os_entry(*, file_id: int, lang: str, modifier: str | None,
+                      filename: str, upload_mtime: float,
+                      media_type: str, media_id: int,
+                      requested_language: str | None) -> dict:
+    """OS.com-shaped entry for a locally-stored subtitle. Synthetic high
+    download_count pins locals above provider entries via the existing
+    single-key sort in service._do_fanout."""
+    upload_iso = (
+        dt.datetime.fromtimestamp(int(upload_mtime), dt.timezone.utc)
+          .strftime("%Y-%m-%dT%H:%M:%SZ")
+        if upload_mtime else _EPOCH_ISO
+    )
+    language_out = requested_language or lang
+    subtitle_id = f"local-{media_type}-{int(media_id)}-{lang}"
+    if modifier:
+        subtitle_id = f"{subtitle_id}:{modifier}"
+    return {
+        "id": f"subtitle-{int(file_id)}",
+        "type": "subtitle",
+        "attributes": {
+            "subtitle_id": subtitle_id,
+            "language": language_out,
+            "release": filename,
+            "hearing_impaired": modifier == "hi",
+            "foreign_parts_only": modifier == "forced",
+            "from_trusted": True,
+            "ratings": 10.0,
+            "download_count": 999_999,
+            "upload_date": upload_iso,
+            "files": [{"file_id": int(file_id), "file_name": filename}],
+        },
+    }
