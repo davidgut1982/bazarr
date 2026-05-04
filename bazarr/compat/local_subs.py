@@ -80,3 +80,69 @@ class _HashCache:
 
 
 _hash_cache = _HashCache()
+
+
+import logging
+
+logger = logging.getLogger("bazarr.compat.local_subs")
+
+
+def _tt(imdb_id: str | None) -> str:
+    if not imdb_id:
+        return ""
+    s = str(imdb_id).strip().lower()
+    if not s:
+        return ""
+    if s.startswith("tt"):
+        return s
+    return f"tt{s}" if s.lstrip("0").isdigit() or s.isdigit() else ""
+
+
+def _resolve_by_imdb(imdb_id: str, season: int | None, episode: int | None,
+                    media_type: str) -> tuple[str, int] | None:
+    from app.database import select, TableMovies, TableShows, TableEpisodes
+    imdb = _tt(imdb_id)
+    if not imdb:
+        return None
+    try:
+        if media_type == "episode":
+            show = database.execute(
+                select(TableShows.sonarrSeriesId)
+                .where(TableShows.imdbId == imdb)
+            ).first()
+            if not show:
+                return None
+            ep = database.execute(
+                select(TableEpisodes.sonarrEpisodeId)
+                .where(TableEpisodes.sonarrSeriesId == show.sonarrSeriesId)
+                .where(TableEpisodes.season == int(season or 0))
+                .where(TableEpisodes.episode == int(episode or 0))
+            ).first()
+            return ("episode", int(ep.sonarrEpisodeId)) if ep else None
+        else:
+            row = database.execute(
+                select(TableMovies.radarrId)
+                .where(TableMovies.imdbId == imdb)
+            ).first()
+            return ("movie", int(row.radarrId)) if row else None
+    except Exception as e:
+        logger.debug("compat local: imdb resolve failed: %s", e)
+        return None
+
+
+def _resolve_media(imdb_id: str | None, season: int | None,
+                   episode: int | None, media_type: str,
+                   query: str | None, moviehash: str | None) -> tuple[str, int] | None:
+    if imdb_id:
+        hit = _resolve_by_imdb(imdb_id, season, episode, media_type)
+        if hit:
+            return hit
+    return None
+
+
+# Module-level `database` symbol so tests can patch via
+# `compat.local_subs.database`. Real reference imported lazily.
+try:
+    from app.database import database
+except Exception:
+    database = None
