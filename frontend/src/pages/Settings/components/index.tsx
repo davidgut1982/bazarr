@@ -17,32 +17,16 @@ export const URLTestButton: FunctionComponent<{
 
   const click = useCallback(() => {
     if (address && apikey && ssl !== null) {
-      let testUrl: string;
-
-      let baseUrl = url;
+      let baseUrl = url ?? "";
       if (baseUrl && baseUrl.startsWith("/") === false) {
         baseUrl = "/" + baseUrl;
       }
 
-      if (port) {
-        testUrl = `${address}:${port}${baseUrl ?? ""}`;
-      } else {
-        testUrl = `${address}${baseUrl ?? ""}`;
-      }
-      const request = {
-        protocol: ssl ? "https" : "http",
-        url: testUrl,
-        params: {
-          apikey,
-        },
-      };
-
-      if (!request.url.endsWith("/")) {
-        request.url += "/";
-      }
+      const hostPart = port ? `${address}:${port}` : address;
+      const protocol = ssl ? "https" : "http";
 
       api.utils
-        .urlTest(request.protocol, request.url, request.params)
+        .urlTest(category, protocol, `${hostPart}${baseUrl}`, apikey)
         .then((result) => {
           if (result.status) {
             setTitle(`Version: ${result.version}`);
@@ -53,7 +37,7 @@ export const URLTestButton: FunctionComponent<{
           }
         });
     }
-  }, [address, port, url, apikey, ssl]);
+  }, [address, port, url, apikey, ssl, category]);
 
   return (
     <Button autoContrast onClick={click} variant={color} title={title}>
@@ -74,16 +58,9 @@ export const ProviderTestButton: FunctionComponent<{
   const click = useCallback(() => {
     if (testUrl !== null) {
       const urlWithoutProtocol = new URL(testUrl).host;
-      const request = {
-        protocol: "http",
-        url: urlWithoutProtocol,
-      };
-      if (!request.url.endsWith("/")) {
-        request.url += "/";
-      }
 
       api.utils
-        .providerUrlTest(request.protocol, request.url)
+        .providerUrlTest(category, "http", urlWithoutProtocol)
         .then((result) => {
           if (result.status) {
             setTitle(`${result.version}`);
@@ -100,7 +77,7 @@ export const ProviderTestButton: FunctionComponent<{
           }
         });
     }
-  }, [testUrl]);
+  }, [testUrl, category]);
 
   useEffect(() => {
     setTitle(testConnection);
