@@ -32,15 +32,16 @@ class RequestUtils {
     return result.data;
   }
 
-  async providerUrlTest(protocol: string, url: string, params?: LooseObject) {
+  // Provider connection tester. Whisper-ASR runs the same
+  // localhost-on-the-same-box pattern Sonarr/Radarr does (people
+  // self-host transcription on the Bazarr box), so it goes through the
+  // same constrained route. Backend appends /status itself; no apikey.
+  async providerUrlTest(service: string, protocol: string, url: string) {
+    const trimmed = url.replace(/\/+$/, "");
     const result = await client.axios.get<UrlTestResponse>(
-      `../test/${protocol}/${url}status`,
-      { params },
+      `../test/${service}`,
+      { params: { url: `${protocol}://${trimmed}` } },
     );
-    const { data } = result;
-    if (data.status && data.version) {
-      return data;
-    }
     return result.data;
   }
 }

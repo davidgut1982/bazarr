@@ -58,16 +58,9 @@ export const ProviderTestButton: FunctionComponent<{
   const click = useCallback(() => {
     if (testUrl !== null) {
       const urlWithoutProtocol = new URL(testUrl).host;
-      const request = {
-        protocol: "http",
-        url: urlWithoutProtocol,
-      };
-      if (!request.url.endsWith("/")) {
-        request.url += "/";
-      }
 
       api.utils
-        .providerUrlTest(request.protocol, request.url)
+        .providerUrlTest(category, "http", urlWithoutProtocol)
         .then((result) => {
           if (result.status) {
             setTitle(`${result.version}`);
@@ -84,7 +77,7 @@ export const ProviderTestButton: FunctionComponent<{
           }
         });
     }
-  }, [testUrl]);
+  }, [testUrl, category]);
 
   useEffect(() => {
     setTitle(testConnection);
