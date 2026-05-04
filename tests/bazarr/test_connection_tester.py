@@ -37,10 +37,10 @@ def _addr(ip):
 def test_relaxed_validator_accepts(monkeypatch, ip):
     from app.ui import _resolve_and_validate_constrained
     monkeypatch.setattr(socket, "getaddrinfo", lambda *a, **kw: [_addr(ip)])
-    resolved_ip, hostname, parsed = _resolve_and_validate_constrained(
+    resolved_ips, hostname, parsed = _resolve_and_validate_constrained(
         "http://example.test:8989/"
     )
-    assert resolved_ip == ip
+    assert resolved_ips == [ip]
     assert hostname == "example.test"
 
 
@@ -58,14 +58,40 @@ def test_relaxed_validator_rejects(monkeypatch, ip):
 
 
 def test_relaxed_validator_picks_first_usable_in_dual_stack(monkeypatch):
-    """Multicast first, public second: validator skips multicast and picks public."""
+    """Multicast first, public second: validator skips multicast and keeps public."""
     from app.ui import _resolve_and_validate_constrained
     monkeypatch.setattr(
         socket, "getaddrinfo",
         lambda *a, **kw: [_addr("224.0.0.1"), _addr("8.8.8.8")],
     )
-    resolved_ip, _, _ = _resolve_and_validate_constrained("http://example.test/")
-    assert resolved_ip == "8.8.8.8"
+    resolved_ips, _, _ = _resolve_and_validate_constrained("http://example.test/")
+    assert resolved_ips == ["8.8.8.8"]
+
+
+def test_relaxed_validator_returns_all_safe_addresses(monkeypatch):
+    """Dual-stack hostname: both addresses returned in DNS order so the
+    caller can fall back if the first one refuses connection."""
+    from app.ui import _resolve_and_validate_constrained
+    monkeypatch.setattr(
+        socket, "getaddrinfo",
+        lambda *a, **kw: [_addr("::1"), _addr("127.0.0.1")],
+    )
+    resolved_ips, _, _ = _resolve_and_validate_constrained("http://localhost/")
+    assert resolved_ips == ["::1", "127.0.0.1"]
+
+
+def test_relaxed_validator_dedupes_repeated_addresses(monkeypatch):
+    from app.ui import _resolve_and_validate_constrained
+    monkeypatch.setattr(
+        socket, "getaddrinfo",
+        lambda *a, **kw: [
+            _addr("127.0.0.1"),
+            _addr("127.0.0.1"),  # SOCK_STREAM + SOCK_DGRAM both return the same IP
+            _addr("::1"),
+        ],
+    )
+    resolved_ips, _, _ = _resolve_and_validate_constrained("http://localhost/")
+    assert resolved_ips == ["127.0.0.1", "::1"]
 
 
 def test_relaxed_validator_no_addrs(monkeypatch):
@@ -257,6 +283,56 @@ def test_proxy_service_honors_verify_ssl_setting(monkeypatch):
         client.get("/test/sonarr?url=https://sonarr.example.com&apikey=k")
         assert fake_get.call_args_list[0].kwargs["verify"] is False
         fake_verify.assert_called_with("sonarr")
+
+
+def test_proxy_service_falls_back_to_next_resolved_ip_on_connection_refused(monkeypatch):
+    """Dual-stack hostname where the first address refuses connection.
+    The second address must be tried automatically. This is the
+    'localhost resolves to ::1 first, only 127.0.0.1 listens' case
+    seen on every dual-stack Linux box."""
+    import requests
+    monkeypatch.setattr("app.config.settings.auth.type", None)
+    monkeypatch.setattr(
+        socket, "getaddrinfo",
+        lambda *a, **kw: [_addr("::1"), _addr("127.0.0.1")],
+    )
+    refused = requests.ConnectionError("ECONNREFUSED on ::1")
+    success = MagicMock(status_code=200)
+    success.json.return_value = {"version": "4.0.0.7000"}
+    # Two ConnectionError on ::1 (legacy + v3 path), then 200 on 127.0.0.1
+    # legacy (because the inner break short-circuits to next IP after
+    # first ConnectionError, so 127.0.0.1 starts at legacy path).
+    with patch("app.ui.requests.get", side_effect=[refused, success]) as fake_get:
+        app = _build_app()
+        client = app.test_client()
+        _login(client)
+        r = client.get("/test/sonarr?url=http://localhost:8989&apikey=k")
+        body = r.get_json()
+        assert body["status"] is True, body
+        assert body["version"] == "4.0.0.7000"
+        # First call hit ::1 (refused), second call hit 127.0.0.1
+        assert fake_get.call_count == 2
+        urls = [c.args[0] for c in fake_get.call_args_list]
+        assert "[::1]" in urls[0]
+        assert "127.0.0.1" in urls[1]
+
+
+def test_proxy_service_returns_connection_error_when_no_ip_reachable(monkeypatch):
+    import requests
+    monkeypatch.setattr("app.config.settings.auth.type", None)
+    monkeypatch.setattr(
+        socket, "getaddrinfo",
+        lambda *a, **kw: [_addr("::1"), _addr("127.0.0.1")],
+    )
+    refused = requests.ConnectionError("nothing listens here")
+    with patch("app.ui.requests.get", side_effect=[refused, refused]):
+        app = _build_app()
+        client = app.test_client()
+        _login(client)
+        r = client.get("/test/sonarr?url=http://localhost:8989&apikey=k")
+        body = r.get_json()
+        assert body["status"] is False
+        assert "Cannot connect" in body["error"]
 
 
 def test_proxy_service_pins_to_resolved_ip_with_host_header(monkeypatch):

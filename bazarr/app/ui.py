@@ -228,7 +228,15 @@ def _resolve_and_validate_constrained(url_str):
     and unspecified addresses are rejected because those cannot host a
     TCP service. Everything else passes.
 
-    Returns (resolved_ip, hostname, parsed) or raises ValueError.
+    Returns (resolved_ips, hostname, parsed) where `resolved_ips` is a
+    de-duplicated list of every safe address from the DNS query in the
+    order returned by getaddrinfo. The list lets the caller fall back
+    to the next address when a connection is refused, which matters on
+    dual-stack hosts where a hostname resolves to both IPv6 and IPv4 but
+    only one of the two has the service actually listening (the typical
+    'localhost -> ::1 first, but only 127.0.0.1 binds' case).
+
+    Raises ValueError if no usable address was returned.
     """
     parsed = urlparse(url_str)
     hostname = parsed.hostname
@@ -238,21 +246,46 @@ def _resolve_and_validate_constrained(url_str):
     addrs = socket.getaddrinfo(hostname, port)
     if not addrs:
         raise ValueError("DNS resolution returned no results")
-    safe_ip = None
+    seen = set()
+    resolved_ips = []
     for _, _, _, _, sockaddr in addrs:
-        ip = ipaddress.ip_address(sockaddr[0])
+        ip_str = sockaddr[0]
+        if ip_str in seen:
+            continue
+        seen.add(ip_str)
+        ip = ipaddress.ip_address(ip_str)
         if ip.is_multicast or ip.is_unspecified:
             continue
-        safe_ip = sockaddr[0]
-        break
-    if safe_ip is None:
+        resolved_ips.append(ip_str)
+    if not resolved_ips:
         raise ValueError(
             "No usable address resolved (multicast and unspecified are not valid TCP targets)"
         )
-    return safe_ip, hostname, parsed
+    return resolved_ips, hostname, parsed
 
 
-_TEST_STATUS_PATHS = ('/api/system/status', '/api/v3/system/status')
+# Each entry pins:
+#   paths: tuple of upstream status endpoints to probe in order. First 200
+#          wins. Sonarr/Radarr accept a v1 legacy + v3 path; Whisper-ASR
+#          exposes a single /status endpoint.
+#   apikey_required: True for Sonarr/Radarr (X-Api-Key required upstream);
+#                    False for Whisper which has no API-key concept.
+#   has_verify_ssl_setting: True only if `settings.<service>.verify_ssl`
+#                           exists. get_ssl_verify is consulted in that
+#                           case; otherwise we default verify=True so
+#                           public Whisper instances over HTTPS still
+#                           validate certificates.
+_TEST_SERVICES = {
+    'sonarr':    {'paths': ('/api/system/status', '/api/v3/system/status'),
+                  'apikey_required': True,
+                  'has_verify_ssl_setting': True},
+    'radarr':    {'paths': ('/api/system/status', '/api/v3/system/status'),
+                  'apikey_required': True,
+                  'has_verify_ssl_setting': True},
+    'whisperai': {'paths': ('/status',),
+                  'apikey_required': False,
+                  'has_verify_ssl_setting': False},
+}
 
 
 def _validate_test_base_url(base):
@@ -272,16 +305,16 @@ def _validate_test_base_url(base):
     return parsed
 
 
-def _build_pinned_request(base_parsed, status_path, service):
-    """Construct the (pinned_url, pinned_headers, hostname) tuple for a
-    Sonarr/Radarr connection test. Path is hard-coded by the caller to
-    a known status endpoint; the user only contributes scheme, host, port,
+def _build_pinned_request(base_parsed, status_path, resolved_ip, hostname):
+    """Construct the (pinned_url, pinned_headers) tuple for a single
+    (IP, status_path) attempt. Path is hard-coded by the caller to a
+    known status endpoint; the user only contributes scheme, host, port,
     and reverse-proxy base path.
     """
     base_path = (base_parsed.path or '').rstrip('/')
     test_path = base_path + status_path
     test_url = base_parsed._replace(path=test_path).geturl()
-    resolved_ip, hostname, parsed = _resolve_and_validate_constrained(test_url)
+    parsed = urlparse(test_url)
     port = parsed.port or (443 if parsed.scheme == 'https' else 80)
     pinned_netloc = (f'[{resolved_ip}]:{port}' if ':' in resolved_ip
                      else f'{resolved_ip}:{port}')
@@ -305,13 +338,14 @@ def proxy_service(service):
 
     See LavX/bazarr#92 for the original report and rationale.
     """
-    if service not in ('sonarr', 'radarr'):
+    if service not in _TEST_SERVICES:
         return dict(status=False, error='unsupported service', code=0)
+    config = _TEST_SERVICES[service]
     base = (request.args.get('url') or '').strip()
     apikey = (request.args.get('apikey') or '').strip()
     if not base:
         return dict(status=False, error='missing url', code=0)
-    if not apikey:
+    if config['apikey_required'] and not apikey:
         return dict(status=False, error='missing apikey', code=0)
 
     try:
@@ -319,42 +353,79 @@ def proxy_service(service):
     except ValueError as e:
         return dict(status=False, error=f'Request blocked: {e}', code=0)
 
+    try:
+        resolved_ips, hostname, _ = _resolve_and_validate_constrained(
+            base_parsed.geturl()
+        )
+    except (ValueError, socket.gaierror) as e:
+        return dict(status=False, error=f'Request blocked: {e}', code=0)
+
     last_response_code = 0
     last_error = None
-    for status_path in _TEST_STATUS_PATHS:
-        try:
+    last_connection_error = None
+    reachable_ip = None
+    # Outer loop: each safe IP returned by DNS, in original order. Inner
+    # loop: each status path. Fall through to the next IP on
+    # ConnectionError so dual-stack hosts where one address family is
+    # not actually listening (e.g. localhost -> ::1 first but only
+    # 127.0.0.1 binds) still produce a successful test.
+    for resolved_ip in resolved_ips:
+        if reachable_ip and reachable_ip != resolved_ip:
+            # Already proven a different IP is reachable; do not
+            # cross-probe additional addresses.
+            break
+        for status_path in config['paths']:
             pinned_url, pinned_headers = _build_pinned_request(
-                base_parsed, status_path, service
+                base_parsed, status_path, resolved_ip, hostname
             )
-        except (ValueError, socket.gaierror) as e:
-            return dict(status=False, error=f'Request blocked: {e}', code=0)
-        pinned_headers['X-Api-Key'] = apikey
-        try:
-            result = requests.get(pinned_url, allow_redirects=False,
-                                  verify=get_ssl_verify(service),
-                                  timeout=5, headers=pinned_headers)
-        except Exception as e:
-            return dict(status=False, error=repr(e))
-        last_response_code = result.status_code
-        if result.status_code == 200:
+            if apikey:
+                pinned_headers['X-Api-Key'] = apikey
+            verify = (get_ssl_verify(service)
+                      if config['has_verify_ssl_setting'] else True)
             try:
-                version = result.json()['version']
-                return dict(status=True, version=version, code=result.status_code)
-            except Exception:
-                last_error = 'Error Occurred. Check your settings.'
+                result = requests.get(pinned_url, allow_redirects=False,
+                                      verify=verify,
+                                      timeout=5, headers=pinned_headers)
+            except requests.ConnectionError as e:
+                last_connection_error = repr(e)
+                # Cannot reach this IP; try the next one. Skip the
+                # remaining status paths for this IP.
+                break
+            except Exception as e:
+                return dict(status=False, error=repr(e))
+            reachable_ip = resolved_ip
+            last_response_code = result.status_code
+            if result.status_code == 200:
+                try:
+                    version = result.json()['version']
+                    return dict(status=True, version=version,
+                                code=result.status_code)
+                except Exception:
+                    last_error = 'Error Occurred. Check your settings.'
+                    continue
+            elif result.status_code == 401:
+                return dict(status=False,
+                            error='Access Denied. Check API key.',
+                            code=result.status_code)
+            elif result.status_code == 404:
+                last_error = 'Cannot get version. Maybe unsupported legacy API call?'
                 continue
-        elif result.status_code == 401:
-            return dict(status=False, error='Access Denied. Check API key.',
-                        code=result.status_code)
-        elif result.status_code == 404:
-            last_error = 'Cannot get version. Maybe unsupported legacy API call?'
-            continue
-        elif 300 <= result.status_code <= 399:
-            return dict(status=False, error='Wrong URL Base.', code=result.status_code)
-        else:
-            return dict(status=False,
-                        error=result.raise_for_status(),
-                        code=result.status_code)
+            elif 300 <= result.status_code <= 399:
+                return dict(status=False, error='Wrong URL Base.',
+                            code=result.status_code)
+            else:
+                # Codex P2: result.raise_for_status() RAISES on 4xx/5xx
+                # rather than returning a value, so wrapping it in dict()
+                # made the route propagate an HTTPError to Flask and
+                # surface as 500 to the frontend. Return a structured
+                # error string instead so the UI can show the upstream
+                # status code on transient failures.
+                return dict(status=False,
+                            error=f'Upstream returned status {result.status_code}',
+                            code=result.status_code)
+    if reachable_ip is None and last_connection_error is not None:
+        return dict(status=False,
+                    error=f'Cannot connect: {last_connection_error}', code=0)
     return dict(status=False,
                 error=last_error or 'Cannot reach Sonarr/Radarr at the configured URL.',
                 code=last_response_code)
