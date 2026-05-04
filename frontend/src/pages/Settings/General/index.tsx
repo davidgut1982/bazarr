@@ -71,12 +71,14 @@ const AuthPasswordInput: FunctionComponent = () => {
   >({
     settingKey: "settings-auth-password",
   });
+  // Capture the FIRST observed `stored` value, including the empty
+  // string. Codex P3: the prior `stored.length > 0` guard meant
+  // originalRef.current stayed null whenever there was no auth password
+  // configured, and the type-then-clear path below sent that null back
+  // through FormData, where it was serialized as the string "null" and
+  // hashed by save_settings as a brand-new password.
   const originalRef = useRef<string | null>(null);
-  if (
-    originalRef.current === null &&
-    typeof stored === "string" &&
-    stored.length > 0
-  ) {
+  if (originalRef.current === null && typeof stored === "string") {
     originalRef.current = stored;
   }
   const [draft, setDraft] = useState("");
@@ -93,7 +95,11 @@ const AuthPasswordInput: FunctionComponent = () => {
           if (!touched) setTouched(true);
           update(next);
         } else if (touched) {
-          update(originalRef.current);
+          // originalRef.current is "" when no password was configured at
+          // load, or the original hash otherwise. Coalesce to "" as
+          // belt-and-suspenders: NEVER hand a null to update() here, or
+          // FormData turns it into the literal string "null" downstream.
+          update(originalRef.current ?? "");
         }
       }}
     />
