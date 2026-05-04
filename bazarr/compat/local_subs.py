@@ -312,6 +312,44 @@ def _resolve_format(path: str) -> str | None:
     return ext if ext in _CONVERTIBLE_FORMATS else None
 
 
+def _fetch_media_row(media_type: str, media_id: int):
+    """Fetch the row needed to enumerate subtitles + media path."""
+    from app.database import select, TableMovies, TableEpisodes
+    try:
+        if media_type == "episode":
+            return database.execute(
+                select(TableEpisodes.subtitles, TableEpisodes.path)
+                .where(TableEpisodes.sonarrEpisodeId == int(media_id))
+            ).first()
+        else:
+            return database.execute(
+                select(TableMovies.subtitles, TableMovies.path)
+                .where(TableMovies.radarrId == int(media_id))
+            ).first()
+    except Exception as e:
+        logger.debug("compat local: media row fetch failed: %s", e)
+        return None
+
+
+def _build_request_to_lang_map(requested: list[str]) -> dict[str, str]:
+    """Map "en" / "pt" / "zh" -> the original BCP-47 string when there's
+    exactly one variant per base, so the mapper can preserve the region
+    subtag (zh-CN / pt-BR)."""
+    by_base: dict[str, list[str]] = {}
+    for code in requested or []:
+        base = code.split("-", 1)[0].lower()
+        by_base.setdefault(base, []).append(code)
+    return {b: codes[0] for b, codes in by_base.items() if len(codes) == 1}
+
+
+def _path_replace_for(media_type: str):
+    if path_mappings is None:
+        return lambda p: p
+    return (path_mappings.path_replace
+            if media_type == "episode"
+            else path_mappings.path_replace_movie)
+
+
 def _select_local_subs(raw_subtitles, media_dir: str,
                       requested_languages: list[str]) -> list[dict]:
     """Filter Bazarr's `subtitles` column entries by requested languages
@@ -389,3 +427,88 @@ try:
     from app.database import database
 except Exception:
     database = None
+
+
+def search_local(
+    imdb_id: str | None,
+    season: int | None,
+    episode: int | None,
+    media_type: str,
+    languages: list[str],
+    query: str | None = None,
+    moviehash: str | None = None,
+) -> list[dict]:
+    """OS.com-shaped entries for locally-available subtitles.
+
+    Empty list on resolve miss or no matches. Never raises.
+    """
+    if not languages:
+        return []
+    try:
+        from .response_mapper import local_to_os_entry
+        from . import auth as _auth
+
+        resolved = _resolve_media(imdb_id, season, episode, media_type,
+                                   query, moviehash)
+        if resolved is None:
+            return []
+        media_type_resolved, media_id = resolved
+
+        row = _fetch_media_row(media_type_resolved, media_id)
+        if row is None:
+            return []
+
+        path_replace = _path_replace_for(media_type_resolved)
+        media_local = path_replace(row.path)
+
+        try:
+            media_dir_real = os.path.realpath(os.path.dirname(media_local))
+        except (OSError, ValueError):
+            return []
+
+        # Path-replace each subtitle path before selection so the realpath
+        # barrier in _select_local_subs sees local-filesystem paths.
+        items = _parse_subtitles_blob(row.subtitles)
+        mapped = [
+            [it[0], path_replace(it[1])]
+            for it in items
+            if isinstance(it, list) and len(it) >= 2
+        ]
+        raw_remapped = repr(mapped)
+
+        candidates = _select_local_subs(
+            raw_subtitles=raw_remapped,
+            media_dir=media_dir_real,
+            requested_languages=languages,
+        )
+        if not candidates:
+            return []
+
+        req_lang_map = _build_request_to_lang_map(languages)
+        out: list[dict] = []
+        for c in candidates:
+            file_id = _auth.mint_local_file_id(
+                path=c["path"],
+                lang=c["lang"],
+                modifier=c["modifier"],
+                fmt=c["fmt"],
+                media_type=media_type_resolved,
+                media_id=media_id,
+                media_dir=media_dir_real,
+            )
+            base_alpha2 = c["lang"].split("-", 1)[0].lower()
+            requested_language = req_lang_map.get(base_alpha2)
+            out.append(local_to_os_entry(
+                file_id=file_id,
+                lang=c["lang"],
+                modifier=c["modifier"],
+                filename=c["filename"],
+                upload_mtime=c["mtime"],
+                media_type=media_type_resolved,
+                media_id=media_id,
+                requested_language=requested_language,
+            ))
+        return out
+    except Exception as e:
+        logger.warning("compat local: search_local crashed (returning []): %s", e)
+        return []
