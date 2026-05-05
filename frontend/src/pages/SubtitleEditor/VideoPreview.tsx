@@ -626,11 +626,10 @@ const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(
     const handleLoadedMetadata = useCallback(() => {
       const video = videoRef.current;
       if (video) {
-        setDuration(
-          nativeSeek
-            ? Math.round(video.duration * 1000)
-            : Math.round((seekOffsetSecRef.current + video.duration) * 1000),
-        );
+        if (nativeSeek) {
+          setDuration(Math.round(video.duration * 1000));
+        }
+        // Remux/transcode: duration was already set from /api/editor/info.
         setVideoError(false);
         video.volume = useExternalAudio ? 0 : volume;
         // Auto-play if user was playing before the seek (transcode mode only)
