@@ -145,10 +145,12 @@ def _serve_file_with_ranges(file_path, mimetype):
         response.headers['Content-Range'] = f'bytes {start}-{end}/{file_size}'
         response.headers['Content-Length'] = length
         response.headers['Accept-Ranges'] = 'bytes'
+        response.headers['X-Accel-Buffering'] = 'no'
         return response
 
     response = send_file(file_path, mimetype=mimetype)
     response.headers['Accept-Ranges'] = 'bytes'
+    response.headers['X-Accel-Buffering'] = 'no'
     return response
 
 
@@ -183,6 +185,7 @@ def _stream_ffmpeg(cmd, mimetype):
         headers={
             'Cache-Control': 'no-cache',
             'Accept-Ranges': 'none',
+            'X-Accel-Buffering': 'no',
         },
     )
 
@@ -366,9 +369,9 @@ class EditorAudio(Resource):
                     '-vn',
                     '-map', f'0:a:{audio_track_idx}',
                     '-c:a', 'aac',
-                    '-b:a', '24k',
-                    '-ac', '1',
-                    '-ar', '16000',
+                    '-b:a', '48k',
+                    '-ac', '2',
+                    '-ar', '44100',
                     '-movflags', '+faststart',
                     '-v', 'error',
                     '-y',
@@ -826,3 +829,4 @@ class EditorSync(Resource):
         msg = job.get('message', 'Unknown error')
         _editor_sync_jobs.pop(job_key, None)
         return {'status': 'failed', 'message': msg}, 200
+
