@@ -124,3 +124,43 @@ def test_select_returns_empty_on_garbage_subtitles_blob():
     assert _select_local_subs("not a list", "/x", ["en"]) == []
     assert _select_local_subs("", "/x", ["en"]) == []
     assert _select_local_subs(None, "/x", ["en"]) == []
+
+
+def test_select_drops_oversized_files(tmp_path):
+    """Files larger than the 5MB cap should not appear as candidates -
+    serve_local would 404 them, so surfacing produces a guaranteed-fail
+    download (Codex P2)."""
+    from compat.local_subs import _select_local_subs, _MAX_SUB_BYTES
+    big = tmp_path / "movie.en.srt"
+    big.write_bytes(b"x" * (_MAX_SUB_BYTES + 1024))
+    raw = repr([["en", str(big)]])
+    matches = _select_local_subs(raw, str(tmp_path), ["en"])
+    assert matches == []
+
+
+def test_select_accepts_subs_in_absolute_target_folder(tmp_path, monkeypatch):
+    """When general.subfolder=='absolute' the subtitle lives outside the
+    media's directory but inside the configured target folder. The
+    selector must accept that case (Codex P1)."""
+    from compat import local_subs
+    media_dir = tmp_path / "Movies" / "Inception (2010)"
+    media_dir.mkdir(parents=True)
+    abs_target = tmp_path / "Subtitles"
+    abs_target.mkdir()
+    sub = abs_target / "Inception.en.srt"
+    sub.write_text("x")
+    media_path = media_dir / "Inception.mkv"
+    media_path.write_text("video bytes")
+
+    raw = repr([["en", str(sub)]])
+    monkeypatch.setattr("compat.local_subs.get_target_folder",
+                        lambda p: str(abs_target), raising=False)
+    # Patch via the import path used inside _allowed_subtitle_roots.
+    import utilities.helper as _h
+    monkeypatch.setattr(_h, "get_target_folder", lambda p: str(abs_target))
+
+    matches = local_subs._select_local_subs(
+        raw, str(media_dir), ["en"], media_path=str(media_path)
+    )
+    assert len(matches) == 1
+    assert matches[0]["path"] == str(sub)

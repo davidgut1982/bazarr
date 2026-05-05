@@ -467,8 +467,42 @@ def _path_replace_for(media_type: str):
             else path_mappings.path_replace_movie)
 
 
+def _allowed_subtitle_roots(media_dir_real: str, media_path_real: str) -> list[str]:
+    """Compose the allowed subtitle roots: the media file's directory
+    plus any configured target folder (relative or absolute).
+
+    `general.subfolder == "absolute"` users keep subs in a dedicated
+    library that has no path overlap with the video file, so a strict
+    media-dir-only check would silently filter every local entry out of
+    the compat response. Mirrors the pattern in
+    `bazarr/api/subtitles/content.py:resolve_subtitle_path`.
+    """
+    roots = [media_dir_real]
+    try:
+        from utilities.helper import get_target_folder
+        target = get_target_folder(media_path_real)
+        if target:
+            target_real = os.path.realpath(target)
+            if target_real and target_real not in roots:
+                roots.append(target_real)
+    except Exception as e:
+        logger.debug("compat local: get_target_folder lookup failed: %s", e)
+    return roots
+
+
+def _path_under_any_root(real_path: str, roots: list[str]) -> bool:
+    for root in roots:
+        try:
+            if os.path.commonpath([real_path, root]) == root:
+                return True
+        except ValueError:
+            continue
+    return False
+
+
 def _select_local_subs(raw_subtitles, media_dir: str,
-                      requested_languages: list[str]) -> list[dict]:
+                      requested_languages: list[str],
+                      media_path: str | None = None) -> list[dict]:
     """Filter Bazarr's `subtitles` column entries by requested languages
     and surviving on-disk files.
 
@@ -478,9 +512,11 @@ def _select_local_subs(raw_subtitles, media_dir: str,
        "size": int, "mtime": float}
 
     Path safety: each entry is realpath'd and required to live inside
-    realpath(media_dir). The caller is responsible for path-mapping the
-    raw subtitle paths *before* passing them in (the raw `subtitles`
-    column stores Sonarr/Radarr-side paths).
+    `media_dir` OR the configured `general.subfolder` target. The caller
+    is responsible for path-mapping the raw subtitle paths *before*
+    passing them in (the raw `subtitles` column stores Sonarr/Radarr-
+    side paths). Files larger than `_MAX_SUB_BYTES` are dropped at
+    selection time so they never appear as broken download links.
     """
     items = _parse_subtitles_blob(raw_subtitles)
     if not items:
@@ -490,6 +526,9 @@ def _select_local_subs(raw_subtitles, media_dir: str,
         return []
 
     media_dir_real = os.path.realpath(media_dir)
+    media_path_real = os.path.realpath(media_path) if media_path else media_dir_real
+    allowed_roots = _allowed_subtitle_roots(media_dir_real, media_path_real)
+
     out: list[dict] = []
     for item in items:
         if not (isinstance(item, list) and len(item) >= 2):
@@ -508,11 +547,7 @@ def _select_local_subs(raw_subtitles, media_dir: str,
             real = os.path.realpath(raw_path)
         except (OSError, ValueError):
             continue
-        try:
-            common = os.path.commonpath([real, media_dir_real])
-        except ValueError:
-            continue
-        if common != media_dir_real:
+        if not _path_under_any_root(real, allowed_roots):
             continue
         if not os.path.isfile(real):
             continue
@@ -524,6 +559,12 @@ def _select_local_subs(raw_subtitles, media_dir: str,
         try:
             st = os.stat(real)
         except OSError:
+            continue
+        # Drop oversized files at selection time so they never appear as
+        # broken download links: serve_local would 404 them anyway, but
+        # surfacing them in the picker just produces a guaranteed-fail
+        # download. Keep the picker honest.
+        if st.st_size > _MAX_SUB_BYTES:
             continue
 
         out.append({
@@ -612,6 +653,7 @@ def search_local(
             raw_subtitles=raw_remapped,
             media_dir=media_dir_real,
             requested_languages=languages,
+            media_path=media_local,
         )
         if not candidates:
             return []
