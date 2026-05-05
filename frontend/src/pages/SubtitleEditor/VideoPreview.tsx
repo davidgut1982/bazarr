@@ -329,7 +329,6 @@ const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(
     // Reset retry state when media changes
     useEffect(() => {
       retryCountRef.current = 0;
-      setStreamKey(0);
     }, [mediaType, mediaId]);
 
     // For transcoded mode, track the seek offset in the ffmpeg ?t= param
