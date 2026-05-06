@@ -62,6 +62,28 @@ def test_local_to_os_entry_forced_flag():
     assert e["attributes"]["foreign_parts_only"] is True
 
 
+def test_local_to_os_entry_subtitle_id_unique_per_file():
+    """Two distinct local files (different file_ids) for the same lang
+    + media must produce different subtitle_id values, otherwise clients
+    that de-dupe on subtitle_id collapse them. Codex P2."""
+    from compat.response_mapper import local_to_os_entry
+    e1 = local_to_os_entry(
+        file_id=42, lang="en", modifier=None, filename="alt1.srt",
+        upload_mtime=0, media_type="movie", media_id=99,
+        requested_language="en",
+    )
+    e2 = local_to_os_entry(
+        file_id=43, lang="en", modifier=None, filename="alt2.srt",
+        upload_mtime=0, media_type="movie", media_id=99,
+        requested_language="en",
+    )
+    sid1 = e1["attributes"]["subtitle_id"]
+    sid2 = e2["attributes"]["subtitle_id"]
+    assert sid1 != sid2
+    assert sid1.endswith("-42")
+    assert sid2.endswith("-43")
+
+
 def test_local_to_os_entry_preserves_request_region():
     from compat.response_mapper import local_to_os_entry
     e = local_to_os_entry(

@@ -24,7 +24,7 @@ def test_resolve_by_imdb_episode_hits():
             imdb_id="tt0903747", season=1, episode=2,
             media_type="episode", query=None, moviehash=None,
         )
-    assert result == ("episode", 42)
+    assert result[:2] == ("episode", 42)
 
 
 def test_resolve_by_imdb_movie_hits():
@@ -35,7 +35,7 @@ def test_resolve_by_imdb_movie_hits():
             imdb_id="tt1375666", season=None, episode=None,
             media_type="movie", query=None, moviehash=None,
         )
-    assert result == ("movie", 99)
+    assert result[:2] == ("movie", 99)
 
 
 def test_resolve_imdb_miss_no_other_keys_returns_none():
@@ -76,7 +76,7 @@ def test_resolve_by_imdb_movie_with_zero_stripped_request_hits_padded_db_row():
             season=None, episode=None, media_type="movie",
             query=None, moviehash=None,
         )
-    assert result == ("movie", 99)
+    assert result[:2] == ("movie", 99)
     # Verify candidates list was used (IN clause)
     call_args = db.execute.call_args[0][0]
     compiled = str(call_args.compile(compile_kwargs={"literal_binds": True}))
@@ -96,7 +96,7 @@ def test_resolve_by_guessit_episode_title_exact():
             imdb_id="", season=None, episode=None, media_type="episode",
             query="Breaking.Bad.S01E02.1080p.mkv", moviehash=None,
         )
-    assert result == ("episode", 42)
+    assert result[:2] == ("episode", 42)
 
 
 def test_resolve_by_guessit_movie_year_match():
@@ -111,7 +111,8 @@ def test_resolve_by_guessit_movie_year_match():
             imdb_id="", season=None, episode=None, media_type="movie",
             query="Inception.2010.mkv", moviehash=None,
         )
-    assert result == ("movie", 22)
+    assert result[:2] == ("movie", 22)
+    assert result[2] == "query"
 
 
 def test_resolve_query_unparseable_returns_none():
@@ -144,7 +145,8 @@ def test_resolve_by_moviehash_iterates_library_files(tmp_path):
             imdb_id=None, season=None, episode=None, media_type="episode",
             query=None, moviehash="deadbeefcafebabe",
         )
-    assert result == ("episode", 7)
+    assert result[:2] == ("episode", 7)
+    assert result[2] == "moviehash"
 
 
 def test_resolve_by_moviehash_no_match_returns_none(tmp_path):

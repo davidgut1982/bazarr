@@ -35,7 +35,7 @@ def test_e2e_search_then_download_then_stream(app, tmp_path, monkeypatch):
     )
 
     def _resolve(imdb_id, season, episode, media_type, query, moviehash):
-        return ("movie", 99) if imdb_id == "tt1375666" else None
+        return ("movie", 99, "imdb") if imdb_id == "tt1375666" else None
 
     def _fetch(media_type, media_id):
         return fake_movie if (media_type, media_id) == ("movie", 99) else None

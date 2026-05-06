@@ -255,19 +255,30 @@ def _resolve_by_moviehash(moviehash: str, media_type: str) -> tuple[str, int] | 
 
 def _resolve_media(imdb_id: str | None, season: int | None,
                    episode: int | None, media_type: str,
-                   query: str | None, moviehash: str | None) -> tuple[str, int] | None:
+                   query: str | None, moviehash: str | None
+                   ) -> tuple[str, int, str] | None:
+    """Return (media_type, media_id, source) on hit, None on miss.
+
+    `source` records which resolver path produced the hit:
+      - "imdb"      : imdb_id + season/episode lookup
+      - "query"     : guessit-on-filename lookup
+      - "moviehash" : library scan + OS hash match
+    Callers use `source == "moviehash"` to set attributes.moviehash_match
+    on the response entry: hash-resolved rows are hash-validated by
+    construction, regardless of the request's moviehash_match mode.
+    """
     if imdb_id:
         hit = _resolve_by_imdb(imdb_id, season, episode, media_type)
         if hit:
-            return hit
+            return (*hit, "imdb")
     if query:
         hit = _resolve_by_query(query, media_type)
         if hit:
-            return hit
+            return (*hit, "query")
     if moviehash:
         hit = _resolve_by_moviehash(moviehash, media_type)
         if hit:
-            return hit
+            return (*hit, "moviehash")
     return None
 
 
@@ -629,13 +640,14 @@ def search_local(
             # hash. Skip imdb/query — they'd produce false positives.
             if not moviehash:
                 return []
-            resolved = _resolve_by_moviehash(moviehash, media_type)
+            hit = _resolve_by_moviehash(moviehash, media_type)
+            resolved = (*hit, "moviehash") if hit else None
         else:
             resolved = _resolve_media(imdb_id, season, episode, media_type,
                                        query, moviehash)
         if resolved is None:
             return []
-        media_type_resolved, media_id = resolved
+        media_type_resolved, media_id, resolve_source = resolved
 
         row = _fetch_media_row(media_type_resolved, media_id)
         if row is None:
@@ -726,7 +738,11 @@ def search_local(
                 season=md_season,
                 episode=md_episode,
                 episode_title=md_episode_title,
-                hash_matched=bool(moviehash) and moviehash_match == "only",
+                # Hash-match flag reflects how the row was resolved, not
+                # the request mode: a moviehash-resolved row is
+                # hash-validated regardless of moviehash_match=include vs
+                # only. Codex P2.
+                hash_matched=resolve_source == "moviehash",
             ))
         return out
     except Exception as e:
