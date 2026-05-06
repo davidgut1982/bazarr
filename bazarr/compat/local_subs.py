@@ -381,21 +381,31 @@ def serve_local(payload: dict) -> tuple[bytes, str]:
 
     Returns (bytes, "application/x-subrip"). Empty bytes is a valid
     response: it's the plugin signal for "broken sub, blocklist".
+
+    Path-safety: the file must still live inside one of the
+    `allowed_roots` recorded at mint time. Older payloads (pre-migration)
+    only have `media_dir` — fall back to that single root.
     """
     path = payload.get("path") or ""
     media_dir = payload.get("media_dir") or ""
     fmt = payload.get("fmt") or "srt"
+    raw_roots = payload.get("allowed_roots") or [media_dir]
 
     try:
         real = os.path.realpath(path)
     except (OSError, ValueError):
         raise FileNotFoundError("invalid path")
-    try:
-        media_dir_real = os.path.realpath(media_dir)
-        if os.path.commonpath([real, media_dir_real]) != media_dir_real:
-            raise FileNotFoundError("subtitle moved outside media dir")
-    except ValueError:
+
+    real_roots: list[str] = []
+    for r in raw_roots:
+        try:
+            real_roots.append(os.path.realpath(r))
+        except (OSError, ValueError):
+            continue
+    if not real_roots:
         raise FileNotFoundError("invalid media dir")
+    if not _path_under_any_root(real, real_roots):
+        raise FileNotFoundError("subtitle moved outside allowed roots")
 
     if not os.path.isfile(real):
         raise FileNotFoundError("subtitle missing on disk")
@@ -658,6 +668,12 @@ def search_local(
         if not candidates:
             return []
 
+        # The same roots list the selector used to validate paths; carry
+        # it into each minted file_id so serve_local can re-validate at
+        # stream time, including subs in the absolute target folder.
+        allowed_roots = _allowed_subtitle_roots(media_dir_real,
+                                                 os.path.realpath(media_local))
+
         # Pull metadata for feature_details (Jellyfin's plugin filters
         # entries lacking it). Episodes use series_title; movies use
         # title.
@@ -691,6 +707,7 @@ def search_local(
                 media_type=media_type_resolved,
                 media_id=media_id,
                 media_dir=media_dir_real,
+                allowed_roots=allowed_roots,
             )
             base_alpha2 = c["lang"].split("-", 1)[0].lower()
             requested_language = req_lang_map.get(base_alpha2)

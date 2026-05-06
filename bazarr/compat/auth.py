@@ -122,15 +122,20 @@ def mint_file_id(provider: str, native_id: str, language: str, release_info: str
 
 def mint_local_file_id(*, path: str, lang: str, modifier: str | None,
                        fmt: str, media_type: str, media_id: int,
-                       media_dir: str) -> int:
+                       media_dir: str,
+                       allowed_roots: list[str] | None = None) -> int:
     """Allocate a server-side-mapped int file_id for a locally-stored subtitle.
 
-    Stash the resolved path + format + media-dir anchor so /download/stream
-    can validate and serve without re-resolving from the DB. The `kind`
-    discriminator key lets the stream handler branch on payload type.
+    Stash the resolved path + format + allowed-roots list so /download/stream
+    can validate and serve without re-resolving from the DB. `allowed_roots`
+    is the union of the media file's directory and any configured target
+    folder (general.subfolder=='absolute'); serve_local rejects any path
+    outside this list at stream time. Falls back to [media_dir] if the
+    caller doesn't pre-compute the list (back-compat).
     """
     from .file_id_store import get_store
     ttl = int(settings.compat_endpoint.file_id_ttl_seconds)
+    roots = [str(r) for r in (allowed_roots or [media_dir])]
     payload = {
         "kind": "local",
         "path": str(path),
@@ -140,6 +145,7 @@ def mint_local_file_id(*, path: str, lang: str, modifier: str | None,
         "media_type": str(media_type),
         "media_id": int(media_id),
         "media_dir": str(media_dir),
+        "allowed_roots": roots,
     }
     return get_store().put(payload, ttl)
 
