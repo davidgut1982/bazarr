@@ -201,6 +201,7 @@ const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const isPlayingRef = useRef(false);
     const lastReportedMsRef = useRef(-1);
+    const retryCountRef = useRef(0);
 
     const [playing, setPlaying] = useState(false);
     const [buffering, setBuffering] = useState(false);
@@ -209,6 +210,7 @@ const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(
     const [currentMs, setCurrentMs] = useState(0);
     const [duration, setDuration] = useState(0);
     const [videoError, setVideoError] = useState(false);
+    const [streamKey, setStreamKey] = useState(0);
 
     const hasMedia = mediaType != null && mediaId != null;
     const apiKey = Environment.apiKey ?? "";
@@ -261,7 +263,8 @@ const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(
           const vCodecStr = codecMap[vCodec] || "";
           const aCodecStr = audioCodecMap[aCodec] || "";
           const container = ext === "webm" ? "webm" : "mp4";
-          const servableContainer = [".mp4", ".m4v", ".webm", ".mkv"].includes(
+          // MKV is excluded: browsers can't efficiently seek MKV over HTTP ranges
+          const servableContainer = [".mp4", ".m4v", ".webm"].includes(
             `.${ext}`,
           );
 
@@ -323,6 +326,11 @@ const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(
         .catch(() => setDirectPlay(false));
     }, [hasMedia, mediaType, mediaId, apiKey, onAudioTracksLoaded]);
 
+    // Reset retry state when media changes
+    useEffect(() => {
+      retryCountRef.current = 0;
+    }, [mediaType, mediaId]);
+
     // For transcoded mode, track the seek offset in the ffmpeg ?t= param
     const [seekOffsetSec, setSeekOffsetSec] = useState(0);
     const seekOffsetSecRef = useRef(0);
@@ -330,23 +338,28 @@ const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(
       seekOffsetSecRef.current = seekOffsetSec;
     }, [seekOffsetSec]);
 
-    // Video URL never changes when switching audio tracks. Video always uses direct play
-    // or remux based on codec support. Audio track switching is handled by a separate
-    // audio element only.
     const baseVideoUrl = hasMedia
-      ? `${Environment.baseUrl}/api/editor/video?mediaType=${encodeURIComponent(mediaType)}&mediaId=${mediaId}&audioTrack=0&apikey=${encodeURIComponent(apiKey)}`
+      ? `${Environment.baseUrl}/api/editor/video?mediaType=${encodeURIComponent(mediaType)}&mediaId=${mediaId}&audioTrack=${audioTrack}&apikey=${encodeURIComponent(apiKey)}`
       : "";
-    const nativeSeek = directPlay || remuxMode;
-    const videoSrc = !baseVideoUrl
-      ? ""
-      : nativeSeek
-        ? `${baseVideoUrl}&direct=1`
-        : `${baseVideoUrl}${seekOffsetSec > 0 ? `&t=${seekOffsetSec.toFixed(1)}` : ""}`;
+    // Only direct-play supports native seeking, it's served as a file with HTTP Range support.
+    // Remux is a live ffmpeg pipe, setting video.currentTime on a non-seekable stream doesn't
+    // work. Remux seeks by reloading the stream with ?t=, same as transcode mode.
+    const nativeSeek = directPlay === true;
+    // Don't set src until directPlay is resolved.
+    const videoSrc =
+      !baseVideoUrl || directPlay === null
+        ? ""
+        : directPlay
+          ? `${baseVideoUrl}&direct=1`
+          : remuxMode
+            ? `${baseVideoUrl}&remux=1${seekOffsetSec > 0 ? `&t=${seekOffsetSec.toFixed(1)}` : ""}`
+            : `${baseVideoUrl}${seekOffsetSec > 0 ? `&t=${seekOffsetSec.toFixed(1)}` : ""}`;
 
-    // When a non-default audio track is selected, mute the video and play a separate
-    // audio element extracted from the selected track. For track 0, use the video's
-    // own audio (no separate element needed).
-    const useExternalAudio = audioTrack > 0 || remuxMode;
+    // For remux/transcode, ffmpeg bakes the correct audio track into the video stream,
+    // no separate element needed.
+    // External audio is only needed for direct-play with a non-default track, because the
+    // browser can't select audio tracks from a raw file.
+    const useExternalAudio = directPlay === true && audioTrack > 0;
     const audioBaseUrl =
       useExternalAudio && hasMedia
         ? `${Environment.baseUrl}/api/editor/audio?mediaType=${mediaType}&mediaId=${mediaId}&audioTrack=${audioTrack}&apikey=${encodeURIComponent(apiKey)}`
@@ -404,6 +417,17 @@ const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(
         ) {
           lastReportedMsRef.current = absoluteMs;
           onTimeUpdate(absoluteMs);
+        }
+        // Correct drift between the external audio element and video (direct-play
+        // with non-default audio track: two independent elements that can diverge)
+        const audio = audioRef.current;
+        if (audio && !audio.paused) {
+          const expected = nativeSeek
+            ? video.currentTime
+            : seekOffsetSecRef.current + video.currentTime;
+          if (Math.abs(audio.currentTime - expected) > 0.15) {
+            audio.currentTime = expected;
+          }
         }
       }, 100);
     }, [onTimeUpdate, nativeSeek]);
@@ -553,11 +577,28 @@ const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(
     );
 
     const handlePlay = useCallback(() => {
+      retryCountRef.current = 0;
       isPlayingRef.current = true;
       setPlaying(true);
       onPlayStateChange?.(true);
       startTimeReporting();
     }, [onPlayStateChange, startTimeReporting]);
+
+    const handleVideoError = useCallback(() => {
+      if (!nativeSeek && retryCountRef.current < 3) {
+        retryCountRef.current++;
+        const video = videoRef.current;
+        if (video) {
+          const absoluteSec = seekOffsetSecRef.current + video.currentTime;
+          seekOffsetSecRef.current = absoluteSec;
+          setSeekOffsetSec(absoluteSec);
+        }
+        autoPlayAfterSeekRef.current = true;
+        setStreamKey((k) => k + 1);
+      } else {
+        setVideoError(true);
+      }
+    }, [nativeSeek]);
 
     const handlePause = useCallback(() => {
       isPlayingRef.current = false;
@@ -584,11 +625,10 @@ const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(
     const handleLoadedMetadata = useCallback(() => {
       const video = videoRef.current;
       if (video) {
-        setDuration(
-          nativeSeek
-            ? Math.round(video.duration * 1000)
-            : Math.round((seekOffsetSecRef.current + video.duration) * 1000),
-        );
+        if (nativeSeek) {
+          setDuration(Math.round(video.duration * 1000));
+        }
+        // Remux/transcode: duration was already set from /api/editor/info.
         setVideoError(false);
         video.volume = useExternalAudio ? 0 : volume;
         // Auto-play if user was playing before the seek (transcode mode only)
@@ -597,6 +637,11 @@ const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(
           video.play().catch(() => {
             /* ignored */
           });
+          if (audioRef.current && useExternalAudio) {
+            audioRef.current.play().catch(() => {
+              /* ignored */
+            });
+          }
         }
       }
     }, [volume, useExternalAudio, nativeSeek]);
@@ -656,6 +701,7 @@ const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(
           aria-label="Video preview"
         >
           <video
+            key={streamKey}
             ref={videoRef}
             src={videoSrc}
             muted={useExternalAudio}
@@ -666,7 +712,7 @@ const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(
             onLoadedMetadata={handleLoadedMetadata}
             onWaiting={() => setBuffering(true)}
             onCanPlay={() => setBuffering(false)}
-            onError={() => setVideoError(true)}
+            onError={handleVideoError}
           />
           {audioSrc && (
             <audio
