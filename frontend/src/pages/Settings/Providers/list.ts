@@ -300,6 +300,24 @@ export const ProviderList: Readonly<ProviderInfo[]> = [
     ],
   },
   {
+    key: "pipocas",
+    name: "Pipocas.tv",
+    description:
+      "Portuguese / Brazilian / English / Spanish Subtitles Provider",
+    inputs: [
+      {
+        type: "text",
+        key: "username",
+        name: "Username",
+      },
+      {
+        type: "password",
+        key: "password",
+        name: "Password",
+      },
+    ],
+  },
+  {
     key: "legendasdivx",
     name: "LegendasDivx",
     description: "Brazilian / Portuguese Subtitles Provider",
@@ -419,6 +437,11 @@ export const ProviderList: Readonly<ProviderInfo[]> = [
     key: "soustitreseu",
     name: "Sous-Titres.eu",
     description: "Mostly French Subtitles Provider",
+  },
+  {
+    key: "subclub",
+    name: "SubClub.eu",
+    description: "Estonian Subtitles Provider",
   },
   {
     key: "subdl",
