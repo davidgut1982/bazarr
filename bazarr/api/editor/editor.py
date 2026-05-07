@@ -407,7 +407,9 @@ def _spawn_hls_encoder(video_path, audio_track_idx, start_time_sec, cache_dir):
                 with _hls_encoder_processes_guard:
                     _hls_encoder_processes[cache_dir] = process
                 try:
-                    stderr_data, _ = process.communicate(timeout=7200)
+                    # communicate() returns (stdout, stderr); stdout is DEVNULL
+                    # so we only care about the stderr half.
+                    _, stderr_data = process.communicate(timeout=7200)
                 except subprocess.TimeoutExpired:
                     process.kill()
                     process.wait()
@@ -497,8 +499,17 @@ class EditorHls(Resource):
         cache_dir = _hls_cache_dir(media_type, media_id, audio_track, start_time, mtime)
         target = os.path.join(cache_dir, filename)
 
-        # Refuse anything that escaped the whitelist via realpath shenanigans.
-        if os.path.realpath(target) != target:
+        # Defense-in-depth: ensure the resolved target stays inside the HLS
+        # cache root. The filename regex above already blocks path traversal,
+        # but we cross-check after symlink resolution. Comparing realpath
+        # against itself (the previous form) breaks deployments where
+        # args.config_dir is itself a symlink (Docker bind mounts etc.).
+        real_cache_root = os.path.realpath(HLS_CACHE_DIR)
+        real_target = os.path.realpath(target)
+        if not (
+            real_target == real_cache_root
+            or real_target.startswith(real_cache_root + os.sep)
+        ):
             return 'Invalid HLS path', 400
 
         if filename == 'playlist.m3u8':
