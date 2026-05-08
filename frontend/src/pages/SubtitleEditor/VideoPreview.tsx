@@ -332,7 +332,7 @@ const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(
     // URLs in the manifest. startSec is part of the path so segment URLs inherit
     // the same session.
     const hlsUrl = hasMedia
-      ? `${Environment.baseUrl}/api/editor/hls/${encodeURIComponent(mediaType)}/${mediaId}/${hlsSession.audioTrack}/${Math.floor(hlsSession.startSec)}/playlist.m3u8`
+      ? `${Environment.baseUrl}/api/editor/hls/${encodeURIComponent(mediaType)}/${mediaId}/${hlsSession.audioTrack}/${hlsSession.startSec.toFixed(3)}/playlist.m3u8`
       : "";
 
     // Set up hls.js (or native HLS on Safari) on the video element. Re-runs when

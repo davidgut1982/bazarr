@@ -432,15 +432,15 @@ def _spawn_hls_encoder(video_path, audio_track_idx, start_time_sec, cache_dir):
                 )
                 with _hls_encoder_processes_guard:
                     _hls_encoder_processes[cache_dir] = process
-                try:
-                    # communicate() returns (stdout, stderr); stdout is DEVNULL
-                    # so we only care about the stderr half.
-                    _, stderr_data = process.communicate(timeout=7200)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait()
-                    logger.warning('HLS encode timed out for %s', video_path)
-                    return
+                # No wall-clock timeout. A 4-hour movie at libx264 ultrafast
+                # could legitimately take >2h on slow hardware, and a hard
+                # kill there would truncate the playlist. The right safety
+                # net is _kill_idle_hls_encoders, which only acts when the
+                # session has actually been abandoned (no segment requests
+                # for HLS_ENCODER_IDLE_TIMEOUT_SECONDS).
+                # communicate() returns (stdout, stderr); stdout is DEVNULL
+                # so we only care about the stderr half.
+                _, stderr_data = process.communicate()
                 if process.returncode != 0 and process.returncode != -15:
                     # rc=-15 is SIGTERM, which is what _kill_idle_hls_encoders
                     # sends; not an error.
@@ -498,7 +498,7 @@ def _wait_for_first_segment(cache_dir, deadline):
 
 
 @api_ns_editor.route(
-    'editor/hls/<string:media_type>/<int:media_id>/<int:audio_track>/<int:start_time>/<string:filename>'
+    'editor/hls/<string:media_type>/<int:media_id>/<int:audio_track>/<string:start_time>/<string:filename>'
 )
 class EditorHls(Resource):
     @authenticate
@@ -511,6 +511,10 @@ class EditorHls(Resource):
         encoding; the frontend uses it to create new sessions for track switches
         or seek-before-current-session-start without restarting from t=0.
 
+        startTime is parsed as a float so the frontend can preserve sub-second
+        precision (e.g., switching tracks at 30.567s passes through unrounded
+        instead of snapping the user-facing clock to a whole second).
+
         First request to playlist.m3u8 spawns ffmpeg; segments are served as
         ffmpeg writes them. hls.js handles segment fetching, buffer management,
         and seek-back within the cached portion.
@@ -521,7 +525,11 @@ class EditorHls(Resource):
             return 'Invalid HLS filename', 400
         if audio_track < 0:
             return 'audioTrack must be >= 0', 400
-        if start_time < 0:
+        try:
+            start_time_sec = float(start_time)
+        except ValueError:
+            return 'startTime must be a number', 400
+        if start_time_sec < 0 or not (start_time_sec == start_time_sec):  # rejects NaN
             return 'startTime must be >= 0', 400
 
         resolved = _resolve_video_path(media_type, media_id)
@@ -536,7 +544,7 @@ class EditorHls(Resource):
         except OSError:
             return 'Video file not accessible', 404
 
-        cache_dir = _hls_cache_dir(media_type, media_id, audio_track, start_time, mtime)
+        cache_dir = _hls_cache_dir(media_type, media_id, audio_track, start_time_sec, mtime)
         target = os.path.join(cache_dir, filename)
 
         # Defense-in-depth: ensure the resolved target stays inside the HLS
@@ -566,7 +574,7 @@ class EditorHls(Resource):
                 logger.exception('HLS cache eviction error')
 
             try:
-                _spawn_hls_encoder(video_path, audio_track, start_time, cache_dir)
+                _spawn_hls_encoder(video_path, audio_track, start_time_sec, cache_dir)
             except Exception:
                 logger.exception('Failed to spawn HLS encoder for %s', video_path)
                 return 'ffmpeg not available', 500
