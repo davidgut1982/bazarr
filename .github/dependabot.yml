@@ -29,3 +29,11 @@ updates:
       prefix: "[workflow]"
     open-pull-requests-limit: 1
     target-branch: "development"
+  - package-ecosystem: 'pip'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+    commit-message:
+      prefix: "[bot]"
+    open-pull-requests-limit: 5
+    target-branch: "development"
