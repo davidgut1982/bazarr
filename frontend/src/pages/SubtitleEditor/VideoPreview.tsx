@@ -212,6 +212,9 @@ const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(
     // ends up momentarily mismatched between track and start-time. The video
     // element's currentTime is *local* to this session; the user-facing
     // position is `startSec + video.currentTime`.
+    //
+    // Non-zero sessions are transcoded by the backend so startSec can be the
+    // user's exact requested source time without a client-side keyframe seek.
     const [hlsSession, setHlsSession] = useState({
       audioTrack: 0,
       startSec: 0,
@@ -316,15 +319,14 @@ const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(
     // current position so they don't have to wait for ffmpeg to encode from
     // t=0 to where they were.
     useEffect(() => {
-      setHlsSession((prev) => {
-        if (prev.audioTrack === audioTrack) return prev;
-        const video = videoRef.current;
-        const currentLocalSec = video ? video.currentTime : 0;
-        shouldAutoplayAfterAttachRef.current = isPlayingRef.current;
-        return {
-          audioTrack,
-          startSec: prev.startSec + currentLocalSec,
-        };
+      const prev = hlsSessionRef.current;
+      if (prev.audioTrack === audioTrack) return;
+      const video = videoRef.current;
+      const userTarget = prev.startSec + (video?.currentTime ?? 0);
+      shouldAutoplayAfterAttachRef.current = isPlayingRef.current;
+      setHlsSession({
+        audioTrack,
+        startSec: userTarget,
       });
     }, [audioTrack]);
 
@@ -453,8 +455,11 @@ const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(
 
       if (needsNewSession) {
         shouldAutoplayAfterAttachRef.current = isPlayingRef.current;
-        setHlsSession((prev) => ({ ...prev, startSec: targetAbsoluteSec }));
         setCurrentMs(currentTimeMs);
+        setHlsSession((prev) => ({
+          ...prev,
+          startSec: targetAbsoluteSec,
+        }));
       } else if (Math.abs(localTargetSec - video.currentTime) > 0.25) {
         video.currentTime = localTargetSec;
         setCurrentMs(currentTimeMs);
@@ -530,12 +535,17 @@ const VideoPreview = forwardRef<VideoPreviewHandle, VideoPreviewProps>(
 
         if (needsNewSession) {
           shouldAutoplayAfterAttachRef.current = isPlayingRef.current;
-          setHlsSession((prev) => ({ ...prev, startSec: targetAbsoluteSec }));
+          setCurrentMs(clampedMs);
+          onTimeUpdate?.(clampedMs);
+          setHlsSession((prev) => ({
+            ...prev,
+            startSec: targetAbsoluteSec,
+          }));
         } else {
           video.currentTime = localTargetSec;
+          setCurrentMs(clampedMs);
+          onTimeUpdate?.(clampedMs);
         }
-        setCurrentMs(clampedMs);
-        onTimeUpdate?.(clampedMs);
       },
       [duration, onTimeUpdate],
     );

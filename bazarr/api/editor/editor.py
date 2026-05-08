@@ -29,6 +29,10 @@ api_ns_editor = Namespace('Editor', description='Video editor streaming and meta
 PEAKS_CACHE_DIR = os.path.join(args.config_dir, 'cache', 'peaks')
 HLS_CACHE_DIR = os.path.join(args.config_dir, 'cache', 'hls')
 
+# Bump this whenever the HLS encoding strategy changes in a way that makes
+# existing cache directories unsafe to reuse.
+HLS_CACHE_VERSION = 'hls-v2'
+
 # Idle TTL after which an HLS cache directory becomes eligible for eviction.
 # Each request to the playlist or any segment refreshes the directory's atime,
 # so this only fires for sessions the user has actually walked away from.
@@ -115,6 +119,24 @@ def _probe_video(video_path):
         logger.error('ffprobe failed for %s: %s', video_path, result.stderr.decode(errors='replace'))
         return None
     return json.loads(result.stdout)
+
+
+def _can_direct_play(video_path, probe_data=None):
+    """Check if the video can be served directly to the browser."""
+    ext = os.path.splitext(video_path)[1].lower()
+    if ext not in ('.mp4', '.m4v'):
+        return False
+
+    if probe_data is None:
+        probe_data = _probe_video(video_path)
+    if not probe_data:
+        return False
+
+    for stream in probe_data.get('streams', []):
+        if stream.get('codec_type') == 'video':
+            codec = stream.get('codec_name', '').lower()
+            return codec in ('h264', 'avc')
+    return False
 
 
 def _parse_range_header(range_header, file_size):
@@ -217,9 +239,16 @@ def _hls_cache_dir(media_type, media_id, audio_track_idx, start_time_sec, mtime)
     start_time_sec lets callers spawn fresh sessions that begin somewhere other
     than the start of the file (e.g., after a track switch at minute 30). Each
     distinct start point gets its own cache so concurrent sessions don't race.
+
+    The start time is keyed at millisecond precision (3 decimals). Truncating
+    to whole seconds would let a request for 30.789 reuse an already-finished
+    playlist generated for 30.123 in the same int-second bucket -- the stream
+    contents wouldn't actually start at 30.789, so the user-facing clock
+    (startSec + video.currentTime) would drift by up to ~999 ms.
     """
     raw = (
-        f"{media_type}:{media_id}:{audio_track_idx}:{int(start_time_sec)}:{int(mtime)}"
+        f"{HLS_CACHE_VERSION}:{media_type}:{media_id}:{audio_track_idx}:"
+        f"{start_time_sec:.3f}:{int(mtime)}"
     )
     key = hashlib.md5(raw.encode()).hexdigest()[:16]
     return os.path.join(HLS_CACHE_DIR, key)
@@ -309,14 +338,96 @@ def _evict_stale_hls_dirs():
                 _hls_encoder_processes.pop(path, None)
 
 
+def _build_hls_ffmpeg_command(
+    ffmpeg,
+    video_path,
+    audio_track_idx,
+    start_time_sec,
+    cache_dir,
+    probe_data,
+):
+    """Build the ffmpeg command used for one editor HLS session."""
+    video_codec = None
+    if probe_data:
+        for stream in probe_data.get('streams', []):
+            if stream.get('codec_type') == 'video':
+                video_codec = stream.get('codec_name', '').lower()
+                break
+
+    exact_start = start_time_sec > 0
+    if exact_start:
+        video_args = [
+            '-c:v', 'libx264',
+            '-preset', 'ultrafast',
+            '-crf', '28',
+            '-g', '48',
+            '-keyint_min', '48',
+            '-sc_threshold', '0',
+        ]
+        extra_video_tags = []
+    elif video_codec in ('h264', 'avc'):
+        video_args = ['-c:v', 'copy']
+        extra_video_tags = []
+    elif video_codec in ('hevc', 'h265'):
+        video_args = ['-c:v', 'copy']
+        extra_video_tags = ['-tag:v', 'hvc1']
+    else:
+        video_args = [
+            '-c:v', 'libx264',
+            '-preset', 'ultrafast',
+            '-crf', '28',
+            '-g', '48',
+            '-keyint_min', '48',
+            '-sc_threshold', '0',
+        ]
+        extra_video_tags = []
+
+    has_audio = False
+    if probe_data:
+        audio_streams = [
+            s for s in probe_data.get('streams', []) if s.get('codec_type') == 'audio'
+        ]
+        has_audio = audio_track_idx < len(audio_streams)
+
+    if has_audio:
+        audio_args = [
+            '-map', f'0:a:{audio_track_idx}',
+            '-c:a', 'aac',
+            '-ac', '2',
+            '-b:a', '128k',
+        ]
+    else:
+        audio_args = ['-an']
+
+    pre_input = ['-ss', str(start_time_sec)] if start_time_sec > 0 else []
+    return [
+        ffmpeg,
+        *pre_input,
+        '-i', video_path,
+        '-map', '0:v:0',
+        *audio_args,
+        *video_args,
+        *extra_video_tags,
+        '-f', 'hls',
+        '-hls_time', '4',
+        '-hls_list_size', '0',
+        '-hls_segment_type', 'fmp4',
+        '-hls_fmp4_init_filename', 'init.mp4',
+        '-hls_segment_filename', os.path.join(cache_dir, 'segment_%03d.m4s'),
+        '-v', 'error',
+        '-y',
+        os.path.join(cache_dir, 'playlist.m3u8'),
+    ]
+
+
 def _spawn_hls_encoder(video_path, audio_track_idx, start_time_sec, cache_dir):
     """Start ffmpeg writing HLS to cache_dir in a background thread.
 
-    start_time_sec is applied as an input seek (-ss before -i), so ffmpeg
-    snaps to the nearest preceding keyframe and begins encoding from there.
-    The resulting playlist's segment 0 corresponds to source time
-    keyframe_at_or_before(start_time_sec); the frontend treats playlist time
-    zero as start_time_sec for display purposes (small offset error tolerated).
+    start_time_sec is applied as an input seek (-ss before -i). Sessions that
+    start after zero re-encode video, which lets ffmpeg accurately decode from
+    the previous keyframe and discard frames before start_time_sec. That keeps
+    the frontend clock, visible video, and subtitle overlay aligned without
+    forcing the browser to seek into a non-keyframe fMP4 fragment.
 
     Idempotent: returns immediately if a complete playlist already exists or
     another thread is currently encoding.
@@ -352,75 +463,10 @@ def _spawn_hls_encoder(video_path, audio_track_idx, start_time_sec, cache_dir):
         os.makedirs(cache_dir, exist_ok=True)
 
         probe_data = _probe_video(video_path)
-        video_codec = None
-        if probe_data:
-            for stream in probe_data.get('streams', []):
-                if stream.get('codec_type') == 'video':
-                    video_codec = stream.get('codec_name', '').lower()
-                    break
-
-        if video_codec in ('h264', 'avc'):
-            video_args = ['-c:v', 'copy']
-            extra_video_tags = []
-        elif video_codec in ('hevc', 'h265'):
-            # Stream-copy HEVC and tag with hvc1 so browsers that support it
-            # (Safari natively, recent Chrome/Edge with hardware decode) can
-            # play the fmp4 segments. If the browser can't decode HEVC,
-            # transcode is the next option but we leave that to a future
-            # iteration; surfacing the failure to the user is fine here.
-            video_args = ['-c:v', 'copy']
-            extra_video_tags = ['-tag:v', 'hvc1']
-        else:
-            video_args = ['-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28']
-            extra_video_tags = []
-
-        has_audio = False
-        if probe_data:
-            audio_streams = [
-                s for s in probe_data.get('streams', []) if s.get('codec_type') == 'audio'
-            ]
-            has_audio = audio_track_idx < len(audio_streams)
-
-        if has_audio:
-            # Always emit 2-channel AAC. Browser support for multichannel AAC
-            # (5.1 / 7.1) is patchy: Chrome silently downmixes, Firefox can
-            # produce no audio, Safari is hit-or-miss. Forcing -ac 2 here
-            # guarantees a single playback path that works everywhere. EAC3
-            # / AC3 / DTS sources that would otherwise come out as 6-channel
-            # AAC are downmixed to stereo at the encoder.
-            audio_args = [
-                '-map', f'0:a:{audio_track_idx}',
-                '-c:a', 'aac',
-                '-ac', '2',
-                '-b:a', '128k',
-            ]
-        else:
-            audio_args = ['-an']
-
-        # Input seek to start_time_sec. Placed before -i so ffmpeg uses the
-        # demuxer's keyframe-aware seek (fast, avoids the frozen-image hang
-        # that an output-side seek would cause with -c:v copy).
-        pre_input = ['-ss', str(start_time_sec)] if start_time_sec > 0 else []
-
         ffmpeg = _get_ffmpeg()
-        cmd = [
-            ffmpeg,
-            *pre_input,
-            '-i', video_path,
-            '-map', '0:v:0',
-            *audio_args,
-            *video_args,
-            *extra_video_tags,
-            '-f', 'hls',
-            '-hls_time', '4',
-            '-hls_list_size', '0',
-            '-hls_segment_type', 'fmp4',
-            '-hls_fmp4_init_filename', 'init.mp4',
-            '-hls_segment_filename', os.path.join(cache_dir, 'segment_%03d.m4s'),
-            '-v', 'error',
-            '-y',
-            playlist,
-        ]
+        cmd = _build_hls_ffmpeg_command(
+            ffmpeg, video_path, audio_track_idx, start_time_sec, cache_dir, probe_data,
+        )
 
         def encode():
             process = None
