@@ -161,7 +161,7 @@ class JobsQueue:
 
         with self._queue_lock:
             if self._is_an_existing_job(module, func, args, kwargs):
-                logging.debug(f"Task {job_name} already exists in pending and running queue")
+                logging.debug(f"Task {job_name} already exists in pending and running queue")  # noqa: G004
                 return False
 
             with self._job_id_lock:
