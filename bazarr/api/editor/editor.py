@@ -591,19 +591,18 @@ class EditorHls(Resource):
             return 'Video file not accessible', 404
 
         cache_dir = _hls_cache_dir(media_type, media_id, audio_track, start_time_sec, mtime)
-        target = os.path.join(cache_dir, filename)
 
-        # Defense-in-depth: ensure the resolved target stays inside the HLS
-        # cache root. The filename regex above already blocks path traversal,
-        # but we cross-check after symlink resolution. Comparing realpath
-        # against itself (the previous form) breaks deployments where
-        # args.config_dir is itself a symlink (Docker bind mounts etc.).
-        real_cache_root = os.path.realpath(HLS_CACHE_DIR)
-        real_target = os.path.realpath(target)
-        if not (
-            real_target == real_cache_root
-            or real_target.startswith(real_cache_root + os.sep)
-        ):
+        # Defense-in-depth: the filename regex above already blocks path
+        # traversal, but we also normalise via realpath (resolves symlinks,
+        # collapses ..) and require the result to be strictly inside
+        # HLS_CACHE_DIR before any file operation. Reassigning `target` to
+        # the normalised path also lets CodeQL prove the path is sanitised
+        # at every downstream sink. cache_dir is always a sub-directory of
+        # HLS_CACHE_DIR so target never equals the root, which is why the
+        # check uses startswith only.
+        real_cache_root = os.path.realpath(HLS_CACHE_DIR) + os.sep
+        target = os.path.realpath(os.path.join(cache_dir, filename))
+        if not target.startswith(real_cache_root):
             return 'Invalid HLS path', 400
 
         if filename == 'playlist.m3u8':

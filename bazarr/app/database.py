@@ -111,7 +111,21 @@ if postgresql:
             port=postgres_port,
             database=postgres_database
         )
-    logger.debug(f"Connecting to PostgreSQL database: {url.render_as_string(hide_password=True)}")  # noqa: G004
+    # Build the log message from individual non-secret components instead of
+    # going through `url`. SQLAlchemy's render_as_string(hide_password=True)
+    # masks the password at render time, but the URL object still carries the
+    # password value, which trips CodeQL's py/clear-text-logging-sensitive-data
+    # because that masking call is not recognised as a sanitizer.
+    log_user = postgres_username or "<default>"
+    log_host = postgres_host or "<default>"
+    log_port = postgres_port or "<default>"
+    log_db = postgres_database or "<default>"
+    if postgres_url:
+        log_db = f"{log_db} (via POSTGRES_URL)"
+    logger.debug(
+        "Connecting to PostgreSQL database: postgresql://%s@%s:%s/%s",
+        log_user, log_host, log_port, log_db,
+    )
 
     # Postgres: use SQLAlchemy's default QueuePool. NullPool would force a
     # fresh TCP+TLS handshake for every database.execute(...) call (~266
