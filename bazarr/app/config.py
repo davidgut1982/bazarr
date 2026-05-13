@@ -668,9 +668,9 @@ def write_config():
         logging.debug("Nothing changed when comparing to config file. Skipping write to file.")
         return
 
-    if _force_first_save_migration:
+    forced_migration = _force_first_save_migration
+    if forced_migration:
         logging.info("secret_store: forcing config rewrite to encrypt plaintext credentials on disk")
-        _force_first_save_migration = False
 
     try:
         write(settings_path=config_yaml_file + '.tmp',
@@ -684,6 +684,16 @@ def write_config():
         except Exception as error:
             logging.exception(f"Exception raised while trying to overwrite settings file with temporary settings "  # noqa: G004
                               f"file: {error}")
+        else:
+            # Only clear the forced-migration flag once the new
+            # encrypted config is durably in place. Clearing it on the
+            # logging branch above would silently swallow the migration
+            # if write() or move() failed (disk full, permission, I/O):
+            # the next write_config() would short-circuit on the
+            # plaintext-equality check at the top of this function and
+            # never retry, leaving credentials unencrypted on disk.
+            if forced_migration:
+                _force_first_save_migration = False
 
 
 base_url = settings.general.base_url.rstrip('/')
@@ -818,6 +828,7 @@ def save_settings(settings_items):
     adaptive_searching_max_age_changed = False
     reset_providers = False
     reset_fanout_pool = False
+    reset_compat_pool = False
 
     # Subzero Mods
     update_subzero = False
@@ -999,11 +1010,9 @@ def save_settings(settings_items):
                 reset_providers = True
 
         if key == 'settings-general-enabled_providers':
-            try:
-                from compat.service import reset_compat_pool
-                reset_compat_pool()
-            except Exception:
-                pass
+            # Defer the reset until AFTER all values in this batch are
+            # written, same reasoning as reset_fanout_pool below.
+            reset_compat_pool = True
 
         if key in ('settings-compat_endpoint-fanout_max_workers',
                    'settings-compat_endpoint-max_concurrent_fanouts'):
@@ -1017,11 +1026,12 @@ def save_settings(settings_items):
         if reset_providers:
             from .get_providers import reset_throttled_providers
             reset_throttled_providers(only_auth_or_conf_error=True)
-            try:
-                from compat.service import reset_compat_pool
-                reset_compat_pool()
-            except Exception:
-                pass
+            # Defer the compat-pool reset for the same race reason as
+            # the fanout pool above. Resetting here, before the
+            # settings[...] = value assignment lands, would let a
+            # concurrent /compat request re-init the provider pool
+            # with stale provider settings or credentials.
+            reset_compat_pool = True
 
         if settings_keys[0] == 'settings':
             if len(settings_keys) == 3:
@@ -1086,6 +1096,17 @@ def save_settings(settings_items):
         try:
             from subliminal_patch.core_persistent import reset_pool as _reset_fanout
             _reset_fanout()
+        except Exception:
+            pass
+
+    if reset_compat_pool:
+        # All in-loop assignments have committed by now, so the next
+        # /compat request that constructs a pool sees the updated
+        # provider list / credentials instead of the stale pre-save
+        # values.
+        try:
+            from compat.service import reset_compat_pool as _reset_compat
+            _reset_compat()
         except Exception:
             pass
 
