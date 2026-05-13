@@ -746,7 +746,15 @@ class socksocket(_BaseSocket):
 
         if self.type == socket.SOCK_DGRAM:
             if not self._proxyconn:
-                self.bind(("", 0))
+                # Bazarr+ fork divergence from upstream PySocks 1.7.1:
+                # bind the SOCKS5 UDP relay socket to loopback instead of
+                # "" (INADDR_ANY) to silence CodeQL's
+                # py/bind-socket-all-network-interfaces. Upstream is
+                # abandoned (last commit 2019-09) and bazarr only ever
+                # reaches the TCP path of this module via urllib3's socks
+                # contrib, so the UDP-relay path is effectively dead
+                # code; loopback is the safest default if it ever fires.
+                self.bind(("127.0.0.1", 0))
             dest_addr = socket.gethostbyname(dest_addr)
 
             # If the host address is INADDR_ANY or similar, reset the peer
