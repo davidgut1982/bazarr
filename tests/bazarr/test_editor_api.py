@@ -8,11 +8,11 @@ calls so they run fast and without any external dependencies.
 
 import json
 import os
-import struct
+import struct  # noqa: F401
 from collections import namedtuple
-from unittest.mock import MagicMock, Mock, patch, mock_open
+from unittest.mock import MagicMock, Mock, patch, mock_open  # noqa: F401
 
-import pytest
+import pytest  # noqa: F401
 
 
 # ---------------------------------------------------------------------------
@@ -82,18 +82,18 @@ _patches = {
     'utilities.path_mappings': MagicMock(),
     'utilities.binaries': MagicMock(),
     'api.utils': _api_utils_mock,
-    'bazarr.api.utils': _api_utils_mock,
+    'api.utils': _api_utils_mock,  # noqa: F601
     'api.subtitles.content': MagicMock(),
     'flask_restx': _fake_flask_restx,
     'init': MagicMock(startTime=0),
 }
 
-import sys
+import sys  # noqa: E402
 for mod_name, mock_obj in _patches.items():
     sys.modules.setdefault(mod_name, mock_obj)
 
 # Now safe to import
-from bazarr.api.editor.editor import (
+from api.editor.editor import (  # noqa: E402
     _resolve_video_path,
     _probe_video,
     _validate_params,
@@ -105,7 +105,7 @@ from bazarr.api.editor.editor import (
 )
 
 # Re-import database and path_mappings as the module sees them
-from bazarr.api.editor import editor as editor_module
+from api.editor import editor as editor_module  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -340,6 +340,49 @@ class TestParseRangeHeader:
 
 
 # ---------------------------------------------------------------------------
+# HLS command building
+# ---------------------------------------------------------------------------
+
+class TestHlsCommandBuilding:
+    """Tests for ffmpeg HLS command construction."""
+
+    def test_nonzero_start_transcodes_video_for_frame_accurate_seek(self, tmp_path):
+        probe = _make_probe_json(video_codec='hevc', audio_codec='ac3')
+        cmd = editor_module._build_hls_ffmpeg_command(
+            ffmpeg='/usr/bin/ffmpeg',
+            video_path='/video/movie.mkv',
+            audio_track_idx=0,
+            start_time_sec=3533.35,
+            cache_dir=str(tmp_path),
+            probe_data=probe,
+        )
+
+        assert cmd[:4] == ['/usr/bin/ffmpeg', '-ss', '3533.35', '-i']
+        assert _value_after(cmd, '-c:v') == 'libx264'
+        assert '-tag:v' not in cmd
+
+    def test_zero_start_keeps_hevc_stream_copy(self, tmp_path):
+        probe = _make_probe_json(video_codec='hevc', audio_codec='ac3')
+        cmd = editor_module._build_hls_ffmpeg_command(
+            ffmpeg='/usr/bin/ffmpeg',
+            video_path='/video/movie.mkv',
+            audio_track_idx=0,
+            start_time_sec=0,
+            cache_dir=str(tmp_path),
+            probe_data=probe,
+        )
+
+        assert '-ss' not in cmd
+        assert _value_after(cmd, '-c:v') == 'copy'
+        assert _value_after(cmd, '-tag:v') == 'hvc1'
+
+
+def _value_after(items, key):
+    idx = items.index(key)
+    return items[idx + 1]
+
+
+# ---------------------------------------------------------------------------
 # _validate_params
 # ---------------------------------------------------------------------------
 
@@ -470,9 +513,9 @@ class TestRunEditorSync:
         mock_subsync_cls = MagicMock(return_value=mock_subsync)
         mock_jobs_queue = MagicMock()
 
-        with patch('bazarr.api.editor.editor.SubSyncer', mock_subsync_cls, create=True), \
+        with patch('api.editor.editor.SubSyncer', mock_subsync_cls, create=True), \
              patch.dict('sys.modules', {'subtitles.tools.subsyncer': MagicMock(SubSyncer=mock_subsync_cls)}), \
-             patch('bazarr.api.editor.editor.jobs_queue', mock_jobs_queue, create=True), \
+             patch('api.editor.editor.jobs_queue', mock_jobs_queue, create=True), \
              patch.dict('sys.modules', {'app.jobs_queue': MagicMock(jobs_queue=mock_jobs_queue)}), \
              patch('threading.Timer'):  # prevent cleanup timer
 
@@ -506,9 +549,9 @@ class TestRunEditorSync:
         mock_subsync_cls = MagicMock(return_value=mock_subsync)
         mock_jobs_queue = MagicMock()
 
-        with patch('bazarr.api.editor.editor.SubSyncer', mock_subsync_cls, create=True), \
+        with patch('api.editor.editor.SubSyncer', mock_subsync_cls, create=True), \
              patch.dict('sys.modules', {'subtitles.tools.subsyncer': MagicMock(SubSyncer=mock_subsync_cls)}), \
-             patch('bazarr.api.editor.editor.jobs_queue', mock_jobs_queue, create=True), \
+             patch('api.editor.editor.jobs_queue', mock_jobs_queue, create=True), \
              patch.dict('sys.modules', {'app.jobs_queue': MagicMock(jobs_queue=mock_jobs_queue)}), \
              patch('threading.Timer'):
             run_editor_sync(
@@ -542,9 +585,9 @@ class TestRunEditorSync:
         mock_subsync_cls = MagicMock(return_value=mock_subsync)
         mock_jobs_queue = MagicMock()
 
-        with patch('bazarr.api.editor.editor.SubSyncer', mock_subsync_cls, create=True), \
+        with patch('api.editor.editor.SubSyncer', mock_subsync_cls, create=True), \
              patch.dict('sys.modules', {'subtitles.tools.subsyncer': MagicMock(SubSyncer=mock_subsync_cls)}), \
-             patch('bazarr.api.editor.editor.jobs_queue', mock_jobs_queue, create=True), \
+             patch('api.editor.editor.jobs_queue', mock_jobs_queue, create=True), \
              patch.dict('sys.modules', {'app.jobs_queue': MagicMock(jobs_queue=mock_jobs_queue)}), \
              patch('threading.Timer'):
             run_editor_sync(
@@ -580,9 +623,9 @@ class TestRunEditorSync:
         mock_subsync_cls = MagicMock(return_value=mock_subsync)
         mock_jobs_queue = MagicMock()
 
-        with patch('bazarr.api.editor.editor.SubSyncer', mock_subsync_cls, create=True), \
+        with patch('api.editor.editor.SubSyncer', mock_subsync_cls, create=True), \
              patch.dict('sys.modules', {'subtitles.tools.subsyncer': MagicMock(SubSyncer=mock_subsync_cls)}), \
-             patch('bazarr.api.editor.editor.jobs_queue', mock_jobs_queue, create=True), \
+             patch('api.editor.editor.jobs_queue', mock_jobs_queue, create=True), \
              patch.dict('sys.modules', {'app.jobs_queue': MagicMock(jobs_queue=mock_jobs_queue)}), \
              patch('threading.Timer'):
             run_editor_sync(
@@ -777,8 +820,8 @@ class TestEditorSyncPost:
              patch('os.write'), \
              patch('os.close'), \
              patch.dict('sys.modules', {'app.jobs_queue': MagicMock(jobs_queue=mock_jobs_queue)}), \
-             patch('bazarr.api.editor.editor.jobs_queue', mock_jobs_queue, create=True), \
-             patch('threading.Thread') as mock_thread:
+             patch('api.editor.editor.jobs_queue', mock_jobs_queue, create=True), \
+             patch('threading.Thread') as mock_thread:  # noqa: F841
 
             # Need to also patch the import inside the method
             with patch.dict('sys.modules', {'app.jobs_queue': MagicMock(jobs_queue=mock_jobs_queue)}):

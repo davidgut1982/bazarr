@@ -9,7 +9,7 @@ from app.database import TableShows, TableEpisodes, TableMovies, database, selec
 from languages.get_languages import alpha3_from_alpha2
 from utilities.path_mappings import path_mappings
 from utilities.video_analyzer import subtitles_sync_references
-from subtitles.tools.subsyncer import SubSyncer
+from subtitles.tools.subsyncer import SubSyncer  # noqa: F401
 from subtitles.tools.translate.main import translate_subtitles_file
 from subtitles.tools.mods import subtitles_apply_mods
 from subtitles.indexer.series import store_subtitles
@@ -18,6 +18,7 @@ from subtitles.sync import sync_subtitles
 from app.config import settings, empty_values, get_array_from
 from app.event_handler import event_stream
 from plex.operations import plex_refresh_item
+from jellyfin.operations import jellyfin_refresh_item
 
 
 from ..utils import authenticate
@@ -124,7 +125,7 @@ class Subtitles(Resource):
         if media_type == 'episode':
             metadata = database.execute(
                 select(TableEpisodes.path, TableEpisodes.sonarrSeriesId, TableEpisodes.subtitles, TableEpisodes.season,
-                       TableEpisodes.episode, TableShows.imdbId)
+                       TableEpisodes.episode, TableShows.imdbId, TableShows.tvdbId)
                 .join(TableShows)
                 .where(TableEpisodes.sonarrEpisodeId == id)) \
                 .first()
@@ -135,7 +136,7 @@ class Subtitles(Resource):
             video_path = path_mappings.path_replace(metadata.path)
         else:
             metadata = database.execute(
-                select(TableMovies.path, TableMovies.subtitles, TableMovies.imdbId)
+                select(TableMovies.path, TableMovies.subtitles, TableMovies.imdbId, TableMovies.tmdbId)
                 .where(TableMovies.radarrId == id))\
                 .first()
 
@@ -146,7 +147,7 @@ class Subtitles(Resource):
 
         if action == 'sync':
             try:
-                postprocess_callback = lambda: postprocess_subtitles(subtitles_path, video_path, media_type, metadata, id)
+                postprocess_callback = lambda: postprocess_subtitles(subtitles_path, video_path, media_type, metadata, id)  # noqa: E731
                 sync_subtitles(video_path=video_path, srt_path=subtitles_path, srt_lang=language, hi=hi, forced=forced,
                                percent_score=0,  # make sure to always sync when requested manually
                                reference=args.get('reference') if args.get('reference') not in empty_values else
@@ -221,12 +222,18 @@ def postprocess_subtitles(subtitles_path, video_path, media_type, metadata, id):
         if settings.general.use_plex and settings.plex.update_series_library:
             plex_refresh_item(metadata.imdbId, is_movie=False, season=metadata.season,
                               episode=metadata.episode)
+        if settings.general.use_jellyfin and settings.jellyfin.update_series_library:
+            jellyfin_refresh_item(metadata.imdbId, is_movie=False, season=metadata.season,
+                                  episode=metadata.episode, tvdb_id=metadata.tvdbId)
     else:
         store_subtitles_movie(path_mappings.path_replace_reverse_movie(video_path), video_path)
         event_stream(type='movie', payload=id)
 
         if settings.general.use_plex and settings.plex.update_movie_library:
             plex_refresh_item(metadata.imdbId, is_movie=True)
+        if settings.general.use_jellyfin and settings.jellyfin.update_movie_library:
+            jellyfin_refresh_item(metadata.imdbId, is_movie=True,
+                                  tmdb_id=metadata.tmdbId)
 
 
 def subtitles_lang_from_filename(path):

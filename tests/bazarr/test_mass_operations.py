@@ -1,21 +1,21 @@
 # coding=utf-8
 
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch, MagicMock, call  # noqa: F401
 
 
 class TestParseSubtitlesColumn:
     """Test _parse_subtitles_column helper."""
 
     def test_empty_input_none(self):
-        from bazarr.subtitles.mass_operations import _parse_subtitles_column
+        from subtitles.mass_operations import _parse_subtitles_column
         assert _parse_subtitles_column(None) == []
 
     def test_empty_input_string(self):
-        from bazarr.subtitles.mass_operations import _parse_subtitles_column
+        from subtitles.mass_operations import _parse_subtitles_column
         assert _parse_subtitles_column('') == []
 
     def test_valid_subtitles(self):
-        from bazarr.subtitles.mass_operations import _parse_subtitles_column
+        from subtitles.mass_operations import _parse_subtitles_column
         raw = "[['en', '/path/to/sub.srt'], ['fr:forced', '/path/to/sub.fr.srt']]"
         result = _parse_subtitles_column(raw)
         assert len(result) == 2
@@ -23,18 +23,18 @@ class TestParseSubtitlesColumn:
         assert result[1] == ('fr:forced', '/path/to/sub.fr.srt')
 
     def test_invalid_syntax(self):
-        from bazarr.subtitles.mass_operations import _parse_subtitles_column
+        from subtitles.mass_operations import _parse_subtitles_column
         assert _parse_subtitles_column('not valid python') == []
 
     def test_skips_entries_without_path(self):
-        from bazarr.subtitles.mass_operations import _parse_subtitles_column
+        from subtitles.mass_operations import _parse_subtitles_column
         raw = "[['en', '/path/to/sub.srt'], ['fr', '']]"
         result = _parse_subtitles_column(raw)
         assert len(result) == 1
         assert result[0] == ('en', '/path/to/sub.srt')
 
     def test_short_entries(self):
-        from bazarr.subtitles.mass_operations import _parse_subtitles_column
+        from subtitles.mass_operations import _parse_subtitles_column
         raw = "[['en']]"
         assert _parse_subtitles_column(raw) == []
 
@@ -57,9 +57,9 @@ class TestProcessSubtitleItem:
             'gss': True,
         }
 
-    @patch('bazarr.subtitles.mass_operations.sync_subtitles', return_value=True)
+    @patch('subtitles.mass_operations.sync_subtitles', return_value=True)
     def test_sync_action(self, mock_sync):
-        from bazarr.subtitles.mass_operations import _process_subtitle_item
+        from subtitles.mass_operations import _process_subtitle_item
         item = self._make_item()
         result = _process_subtitle_item(item, 'sync', {}, 'test_job')
         assert result is True
@@ -80,17 +80,17 @@ class TestProcessSubtitleItem:
             job_id='test_job',
         )
 
-    @patch('bazarr.subtitles.mass_operations.subtitles_apply_mods')
+    @patch('subtitles.mass_operations.subtitles_apply_mods')
     def test_mod_action_remove_hi(self, mock_mods):
-        from bazarr.subtitles.mass_operations import _process_subtitle_item
+        from subtitles.mass_operations import _process_subtitle_item
         item = self._make_item()
         result = _process_subtitle_item(item, 'remove_HI', {}, 'test_job')
         assert result is True
         mock_mods.assert_called_once_with('en', '/subs/test.en.srt', ['remove_HI'], '/video/test.mkv')
 
-    @patch('bazarr.subtitles.mass_operations.subtitles_apply_mods')
+    @patch('subtitles.mass_operations.subtitles_apply_mods')
     def test_mod_action_ocr_fixes(self, mock_mods):
-        from bazarr.subtitles.mass_operations import _process_subtitle_item
+        from subtitles.mass_operations import _process_subtitle_item
         item = self._make_item()
         result = _process_subtitle_item(item, 'OCR_fixes', {}, 'test_job')
         assert result is True
@@ -98,7 +98,7 @@ class TestProcessSubtitleItem:
 
     @patch('subtitles.tools.translate.main.translate_subtitles_file', return_value=True)
     def test_translate_action(self, mock_translate):
-        from bazarr.subtitles.mass_operations import _process_subtitle_item
+        from subtitles.mass_operations import _process_subtitle_item
         item = self._make_item()
         result = _process_subtitle_item(item, 'translate', {'from_lang': 'en', 'to_lang': 'hu'}, 'test_job')
         assert result is True
@@ -110,7 +110,7 @@ class TestProcessSubtitleItem:
             to_lang='hu',
             forced=False,
             hi=False,
-            media_type='series',
+            media_type='episode',
             sonarr_series_id=10,
             sonarr_episode_id=1,
             radarr_id=None,
@@ -118,7 +118,7 @@ class TestProcessSubtitleItem:
 
     @patch('subtitles.tools.translate.main.translate_subtitles_file', return_value=True)
     def test_translate_action_movie(self, mock_translate):
-        from bazarr.subtitles.mass_operations import _process_subtitle_item
+        from subtitles.mass_operations import _process_subtitle_item
         item = self._make_item(sonarr_series_id=None, sonarr_episode_id=None, radarr_id=5)
         result = _process_subtitle_item(item, 'translate', {'from_lang': 'en', 'to_lang': 'fr'}, 'test_job')
         assert result is True
@@ -129,7 +129,7 @@ class TestProcessSubtitleItem:
         assert 'job_id' not in call_kwargs
 
     def test_unknown_action_returns_false(self):
-        from bazarr.subtitles.mass_operations import _process_subtitle_item
+        from subtitles.mass_operations import _process_subtitle_item
         item = self._make_item()
         result = _process_subtitle_item(item, 'nonexistent', {}, 'test_job')
         assert result is False
@@ -138,61 +138,61 @@ class TestProcessSubtitleItem:
 class TestMassBatchOperationValidation:
     """Test mass_batch_operation input validation and routing."""
 
-    @patch('bazarr.subtitles.mass_operations.jobs_queue')
+    @patch('subtitles.mass_operations.jobs_queue')
     def test_invalid_action_returns_error(self, mock_jobs_queue):
-        from bazarr.subtitles.mass_operations import mass_batch_operation
+        from subtitles.mass_operations import mass_batch_operation
         result = mass_batch_operation(items=[], action='invalid_action', job_id='test')
         assert result['queued'] == 0
         assert result['skipped'] == 0
         assert len(result['errors']) == 1
         assert 'invalid' in result['errors'][0].lower()
 
-    @patch('bazarr.subtitles.mass_operations.jobs_queue')
+    @patch('subtitles.mass_operations.jobs_queue')
     def test_empty_items_returns_zeros(self, mock_jobs_queue):
-        from bazarr.subtitles.mass_operations import mass_batch_operation
+        from subtitles.mass_operations import mass_batch_operation
         result = mass_batch_operation(items=[], action='sync', job_id='test')
         assert result['queued'] == 0
         assert result['skipped'] == 0
 
-    @patch('bazarr.subtitles.mass_operations._collect_subtitle_items')
-    @patch('bazarr.subtitles.mass_operations.jobs_queue')
+    @patch('subtitles.mass_operations._collect_subtitle_items')
+    @patch('subtitles.mass_operations.jobs_queue')
     def test_sync_action_calls_collect_subtitle_items(self, mock_jobs_queue, mock_collect):
-        from bazarr.subtitles.mass_operations import mass_batch_operation
+        from subtitles.mass_operations import mass_batch_operation
         mock_collect.return_value = ([], 0)
         items = [{'type': 'series', 'sonarrSeriesId': 1}]
         mass_batch_operation(items=items, action='sync', job_id='test')
         mock_collect.assert_called_once()
 
-    @patch('bazarr.subtitles.mass_operations._collect_subtitle_items')
-    @patch('bazarr.subtitles.mass_operations.jobs_queue')
+    @patch('subtitles.mass_operations._collect_subtitle_items')
+    @patch('subtitles.mass_operations.jobs_queue')
     def test_mod_action_calls_collect_subtitle_items(self, mock_jobs_queue, mock_collect):
-        from bazarr.subtitles.mass_operations import mass_batch_operation
+        from subtitles.mass_operations import mass_batch_operation
         mock_collect.return_value = ([], 0)
         items = [{'type': 'movie', 'radarrId': 10}]
         mass_batch_operation(items=items, action='remove_HI', job_id='test')
         mock_collect.assert_called_once()
 
-    @patch('bazarr.subtitles.mass_operations._process_media_action')
-    @patch('bazarr.subtitles.mass_operations.jobs_queue')
+    @patch('subtitles.mass_operations._process_media_action')
+    @patch('subtitles.mass_operations.jobs_queue')
     def test_scan_disk_calls_process_media_action(self, mock_jobs_queue, mock_process):
-        from bazarr.subtitles.mass_operations import mass_batch_operation
+        from subtitles.mass_operations import mass_batch_operation
         mock_process.return_value = {'queued': 0, 'skipped': 0, 'errors': []}
         items = [{'type': 'series', 'sonarrSeriesId': 1}]
         mass_batch_operation(items=items, action='scan-disk', job_id='test')
         mock_process.assert_called_once()
 
-    @patch('bazarr.subtitles.mass_operations._process_media_action')
-    @patch('bazarr.subtitles.mass_operations.jobs_queue')
+    @patch('subtitles.mass_operations._process_media_action')
+    @patch('subtitles.mass_operations.jobs_queue')
     def test_search_missing_calls_process_media_action(self, mock_jobs_queue, mock_process):
-        from bazarr.subtitles.mass_operations import mass_batch_operation
+        from subtitles.mass_operations import mass_batch_operation
         mock_process.return_value = {'queued': 0, 'skipped': 0, 'errors': []}
         items = [{'type': 'movie', 'radarrId': 10}]
         mass_batch_operation(items=items, action='search-missing', job_id='test')
         mock_process.assert_called_once()
 
-    @patch('bazarr.subtitles.mass_operations.jobs_queue')
+    @patch('subtitles.mass_operations.jobs_queue')
     def test_media_action_with_empty_items(self, mock_jobs_queue):
-        from bazarr.subtitles.mass_operations import mass_batch_operation
+        from subtitles.mass_operations import mass_batch_operation
         result = mass_batch_operation(items=[], action='scan-disk', job_id='test')
         assert result['queued'] == 0
         assert result['skipped'] == 0
@@ -219,16 +219,16 @@ class TestCollectSubtitleItems:
         movie.subtitles = subtitles
         return movie
 
-    @patch('bazarr.subtitles.mass_operations.languages_from_colon_seperated_string')
-    @patch('bazarr.subtitles.mass_operations.os.path.isfile', return_value=True)
-    @patch('bazarr.subtitles.mass_operations.path_mappings')
-    @patch('bazarr.subtitles.mass_operations._get_synced_episode_paths', return_value=set())
-    @patch('bazarr.subtitles.mass_operations._get_synced_movie_paths', return_value=set())
-    @patch('bazarr.subtitles.mass_operations.database')
-    @patch('bazarr.subtitles.mass_operations.settings')
+    @patch('subtitles.mass_operations.languages_from_colon_seperated_string')
+    @patch('subtitles.mass_operations.os.path.isfile', return_value=True)
+    @patch('subtitles.mass_operations.path_mappings')
+    @patch('subtitles.mass_operations._get_synced_episode_paths', return_value=set())
+    @patch('subtitles.mass_operations._get_synced_movie_paths', return_value=set())
+    @patch('subtitles.mass_operations.database')
+    @patch('subtitles.mass_operations.settings')
     def test_collects_episode_subtitles(self, mock_settings, mock_db, mock_synced_mov,
                                          mock_synced_ep, mock_path_map, mock_isfile, mock_lang):
-        from bazarr.subtitles.mass_operations import _collect_subtitle_items
+        from subtitles.mass_operations import _collect_subtitle_items
 
         mock_settings.subsync.max_offset_seconds = 60
         mock_settings.subsync.gss = True
@@ -248,16 +248,16 @@ class TestCollectSubtitleItems:
         assert items[0]['sonarr_series_id'] == 10
         assert items[0]['srt_path'] == '/subs/ep1.en.srt'
 
-    @patch('bazarr.subtitles.mass_operations.languages_from_colon_seperated_string')
-    @patch('bazarr.subtitles.mass_operations.os.path.isfile', return_value=True)
-    @patch('bazarr.subtitles.mass_operations.path_mappings')
-    @patch('bazarr.subtitles.mass_operations._get_synced_episode_paths', return_value=set())
-    @patch('bazarr.subtitles.mass_operations._get_synced_movie_paths', return_value=set())
-    @patch('bazarr.subtitles.mass_operations.database')
-    @patch('bazarr.subtitles.mass_operations.settings')
+    @patch('subtitles.mass_operations.languages_from_colon_seperated_string')
+    @patch('subtitles.mass_operations.os.path.isfile', return_value=True)
+    @patch('subtitles.mass_operations.path_mappings')
+    @patch('subtitles.mass_operations._get_synced_episode_paths', return_value=set())
+    @patch('subtitles.mass_operations._get_synced_movie_paths', return_value=set())
+    @patch('subtitles.mass_operations.database')
+    @patch('subtitles.mass_operations.settings')
     def test_collects_movie_subtitles(self, mock_settings, mock_db, mock_synced_mov,
                                        mock_synced_ep, mock_path_map, mock_isfile, mock_lang):
-        from bazarr.subtitles.mass_operations import _collect_subtitle_items
+        from subtitles.mass_operations import _collect_subtitle_items
 
         mock_settings.subsync.max_offset_seconds = 60
         mock_settings.subsync.gss = True
@@ -276,16 +276,16 @@ class TestCollectSubtitleItems:
         assert items[0]['radarr_id'] == 10
         assert items[0]['srt_path'] == '/subs/movie.en.srt'
 
-    @patch('bazarr.subtitles.mass_operations.languages_from_colon_seperated_string')
-    @patch('bazarr.subtitles.mass_operations.os.path.isfile', return_value=True)
-    @patch('bazarr.subtitles.mass_operations.path_mappings')
-    @patch('bazarr.subtitles.mass_operations._get_synced_episode_paths', return_value=set())
-    @patch('bazarr.subtitles.mass_operations._get_synced_movie_paths', return_value=set())
-    @patch('bazarr.subtitles.mass_operations.database')
-    @patch('bazarr.subtitles.mass_operations.settings')
+    @patch('subtitles.mass_operations.languages_from_colon_seperated_string')
+    @patch('subtitles.mass_operations.os.path.isfile', return_value=True)
+    @patch('subtitles.mass_operations.path_mappings')
+    @patch('subtitles.mass_operations._get_synced_episode_paths', return_value=set())
+    @patch('subtitles.mass_operations._get_synced_movie_paths', return_value=set())
+    @patch('subtitles.mass_operations.database')
+    @patch('subtitles.mass_operations.settings')
     def test_skips_forced_subtitles(self, mock_settings, mock_db, mock_synced_mov,
                                      mock_synced_ep, mock_path_map, mock_isfile, mock_lang):
-        from bazarr.subtitles.mass_operations import _collect_subtitle_items
+        from subtitles.mass_operations import _collect_subtitle_items
 
         mock_settings.subsync.max_offset_seconds = 60
         mock_settings.subsync.gss = True
@@ -302,16 +302,16 @@ class TestCollectSubtitleItems:
         assert len(items) == 0
         assert skipped == 1
 
-    @patch('bazarr.subtitles.mass_operations.languages_from_colon_seperated_string')
-    @patch('bazarr.subtitles.mass_operations.os.path.isfile', return_value=False)
-    @patch('bazarr.subtitles.mass_operations.path_mappings')
-    @patch('bazarr.subtitles.mass_operations._get_synced_episode_paths', return_value=set())
-    @patch('bazarr.subtitles.mass_operations._get_synced_movie_paths', return_value=set())
-    @patch('bazarr.subtitles.mass_operations.database')
-    @patch('bazarr.subtitles.mass_operations.settings')
+    @patch('subtitles.mass_operations.languages_from_colon_seperated_string')
+    @patch('subtitles.mass_operations.os.path.isfile', return_value=False)
+    @patch('subtitles.mass_operations.path_mappings')
+    @patch('subtitles.mass_operations._get_synced_episode_paths', return_value=set())
+    @patch('subtitles.mass_operations._get_synced_movie_paths', return_value=set())
+    @patch('subtitles.mass_operations.database')
+    @patch('subtitles.mass_operations.settings')
     def test_skips_missing_files(self, mock_settings, mock_db, mock_synced_mov,
                                   mock_synced_ep, mock_path_map, mock_isfile, mock_lang):
-        from bazarr.subtitles.mass_operations import _collect_subtitle_items
+        from subtitles.mass_operations import _collect_subtitle_items
 
         mock_settings.subsync.max_offset_seconds = 60
         mock_settings.subsync.gss = True
@@ -328,16 +328,16 @@ class TestCollectSubtitleItems:
         assert len(items) == 0
         assert skipped == 1
 
-    @patch('bazarr.subtitles.mass_operations.languages_from_colon_seperated_string')
-    @patch('bazarr.subtitles.mass_operations.os.path.isfile', return_value=True)
-    @patch('bazarr.subtitles.mass_operations.path_mappings')
-    @patch('bazarr.subtitles.mass_operations._get_synced_episode_paths')
-    @patch('bazarr.subtitles.mass_operations._get_synced_movie_paths', return_value=set())
-    @patch('bazarr.subtitles.mass_operations.database')
-    @patch('bazarr.subtitles.mass_operations.settings')
+    @patch('subtitles.mass_operations.languages_from_colon_seperated_string')
+    @patch('subtitles.mass_operations.os.path.isfile', return_value=True)
+    @patch('subtitles.mass_operations.path_mappings')
+    @patch('subtitles.mass_operations._get_synced_episode_paths')
+    @patch('subtitles.mass_operations._get_synced_movie_paths', return_value=set())
+    @patch('subtitles.mass_operations.database')
+    @patch('subtitles.mass_operations.settings')
     def test_skips_already_synced_episodes(self, mock_settings, mock_db, mock_synced_mov,
                                             mock_synced_ep, mock_path_map, mock_isfile, mock_lang):
-        from bazarr.subtitles.mass_operations import _collect_subtitle_items
+        from subtitles.mass_operations import _collect_subtitle_items
 
         mock_settings.subsync.max_offset_seconds = 60
         mock_settings.subsync.gss = True
@@ -356,16 +356,16 @@ class TestCollectSubtitleItems:
         assert len(items) == 0
         assert skipped == 1
 
-    @patch('bazarr.subtitles.mass_operations.languages_from_colon_seperated_string')
-    @patch('bazarr.subtitles.mass_operations.os.path.isfile', return_value=True)
-    @patch('bazarr.subtitles.mass_operations.path_mappings')
-    @patch('bazarr.subtitles.mass_operations._get_synced_episode_paths', return_value=set())
-    @patch('bazarr.subtitles.mass_operations._get_synced_movie_paths')
-    @patch('bazarr.subtitles.mass_operations.database')
-    @patch('bazarr.subtitles.mass_operations.settings')
+    @patch('subtitles.mass_operations.languages_from_colon_seperated_string')
+    @patch('subtitles.mass_operations.os.path.isfile', return_value=True)
+    @patch('subtitles.mass_operations.path_mappings')
+    @patch('subtitles.mass_operations._get_synced_episode_paths', return_value=set())
+    @patch('subtitles.mass_operations._get_synced_movie_paths')
+    @patch('subtitles.mass_operations.database')
+    @patch('subtitles.mass_operations.settings')
     def test_skips_already_synced_movies(self, mock_settings, mock_db, mock_synced_mov,
                                           mock_synced_ep, mock_path_map, mock_isfile, mock_lang):
-        from bazarr.subtitles.mass_operations import _collect_subtitle_items
+        from subtitles.mass_operations import _collect_subtitle_items
 
         mock_settings.subsync.max_offset_seconds = 60
         mock_settings.subsync.gss = True
@@ -384,16 +384,16 @@ class TestCollectSubtitleItems:
         assert len(items) == 0
         assert skipped == 1
 
-    @patch('bazarr.subtitles.mass_operations.languages_from_colon_seperated_string')
-    @patch('bazarr.subtitles.mass_operations.os.path.isfile', return_value=True)
-    @patch('bazarr.subtitles.mass_operations.path_mappings')
-    @patch('bazarr.subtitles.mass_operations._get_synced_episode_paths', return_value=set())
-    @patch('bazarr.subtitles.mass_operations._get_synced_movie_paths', return_value=set())
-    @patch('bazarr.subtitles.mass_operations.database')
-    @patch('bazarr.subtitles.mass_operations.settings')
+    @patch('subtitles.mass_operations.languages_from_colon_seperated_string')
+    @patch('subtitles.mass_operations.os.path.isfile', return_value=True)
+    @patch('subtitles.mass_operations.path_mappings')
+    @patch('subtitles.mass_operations._get_synced_episode_paths', return_value=set())
+    @patch('subtitles.mass_operations._get_synced_movie_paths', return_value=set())
+    @patch('subtitles.mass_operations.database')
+    @patch('subtitles.mass_operations.settings')
     def test_skips_forced_movie_subtitles(self, mock_settings, mock_db, mock_synced_mov,
                                            mock_synced_ep, mock_path_map, mock_isfile, mock_lang):
-        from bazarr.subtitles.mass_operations import _collect_subtitle_items
+        from subtitles.mass_operations import _collect_subtitle_items
 
         mock_settings.subsync.max_offset_seconds = 60
         mock_settings.subsync.gss = True
@@ -410,17 +410,17 @@ class TestCollectSubtitleItems:
         assert len(items) == 0
         assert skipped == 1
 
-    @patch('bazarr.subtitles.mass_operations.languages_from_colon_seperated_string')
-    @patch('bazarr.subtitles.mass_operations.os.path.isfile', return_value=True)
-    @patch('bazarr.subtitles.mass_operations.path_mappings')
-    @patch('bazarr.subtitles.mass_operations._get_synced_episode_paths', return_value=set())
-    @patch('bazarr.subtitles.mass_operations._get_synced_movie_paths', return_value=set())
-    @patch('bazarr.subtitles.mass_operations.database')
-    @patch('bazarr.subtitles.mass_operations.settings')
+    @patch('subtitles.mass_operations.languages_from_colon_seperated_string')
+    @patch('subtitles.mass_operations.os.path.isfile', return_value=True)
+    @patch('subtitles.mass_operations.path_mappings')
+    @patch('subtitles.mass_operations._get_synced_episode_paths', return_value=set())
+    @patch('subtitles.mass_operations._get_synced_movie_paths', return_value=set())
+    @patch('subtitles.mass_operations.database')
+    @patch('subtitles.mass_operations.settings')
     def test_forced_subs_allowed_for_mod_actions(self, mock_settings, mock_db, mock_synced_mov,
                                                   mock_synced_ep, mock_path_map, mock_isfile, mock_lang):
         """Forced subtitles should be processed by mod actions like OCR_fixes, not skipped."""
-        from bazarr.subtitles.mass_operations import _collect_subtitle_items
+        from subtitles.mass_operations import _collect_subtitle_items
 
         mock_settings.subsync.max_offset_seconds = 60
         mock_settings.subsync.gss = True
@@ -438,16 +438,16 @@ class TestCollectSubtitleItems:
         assert skipped == 0
         assert items[0]['forced'] is True
 
-    @patch('bazarr.subtitles.mass_operations.languages_from_colon_seperated_string')
-    @patch('bazarr.subtitles.mass_operations.os.path.isfile', return_value=False)
-    @patch('bazarr.subtitles.mass_operations.path_mappings')
-    @patch('bazarr.subtitles.mass_operations._get_synced_episode_paths', return_value=set())
-    @patch('bazarr.subtitles.mass_operations._get_synced_movie_paths', return_value=set())
-    @patch('bazarr.subtitles.mass_operations.database')
-    @patch('bazarr.subtitles.mass_operations.settings')
+    @patch('subtitles.mass_operations.languages_from_colon_seperated_string')
+    @patch('subtitles.mass_operations.os.path.isfile', return_value=False)
+    @patch('subtitles.mass_operations.path_mappings')
+    @patch('subtitles.mass_operations._get_synced_episode_paths', return_value=set())
+    @patch('subtitles.mass_operations._get_synced_movie_paths', return_value=set())
+    @patch('subtitles.mass_operations.database')
+    @patch('subtitles.mass_operations.settings')
     def test_skips_missing_movie_files(self, mock_settings, mock_db, mock_synced_mov,
                                         mock_synced_ep, mock_path_map, mock_isfile, mock_lang):
-        from bazarr.subtitles.mass_operations import _collect_subtitle_items
+        from subtitles.mass_operations import _collect_subtitle_items
 
         mock_settings.subsync.max_offset_seconds = 60
         mock_settings.subsync.gss = True
@@ -464,17 +464,17 @@ class TestCollectSubtitleItems:
         assert len(items) == 0
         assert skipped == 1
 
-    @patch('bazarr.subtitles.mass_operations.languages_from_colon_seperated_string')
-    @patch('bazarr.subtitles.mass_operations.os.path.isfile', return_value=True)
-    @patch('bazarr.subtitles.mass_operations.path_mappings')
-    @patch('bazarr.subtitles.mass_operations._get_synced_episode_paths', return_value=set())
-    @patch('bazarr.subtitles.mass_operations._get_synced_movie_paths', return_value=set())
-    @patch('bazarr.subtitles.mass_operations.database')
-    @patch('bazarr.subtitles.mass_operations.settings')
+    @patch('subtitles.mass_operations.languages_from_colon_seperated_string')
+    @patch('subtitles.mass_operations.os.path.isfile', return_value=True)
+    @patch('subtitles.mass_operations.path_mappings')
+    @patch('subtitles.mass_operations._get_synced_episode_paths', return_value=set())
+    @patch('subtitles.mass_operations._get_synced_movie_paths', return_value=set())
+    @patch('subtitles.mass_operations.database')
+    @patch('subtitles.mass_operations.settings')
     def test_series_type_collects_episodes(self, mock_settings, mock_db, mock_synced_mov,
                                             mock_synced_ep, mock_path_map, mock_isfile, mock_lang):
         """Passing type='series' with sonarrSeriesId collects all episodes for that series."""
-        from bazarr.subtitles.mass_operations import _collect_subtitle_items
+        from subtitles.mass_operations import _collect_subtitle_items
 
         mock_settings.subsync.max_offset_seconds = 60
         mock_settings.subsync.gss = True
@@ -497,10 +497,10 @@ class TestCollectSubtitleItems:
 class TestGetSyncedPaths:
     """Test _get_synced_episode_paths and _get_synced_movie_paths."""
 
-    @patch('bazarr.subtitles.mass_operations.database')
-    @patch('bazarr.subtitles.mass_operations.select')
+    @patch('subtitles.mass_operations.database')
+    @patch('subtitles.mass_operations.select')
     def test_get_synced_episode_paths(self, mock_select, mock_db):
-        from bazarr.subtitles.mass_operations import _get_synced_episode_paths
+        from subtitles.mass_operations import _get_synced_episode_paths
 
         row1 = MagicMock()
         row1.subtitles_path = '/subs/ep1.srt'
@@ -513,10 +513,10 @@ class TestGetSyncedPaths:
         result = _get_synced_episode_paths()
         assert result == {'/subs/ep1.srt', '/subs/ep2.srt'}
 
-    @patch('bazarr.subtitles.mass_operations.database')
-    @patch('bazarr.subtitles.mass_operations.select')
+    @patch('subtitles.mass_operations.database')
+    @patch('subtitles.mass_operations.select')
     def test_get_synced_movie_paths(self, mock_select, mock_db):
-        from bazarr.subtitles.mass_operations import _get_synced_movie_paths
+        from subtitles.mass_operations import _get_synced_movie_paths
 
         row1 = MagicMock()
         row1.subtitles_path = '/subs/movie1.srt'
@@ -532,10 +532,10 @@ class TestGetSyncedPaths:
 class TestProcessMediaActions:
     """Test _process_media_action for scan-disk and search-missing."""
 
-    @patch('bazarr.subtitles.mass_operations.series_scan_subtitles')
-    @patch('bazarr.subtitles.mass_operations.jobs_queue')
+    @patch('subtitles.mass_operations.series_scan_subtitles')
+    @patch('subtitles.mass_operations.jobs_queue')
     def test_scan_disk_series(self, mock_jobs_queue, mock_scan):
-        from bazarr.subtitles.mass_operations import _process_media_action
+        from subtitles.mass_operations import _process_media_action
 
         items = [{'type': 'series', 'sonarrSeriesId': 1}]
         result = _process_media_action(items, action='scan-disk', job_id='test')
@@ -543,10 +543,10 @@ class TestProcessMediaActions:
         mock_scan.assert_called_once_with(1)
         assert result['queued'] == 1
 
-    @patch('bazarr.subtitles.mass_operations.movies_scan_subtitles')
-    @patch('bazarr.subtitles.mass_operations.jobs_queue')
+    @patch('subtitles.mass_operations.movies_scan_subtitles')
+    @patch('subtitles.mass_operations.jobs_queue')
     def test_scan_disk_movies(self, mock_jobs_queue, mock_scan):
-        from bazarr.subtitles.mass_operations import _process_media_action
+        from subtitles.mass_operations import _process_media_action
 
         items = [{'type': 'movie', 'radarrId': 10}]
         result = _process_media_action(items, action='scan-disk', job_id='test')
@@ -554,10 +554,10 @@ class TestProcessMediaActions:
         mock_scan.assert_called_once_with(10)
         assert result['queued'] == 1
 
-    @patch('bazarr.subtitles.mass_operations.series_download_subtitles')
-    @patch('bazarr.subtitles.mass_operations.jobs_queue')
+    @patch('subtitles.mass_operations.series_download_subtitles')
+    @patch('subtitles.mass_operations.jobs_queue')
     def test_search_missing_series(self, mock_jobs_queue, mock_download):
-        from bazarr.subtitles.mass_operations import _process_media_action
+        from subtitles.mass_operations import _process_media_action
 
         items = [{'type': 'series', 'sonarrSeriesId': 1}]
         result = _process_media_action(items, action='search-missing', job_id='test')
@@ -565,10 +565,10 @@ class TestProcessMediaActions:
         mock_download.assert_called_once_with(1)
         assert result['queued'] == 1
 
-    @patch('bazarr.subtitles.mass_operations.movies_download_subtitles')
-    @patch('bazarr.subtitles.mass_operations.jobs_queue')
+    @patch('subtitles.mass_operations.movies_download_subtitles')
+    @patch('subtitles.mass_operations.jobs_queue')
     def test_search_missing_movies(self, mock_jobs_queue, mock_download):
-        from bazarr.subtitles.mass_operations import _process_media_action
+        from subtitles.mass_operations import _process_media_action
 
         items = [{'type': 'movie', 'radarrId': 10}]
         result = _process_media_action(items, action='search-missing', job_id='test')
@@ -576,10 +576,10 @@ class TestProcessMediaActions:
         mock_download.assert_called_once_with(10)
         assert result['queued'] == 1
 
-    @patch('bazarr.subtitles.mass_operations.series_scan_subtitles')
-    @patch('bazarr.subtitles.mass_operations.jobs_queue')
+    @patch('subtitles.mass_operations.series_scan_subtitles')
+    @patch('subtitles.mass_operations.jobs_queue')
     def test_error_handling(self, mock_jobs_queue, mock_scan):
-        from bazarr.subtitles.mass_operations import _process_media_action
+        from subtitles.mass_operations import _process_media_action
 
         mock_scan.side_effect = RuntimeError("scan failed")
         items = [{'type': 'series', 'sonarrSeriesId': 1}]
@@ -588,9 +588,9 @@ class TestProcessMediaActions:
         assert len(result['errors']) == 1
         assert 'scan failed' in result['errors'][0]
 
-    @patch('bazarr.subtitles.mass_operations.jobs_queue')
+    @patch('subtitles.mass_operations.jobs_queue')
     def test_unknown_type_skipped_scan_disk(self, mock_jobs_queue):
-        from bazarr.subtitles.mass_operations import _process_media_action
+        from subtitles.mass_operations import _process_media_action
 
         items = [{'type': 'unknown', 'id': 1}]
         result = _process_media_action(items, action='scan-disk', job_id='test')
@@ -598,9 +598,9 @@ class TestProcessMediaActions:
         assert result['skipped'] == 1
         assert result['queued'] == 0
 
-    @patch('bazarr.subtitles.mass_operations.jobs_queue')
+    @patch('subtitles.mass_operations.jobs_queue')
     def test_unknown_type_skipped_search_missing(self, mock_jobs_queue):
-        from bazarr.subtitles.mass_operations import _process_media_action
+        from subtitles.mass_operations import _process_media_action
 
         items = [{'type': 'unknown', 'id': 1}]
         result = _process_media_action(items, action='search-missing', job_id='test')
@@ -621,16 +621,16 @@ class TestForceResync:
         ep.subtitles = subtitles
         return ep
 
-    @patch('bazarr.subtitles.mass_operations.languages_from_colon_seperated_string')
-    @patch('bazarr.subtitles.mass_operations.os.path.isfile', return_value=True)
-    @patch('bazarr.subtitles.mass_operations.path_mappings')
-    @patch('bazarr.subtitles.mass_operations._get_synced_episode_paths')
-    @patch('bazarr.subtitles.mass_operations._get_synced_movie_paths', return_value=set())
-    @patch('bazarr.subtitles.mass_operations.database')
-    @patch('bazarr.subtitles.mass_operations.settings')
+    @patch('subtitles.mass_operations.languages_from_colon_seperated_string')
+    @patch('subtitles.mass_operations.os.path.isfile', return_value=True)
+    @patch('subtitles.mass_operations.path_mappings')
+    @patch('subtitles.mass_operations._get_synced_episode_paths')
+    @patch('subtitles.mass_operations._get_synced_movie_paths', return_value=set())
+    @patch('subtitles.mass_operations.database')
+    @patch('subtitles.mass_operations.settings')
     def test_force_resync_collects_already_synced(self, mock_settings, mock_db, mock_synced_mov,
                                                    mock_synced_ep, mock_path_map, mock_isfile, mock_lang):
-        from bazarr.subtitles.mass_operations import _collect_subtitle_items
+        from subtitles.mass_operations import _collect_subtitle_items
 
         mock_settings.subsync.max_offset_seconds = 60
         mock_settings.subsync.gss = True
@@ -671,14 +671,14 @@ class TestTranslateSkipsExistingLang:
         movie.subtitles = subtitles
         return movie
 
-    @patch('bazarr.subtitles.mass_operations.languages_from_colon_seperated_string')
-    @patch('bazarr.subtitles.mass_operations.os.path.isfile', return_value=True)
-    @patch('bazarr.subtitles.mass_operations.path_mappings')
-    @patch('bazarr.subtitles.mass_operations.database')
-    @patch('bazarr.subtitles.mass_operations.settings')
+    @patch('subtitles.mass_operations.languages_from_colon_seperated_string')
+    @patch('subtitles.mass_operations.os.path.isfile', return_value=True)
+    @patch('subtitles.mass_operations.path_mappings')
+    @patch('subtitles.mass_operations.database')
+    @patch('subtitles.mass_operations.settings')
     def test_skips_episode_when_target_lang_exists(self, mock_settings, mock_db,
                                                     mock_path_map, mock_isfile, mock_lang):
-        from bazarr.subtitles.mass_operations import _collect_subtitle_items
+        from subtitles.mass_operations import _collect_subtitle_items
 
         mock_settings.subsync.max_offset_seconds = 60
         mock_settings.subsync.gss = True
@@ -699,14 +699,14 @@ class TestTranslateSkipsExistingLang:
         assert len(collected) == 0
         assert skipped == 1
 
-    @patch('bazarr.subtitles.mass_operations.languages_from_colon_seperated_string')
-    @patch('bazarr.subtitles.mass_operations.os.path.isfile', return_value=True)
-    @patch('bazarr.subtitles.mass_operations.path_mappings')
-    @patch('bazarr.subtitles.mass_operations.database')
-    @patch('bazarr.subtitles.mass_operations.settings')
+    @patch('subtitles.mass_operations.languages_from_colon_seperated_string')
+    @patch('subtitles.mass_operations.os.path.isfile', return_value=True)
+    @patch('subtitles.mass_operations.path_mappings')
+    @patch('subtitles.mass_operations.database')
+    @patch('subtitles.mass_operations.settings')
     def test_collects_episode_when_target_lang_missing(self, mock_settings, mock_db,
                                                         mock_path_map, mock_isfile, mock_lang):
-        from bazarr.subtitles.mass_operations import _collect_subtitle_items
+        from subtitles.mass_operations import _collect_subtitle_items
 
         mock_settings.subsync.max_offset_seconds = 60
         mock_settings.subsync.gss = True
@@ -726,14 +726,14 @@ class TestTranslateSkipsExistingLang:
         assert len(collected) == 1
         assert skipped == 0
 
-    @patch('bazarr.subtitles.mass_operations.languages_from_colon_seperated_string')
-    @patch('bazarr.subtitles.mass_operations.os.path.isfile', return_value=True)
-    @patch('bazarr.subtitles.mass_operations.path_mappings')
-    @patch('bazarr.subtitles.mass_operations.database')
-    @patch('bazarr.subtitles.mass_operations.settings')
+    @patch('subtitles.mass_operations.languages_from_colon_seperated_string')
+    @patch('subtitles.mass_operations.os.path.isfile', return_value=True)
+    @patch('subtitles.mass_operations.path_mappings')
+    @patch('subtitles.mass_operations.database')
+    @patch('subtitles.mass_operations.settings')
     def test_skips_movie_when_target_lang_exists(self, mock_settings, mock_db,
                                                   mock_path_map, mock_isfile, mock_lang):
-        from bazarr.subtitles.mass_operations import _collect_subtitle_items
+        from subtitles.mass_operations import _collect_subtitle_items
 
         mock_settings.subsync.max_offset_seconds = 60
         mock_settings.subsync.gss = True
@@ -773,14 +773,14 @@ class TestTranslateSourceLanguageFilter:
         movie.subtitles = subtitles
         return movie
 
-    @patch('bazarr.subtitles.mass_operations.languages_from_colon_seperated_string')
-    @patch('bazarr.subtitles.mass_operations.os.path.isfile', return_value=True)
-    @patch('bazarr.subtitles.mass_operations.path_mappings')
-    @patch('bazarr.subtitles.mass_operations.database')
-    @patch('bazarr.subtitles.mass_operations.settings')
+    @patch('subtitles.mass_operations.languages_from_colon_seperated_string')
+    @patch('subtitles.mass_operations.os.path.isfile', return_value=True)
+    @patch('subtitles.mass_operations.path_mappings')
+    @patch('subtitles.mass_operations.database')
+    @patch('subtitles.mass_operations.settings')
     def test_translate_only_queues_source_language_episodes(self, mock_settings, mock_db,
                                                             mock_path_map, mock_isfile, mock_lang):
-        from bazarr.subtitles.mass_operations import _collect_subtitle_items
+        from subtitles.mass_operations import _collect_subtitle_items
 
         mock_settings.subsync.max_offset_seconds = 60
         mock_settings.subsync.gss = True
@@ -802,14 +802,14 @@ class TestTranslateSourceLanguageFilter:
         assert collected[0]['srt_lang'] == 'en'
         assert skipped == 1  # FR subtitle skipped
 
-    @patch('bazarr.subtitles.mass_operations.languages_from_colon_seperated_string')
-    @patch('bazarr.subtitles.mass_operations.os.path.isfile', return_value=True)
-    @patch('bazarr.subtitles.mass_operations.path_mappings')
-    @patch('bazarr.subtitles.mass_operations.database')
-    @patch('bazarr.subtitles.mass_operations.settings')
+    @patch('subtitles.mass_operations.languages_from_colon_seperated_string')
+    @patch('subtitles.mass_operations.os.path.isfile', return_value=True)
+    @patch('subtitles.mass_operations.path_mappings')
+    @patch('subtitles.mass_operations.database')
+    @patch('subtitles.mass_operations.settings')
     def test_translate_only_queues_source_language_movies(self, mock_settings, mock_db,
                                                           mock_path_map, mock_isfile, mock_lang):
-        from bazarr.subtitles.mass_operations import _collect_subtitle_items
+        from subtitles.mass_operations import _collect_subtitle_items
 
         mock_settings.subsync.max_offset_seconds = 60
         mock_settings.subsync.gss = True
@@ -831,14 +831,14 @@ class TestTranslateSourceLanguageFilter:
         assert collected[0]['srt_lang'] == 'en'
         assert skipped == 1  # FR skipped
 
-    @patch('bazarr.subtitles.mass_operations.languages_from_colon_seperated_string')
-    @patch('bazarr.subtitles.mass_operations.os.path.isfile', return_value=True)
-    @patch('bazarr.subtitles.mass_operations.path_mappings')
-    @patch('bazarr.subtitles.mass_operations.database')
-    @patch('bazarr.subtitles.mass_operations.settings')
+    @patch('subtitles.mass_operations.languages_from_colon_seperated_string')
+    @patch('subtitles.mass_operations.os.path.isfile', return_value=True)
+    @patch('subtitles.mass_operations.path_mappings')
+    @patch('subtitles.mass_operations.database')
+    @patch('subtitles.mass_operations.settings')
     def test_translate_without_source_lang_queues_all(self, mock_settings, mock_db,
                                                        mock_path_map, mock_isfile, mock_lang):
-        from bazarr.subtitles.mass_operations import _collect_subtitle_items
+        from subtitles.mass_operations import _collect_subtitle_items
 
         mock_settings.subsync.max_offset_seconds = 60
         mock_settings.subsync.gss = True
@@ -864,7 +864,7 @@ class TestTranslateDefaultOptions:
 
     @patch('subtitles.tools.translate.main.translate_subtitles_file', return_value=True)
     def test_translate_default_options(self, mock_translate):
-        from bazarr.subtitles.mass_operations import _process_subtitle_item
+        from subtitles.mass_operations import _process_subtitle_item
         item = {
             'video_path': '/video/test.mkv',
             'srt_path': '/subs/test.en.srt',
@@ -890,10 +890,10 @@ class TestTranslateDefaultOptions:
 class TestMediaActionEpisodeType:
     """Test scan-disk with type='episode'."""
 
-    @patch('bazarr.subtitles.mass_operations.series_scan_subtitles')
-    @patch('bazarr.subtitles.mass_operations.jobs_queue')
+    @patch('subtitles.mass_operations.series_scan_subtitles')
+    @patch('subtitles.mass_operations.jobs_queue')
     def test_scan_disk_episode_type(self, mock_jobs_queue, mock_scan):
-        from bazarr.subtitles.mass_operations import _process_media_action
+        from subtitles.mass_operations import _process_media_action
 
         items = [{'type': 'episode', 'sonarrSeriesId': 5}]
         result = _process_media_action(items, action='scan-disk', job_id='test')
@@ -906,29 +906,29 @@ class TestMediaActionEpisodeType:
 class TestSchedulerIntegration:
     """Test scheduler integration when items=None."""
 
-    @patch('bazarr.subtitles.mass_operations._collect_subtitle_items')
-    @patch('bazarr.subtitles.mass_operations.jobs_queue')
-    @patch('bazarr.subtitles.mass_operations.settings')
+    @patch('subtitles.mass_operations._collect_subtitle_items')
+    @patch('subtitles.mass_operations.jobs_queue')
+    @patch('subtitles.mass_operations.settings')
     def test_items_none_with_job_id_syncs_entire_library(self, mock_settings, mock_jobs_queue,
                                                           mock_collect):
-        from bazarr.subtitles.mass_operations import mass_batch_operation
+        from subtitles.mass_operations import mass_batch_operation
 
         mock_settings.general.use_sonarr = True
         mock_settings.general.use_radarr = True
         mock_collect.return_value = ([], 0)
 
-        result = mass_batch_operation(items=None, action='sync', job_id='test')
+        result = mass_batch_operation(items=None, action='sync', job_id='test')  # noqa: F841
 
         # When items=None, _collect_subtitle_items should be called with items=None
         mock_collect.assert_called_once()
         args = mock_collect.call_args
         assert args[0][0] is None  # items arg should be None
 
-    @patch('bazarr.subtitles.mass_operations.jobs_queue')
+    @patch('subtitles.mass_operations.jobs_queue')
     def test_no_job_id_requeues_via_jobs_queue(self, mock_jobs_queue):
         """When called without job_id (e.g. from scheduler), should re-queue itself
         via add_job_from_function instead of processing inline."""
-        from bazarr.subtitles.mass_operations import mass_batch_operation
+        from subtitles.mass_operations import mass_batch_operation
 
         result = mass_batch_operation(items=None, action='sync', job_id=None)
 
@@ -944,11 +944,11 @@ class TestSchedulerIntegration:
 class TestMassBatchOperationProcessing:
     """Test mass_batch_operation end-to-end processing loop."""
 
-    @patch('bazarr.subtitles.mass_operations.jobs_queue')
-    @patch('bazarr.subtitles.mass_operations._process_subtitle_item', return_value=True)
-    @patch('bazarr.subtitles.mass_operations._collect_subtitle_items')
+    @patch('subtitles.mass_operations.jobs_queue')
+    @patch('subtitles.mass_operations._process_subtitle_item', return_value=True)
+    @patch('subtitles.mass_operations._collect_subtitle_items')
     def test_processes_collected_items(self, mock_collect, mock_process, mock_jq):
-        from bazarr.subtitles.mass_operations import mass_batch_operation
+        from subtitles.mass_operations import mass_batch_operation
         mock_collect.return_value = ([
             {'srt_path': '/subs/test.srt', 'video_path': '/video/test.mkv'},
         ], 0)
@@ -961,11 +961,11 @@ class TestMassBatchOperationProcessing:
         assert result['skipped'] == 0
         mock_process.assert_called_once()
 
-    @patch('bazarr.subtitles.mass_operations.jobs_queue')
-    @patch('bazarr.subtitles.mass_operations._process_subtitle_item', side_effect=Exception("failed"))
-    @patch('bazarr.subtitles.mass_operations._collect_subtitle_items')
+    @patch('subtitles.mass_operations.jobs_queue')
+    @patch('subtitles.mass_operations._process_subtitle_item', side_effect=Exception("failed"))
+    @patch('subtitles.mass_operations._collect_subtitle_items')
     def test_handles_processing_errors(self, mock_collect, mock_process, mock_jq):
-        from bazarr.subtitles.mass_operations import mass_batch_operation
+        from subtitles.mass_operations import mass_batch_operation
         mock_collect.return_value = ([
             {'srt_path': '/subs/test.srt', 'video_path': '/video/test.mkv'},
         ], 0)
@@ -978,11 +978,11 @@ class TestMassBatchOperationProcessing:
         assert len(result['errors']) == 1
         assert 'failed' in result['errors'][0]
 
-    @patch('bazarr.subtitles.mass_operations.jobs_queue')
-    @patch('bazarr.subtitles.mass_operations._process_subtitle_item', return_value=False)
-    @patch('bazarr.subtitles.mass_operations._collect_subtitle_items')
+    @patch('subtitles.mass_operations.jobs_queue')
+    @patch('subtitles.mass_operations._process_subtitle_item', return_value=False)
+    @patch('subtitles.mass_operations._collect_subtitle_items')
     def test_counts_failed_processing(self, mock_collect, mock_process, mock_jq):
-        from bazarr.subtitles.mass_operations import mass_batch_operation
+        from subtitles.mass_operations import mass_batch_operation
         mock_collect.return_value = ([
             {'srt_path': '/subs/test.srt', 'video_path': '/video/test.mkv'},
         ], 0)
@@ -995,11 +995,11 @@ class TestMassBatchOperationProcessing:
         assert result['queued'] == 0
         assert result['skipped'] == 1
 
-    @patch('bazarr.subtitles.mass_operations.jobs_queue')
-    @patch('bazarr.subtitles.mass_operations._process_subtitle_item', return_value=True)
-    @patch('bazarr.subtitles.mass_operations._collect_subtitle_items')
+    @patch('subtitles.mass_operations.jobs_queue')
+    @patch('subtitles.mass_operations._process_subtitle_item', return_value=True)
+    @patch('subtitles.mass_operations._collect_subtitle_items')
     def test_processes_multiple_items(self, mock_collect, mock_process, mock_jq):
-        from bazarr.subtitles.mass_operations import mass_batch_operation
+        from subtitles.mass_operations import mass_batch_operation
         mock_collect.return_value = ([
             {'srt_path': '/subs/test1.srt', 'video_path': '/video/test1.mkv'},
             {'srt_path': '/subs/test2.srt', 'video_path': '/video/test2.mkv'},

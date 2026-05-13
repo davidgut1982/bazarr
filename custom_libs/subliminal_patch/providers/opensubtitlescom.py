@@ -389,6 +389,19 @@ class OpenSubtitlesComProvider(ProviderRetryMixin, Provider):
 
         result = res.json()
 
+        if not result['data'] and file_hash:
+            logger.debug("Hash query returned 0 results, retrying without moviehash")
+            params_no_hash = [(k, v) for k, v in params if k != 'moviehash']
+            res = self.retry(
+                lambda: self.checked(
+                    lambda: self.session.get(self.server_url() + 'subtitles', params=params_no_hash, timeout=30),
+                    validate_json=True,
+                    json_key_name='data'
+                ),
+                amount=retry_amount
+            )
+            result = res.json()
+
         # filter out forced subtitles or not depending on the required languages
         if all([lang.forced for lang in languages]):  # only forced
             result['data'] = [x for x in result['data'] if self.is_real_forced(x['attributes'])]
@@ -449,6 +462,40 @@ class OpenSubtitlesComProvider(ProviderRetryMixin, Provider):
                         hash_matched=moviehash_match,
                         imdb_match=True if imdb_id else False
                     )
+                    # Compat layer exposes these on attributes.download_count /
+                    # attributes.ratings / attributes.ai_translated so the
+                    # Jellyfin plugin sort and display have real data.
+                    attrs = item['attributes']
+                    try:
+                        subtitle.download_count = int(attrs.get('download_count') or 0)
+                    except (TypeError, ValueError):
+                        subtitle.download_count = 0
+                    try:
+                        subtitle.ratings = float(attrs.get('ratings') or 0)
+                    except (TypeError, ValueError):
+                        subtitle.ratings = 0.0
+                    subtitle.ai_translated = bool(attrs.get('ai_translated', False))
+                    subtitle.machine_translated = bool(attrs.get('machine_translated', False))
+                    subtitle.foreign_parts_only = bool(attrs.get('foreign_parts_only', False))
+                    try:
+                        fps_raw = attrs.get('fps')
+                        subtitle.fps = float(fps_raw) if fps_raw else 0.0
+                    except (TypeError, ValueError):
+                        subtitle.fps = 0.0
+                    from_trusted = attrs.get('from_trusted')
+                    if from_trusted is not None:
+                        subtitle.from_trusted = bool(from_trusted)
+                    files0 = attrs['files'][0] if attrs.get('files') else {}
+                    if files0.get('file_name'):
+                        subtitle.filename = files0['file_name']
+                    upload_date = attrs.get('upload_date')
+                    if upload_date:
+                        try:
+                            from datetime import datetime
+                            subtitle.upload_date = datetime.fromisoformat(
+                                str(upload_date).replace('Z', '+00:00'))
+                        except (TypeError, ValueError):
+                            pass
                     subtitle.get_matches(self.video)
                     subtitles.append(subtitle)
 
@@ -494,11 +541,11 @@ class OpenSubtitlesComProvider(ProviderRetryMixin, Provider):
             subtitle_content = r.content
             subtitle.content = fix_line_ending(subtitle_content)
 
-    @staticmethod
-    def reset_token():
+    def reset_token(self):
         logger.debug('Authentication failed: clearing cache and attempting to login.')
         region.delete("oscom_token")
         region.delete("oscom_server")
+        self.session.headers.pop('Authorization', None)
         return
 
     def checked(self, fn, raise_api_limit=False, validate_json=False, json_key_name=None, validate_content=False,

@@ -1,7 +1,6 @@
 # coding=utf-8
 
 import logging
-import requests
 import datetime
 import semver
 
@@ -11,6 +10,7 @@ from dogpile.cache import make_region
 
 from app.config import settings, empty_values, get_ssl_verify
 from constants import HEADERS
+from radarr.http_session import radarr_session
 
 region = make_region().configure('dogpile.cache.memory')
 
@@ -29,26 +29,27 @@ class GetRadarrInfo:
         else:
             radarr_version = ''
         if settings.general.use_radarr:
+            headers = {**HEADERS, "X-Api-Key": settings.radarr.apikey}
             try:
-                rv = f"{url_radarr()}/api/system/status?apikey={settings.radarr.apikey}"
-                radarr_json = requests.get(rv, timeout=int(settings.radarr.http_timeout), verify=get_ssl_verify('radarr'),
-                                           headers=HEADERS).json()
+                rv = f"{url_radarr()}/api/system/status"
+                radarr_json = radarr_session().get(rv, timeout=int(settings.radarr.http_timeout), verify=get_ssl_verify('radarr'),
+                                                   headers=headers).json()
                 if 'version' in radarr_json:
                     radarr_version = radarr_json['version']
                 else:
                     raise JSONDecodeError
             except JSONDecodeError:
                 try:
-                    rv = f"{url_radarr()}/api/v3/system/status?apikey={settings.radarr.apikey}"
-                    radarr_version = requests.get(rv, timeout=int(settings.radarr.http_timeout), verify=get_ssl_verify('radarr'),
-                                                  headers=HEADERS).json()['version']
+                    rv = f"{url_radarr()}/api/v3/system/status"
+                    radarr_version = radarr_session().get(rv, timeout=int(settings.radarr.http_timeout), verify=get_ssl_verify('radarr'),
+                                                          headers=headers).json()['version']
                 except (RequestException, JSONDecodeError, KeyError):
                     logging.debug('BAZARR cannot get Radarr version')
                     radarr_version = 'unknown'
             except Exception:
                 logging.debug('BAZARR cannot get Radarr version')
                 radarr_version = 'unknown'
-        logging.debug(f'BAZARR got this Radarr version from its API: {radarr_version}')
+        logging.debug(f'BAZARR got this Radarr version from its API: {radarr_version}')  # noqa: G004
         region.set("radarr_version", radarr_version)
         return radarr_version
 
@@ -110,3 +111,7 @@ def url_radarr():
 
 def url_api_radarr():
     return url_radarr() + f'/api{"/v3" if not get_radarr_info.is_legacy() else ""}/'
+
+
+def radarr_headers(apikey_radarr):
+    return {**HEADERS, "X-Api-Key": apikey_radarr}

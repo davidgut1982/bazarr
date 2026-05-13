@@ -7,8 +7,8 @@ import logging
 from app.config import settings, get_ssl_verify
 from utilities.path_mappings import path_mappings
 from app.database import TableMoviesRootfolder, TableMovies, database, delete, update, insert, select
-from radarr.info import url_api_radarr
-from constants import HEADERS
+from radarr.http_session import radarr_session
+from radarr.info import radarr_headers, url_api_radarr
 
 
 def get_radarr_rootfolder():
@@ -16,10 +16,11 @@ def get_radarr_rootfolder():
     radarr_rootfolder = []
 
     # Get root folder data from Radarr
-    url_radarr_api_rootfolder = f"{url_api_radarr()}rootfolder?apikey={apikey_radarr}"
+    url_radarr_api_rootfolder = f"{url_api_radarr()}rootfolder"
 
     try:
-        rootfolder = requests.get(url_radarr_api_rootfolder, timeout=int(settings.radarr.http_timeout), verify=get_ssl_verify('radarr'), headers=HEADERS)
+        rootfolder = radarr_session().get(url_radarr_api_rootfolder, timeout=int(settings.radarr.http_timeout), verify=get_ssl_verify('radarr'),
+                                          headers=radarr_headers(apikey_radarr))
     except requests.exceptions.ConnectionError:
         logging.exception("BAZARR Error trying to get rootfolder from Radarr. Connection Error.")
         return []
@@ -34,7 +35,7 @@ def get_radarr_rootfolder():
             if any(item.path.startswith(folder['path']) for item in database.execute(
                     select(TableMovies.path))
                     .all()):
-                radarr_rootfolder.append({'id': folder['id'], 'path': folder['path']})
+                radarr_rootfolder.append({'id': folder['id'], 'path': folder['path']})  # noqa: PERF401
         db_rootfolder = database.execute(
             select(TableMoviesRootfolder.id, TableMoviesRootfolder.path))\
             .all()

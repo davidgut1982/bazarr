@@ -1,0 +1,321 @@
+from __future__ import annotations
+from flask import Blueprint, request, jsonify, Response
+# Intra-package and intra-app imports MUST drop the `bazarr.` prefix - the
+# rest of bazarr resolves modules from `bazarr/` as sys.path root, and a
+# `bazarr.foo` import resolves to a SECOND module instance with its own
+# state. Codex flagged duplicate settings/database instances on writes
+# from /system/compat/regenerate.
+from .auth import compat_error
+from utilities.url_guard import UnsafeURLError
+
+compat_stub_bp = Blueprint("compat_stub", __name__)
+
+
+@compat_stub_bp.route("/", defaults={"path": ""}, methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+@compat_stub_bp.route("/<path:path>", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+def _all_disabled(path):
+    return compat_error("disabled", 404, "compat-disabled")
+
+
+import datetime as _dt  # noqa: E402
+from . import auth, service, response_mapper as M, rate_limiter  # noqa: E402
+from .auth import compat_auth  # noqa: E402
+
+
+_SUPPORTED_SUB_FORMATS = frozenset({"srt"})
+
+
+def _normalize_lang(lang):
+    """Strip country subtag only for zh-CN. Providers register bare zho
+    (generic Chinese) and zho;TW (Traditional), but NOT zho;CN. zh-TW
+    must be preserved."""
+    country = getattr(lang, "country", None)
+    if not country:
+        return lang
+    country_code = getattr(country, "alpha2", None) or ""
+    if lang.alpha3 == "zho" and country_code.upper() == "CN":
+        from subzero.language import Language
+        return Language(lang.alpha3)
+    return lang
+
+
+def _resolve_tmdb_to_imdb(tmdb_id: str) -> str:
+    """Best-effort TMDB -> IMDB resolution via the local library database.
+
+    Falls back to empty string (search proceeds as query-only) when
+    resolution fails or the movie is not in the library.
+    """
+    try:
+        from app.database import database, select, TableMovies
+        row = database.execute(
+            select(TableMovies.imdbId)
+            .where(TableMovies.tmdbId == str(tmdb_id))
+        ).first()
+        if row and row[0]:
+            return str(row[0])
+    except Exception:
+        pass
+    return ""
+
+
+def _quota_config() -> tuple[int, int]:
+    from app.config import settings
+    return (int(settings.compat_endpoint.downloads_per_window),
+            int(settings.compat_endpoint.downloads_window_seconds))
+
+
+def _iso_utc(epoch: int) -> str:
+    return _dt.datetime.fromtimestamp(epoch, _dt.timezone.utc)\
+                       .strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _jti_from_request() -> str | None:
+    """Pull jti from the (pre-validated) bearer. Returns None when there
+    is no bearer or the bearer doesn't decode."""
+    bearer = (request.headers.get("Authorization") or "")
+    if not bearer.startswith("Bearer "):
+        return None
+    ok, claims = auth.validate_jwt(bearer[7:])
+    return claims.get("jti") if ok else None
+
+compat_bp = Blueprint("compat", __name__)
+
+
+@compat_bp.before_request
+def _enforce_runtime_disable():
+    """Refuse traffic when the operator toggles compat_endpoint.enabled
+    off at runtime. The blueprint is mounted at startup based on the
+    boot-time value, so without this guard a previously-enabled endpoint
+    keeps serving with the old token until restart. Codex P2: re-check
+    the live setting on every request and 503 if it has been disabled.
+    """
+    from app.config import settings
+    if not bool(settings.compat_endpoint.enabled):
+        return jsonify({"error": "compat endpoint disabled"}), 503
+
+
+@compat_bp.after_request
+def _strip_cors(resp):
+    """Explicit CORS scope override (B4). No CORS for /api/v1/*."""
+    for h in ("Access-Control-Allow-Origin", "Access-Control-Allow-Credentials",
+              "Access-Control-Allow-Methods", "Access-Control-Allow-Headers"):
+        resp.headers.pop(h, None)
+    return resp
+
+
+def _infer_client_base(req) -> tuple[str, str]:
+    """Best-effort (scheme, host) reconstruction for the URL the client hit.
+
+    Trusts X-Forwarded-Host/Proto (set by supervisor.py and any outer
+    reverse proxy) because those reflect what the CLIENT used to reach us.
+    Falls back to request.host/scheme for direct-to-Flask hits. Returns
+    ("", "") only if neither yields a value.
+
+    Historically this function filtered out 127.*/localhost hosts on the
+    theory that they were the internal supervisor->flask loopback. That
+    was wrong: it also rejected legitimate same-box clients (Jellyfin
+    on the same docker host) and masked the real bug - supervisor
+    wasn't setting X-Forwarded-Host at all.
+    """
+    scheme = (req.headers.get("X-Forwarded-Proto") or "").split(",")[0].strip() or req.scheme
+    host = (req.headers.get("X-Forwarded-Host") or "").split(",")[0].strip() or req.host
+    if not host:
+        return "", ""
+    return scheme or "http", host
+
+
+@compat_bp.route("/login", methods=["POST"])
+@compat_auth(require_jwt=False)
+def login():
+    scheme, host = _infer_client_base(request)
+    base_url = host or request.host
+    limit, window = _quota_config()
+    remaining, reset = rate_limiter.inspect("", limit, window)
+    user_data = M.user_info_response(remaining=remaining, allowed=limit,
+                                      reset_iso=_iso_utc(reset))["data"]
+    return jsonify({
+        "token": auth.mint_jwt(),
+        "status": 200,
+        "base_url": base_url,
+        "user": user_data,
+    })
+
+
+@compat_bp.route("/logout", methods=["DELETE"])
+@compat_auth(require_jwt=True)
+def logout():
+    """Validate the bearer JWT and revoke its jti. Unlike OS.com, which
+    doesn't track token state, we keep a server-side jti denylist so a
+    logged-out token stops working even before its own exp."""
+    bearer = (request.headers.get("Authorization") or "")
+    # compat_auth already validated; decode again to grab jti/exp cleanly.
+    ok, claims = auth.validate_jwt(bearer[7:] if bearer.startswith("Bearer ") else "")
+    if ok:
+        auth.revoke_jwt(claims.get("jti", ""), int(claims.get("exp", 0)))
+    return "", 204
+
+
+@compat_bp.route("/subtitles", methods=["GET"])
+@compat_auth(require_jwt=False)
+def subtitles():
+    args = request.args
+    langs_s = args.get("languages") or ""
+    imdb = args.get("imdb_id") or ""
+    tmdb = args.get("tmdb_id") or ""
+    query_filename = args.get("query") or None
+    if not imdb and not query_filename and not tmdb:
+        return compat_error("imdb_id, tmdb_id, or query required", 400, "bad-request")
+    if not imdb and tmdb:
+        imdb = _resolve_tmdb_to_imdb(tmdb)
+    moviehash = args.get("moviehash") or None
+    moviehash_match = args.get("moviehash_match") or None
+    if moviehash_match and moviehash_match not in ("include", "only"):
+        return compat_error("moviehash_match must be include|only", 400, "bad-request")
+    from subzero.language import Language
+    requested_codes = [c.strip() for c in langs_s.split(",") if c.strip()] if langs_s else []
+    try:
+        if requested_codes:
+            langs = [_normalize_lang(Language.fromietf(c)) for c in requested_codes]
+        else:
+            langs = [Language.fromietf("en")]
+            requested_codes = ["en"]
+    except Exception:
+        return compat_error("invalid language code", 400, "bad-request")
+    season = args.get("season_number", type=int)
+    episode = args.get("episode_number", type=int)
+    raw_type = (args.get("type") or "").strip().lower()
+    if raw_type in ("episode", "movie"):
+        media_type = raw_type
+    elif season is not None or episode is not None:
+        media_type = "episode"
+    else:
+        media_type = "movie"
+    try:
+        result = service.search(imdb or "", season, episode, langs, media_type,
+                                query=query_filename, moviehash=moviehash,
+                                moviehash_match=moviehash_match,
+                                requested_languages=requested_codes)
+    except Exception:
+        return compat_error("upstream providers unavailable", 503, "upstream")
+    page = max(1, args.get("page", default=1, type=int) or 1)
+    per_page = args.get("per_page", default=50, type=int) or 50
+    per_page = min(max(per_page, 1), 100)
+    all_entries = result.get("data", [])
+    start = (page - 1) * per_page
+    end = start + per_page
+    sliced = all_entries[start:end]
+    total = len(all_entries)
+    total_pages = max(1, (total + per_page - 1) // per_page) if per_page > 0 else 1
+    return jsonify({
+        "total_pages": total_pages,
+        "total_count": total,
+        "per_page": per_page,
+        "page": page,
+        "data": sliced,
+    })
+
+
+@compat_bp.route("/download", methods=["POST"])
+@compat_auth(require_jwt=True)
+def download():
+    body = request.get_json(silent=True) or {}
+    fid = body.get("file_id")
+    if fid is None or fid == "":
+        return compat_error("file_id required", 400, "bad-request")
+    try:
+        fid_int = int(fid)
+    except (TypeError, ValueError):
+        return compat_error("file_id must be an integer", 400, "bad-request")
+    sub_format = str(body.get("sub_format") or "srt").lower()
+    if sub_format not in _SUPPORTED_SUB_FORMATS:
+        return compat_error(f"unsupported sub_format: {sub_format}",
+                            400, "bad-request")
+
+    limit, window = _quota_config()
+    jti = _jti_from_request() or ""
+    allowed, remaining, reset = rate_limiter.try_consume(jti, limit, window)
+    if not allowed:
+        resp = jsonify({"message": "download quota exhausted",
+                        "reset_time_utc": _iso_utc(reset)})
+        resp.status_code = 406
+        resp.headers["x-reason"] = "throttled"
+        return resp
+
+    try:
+        scheme, host = _infer_client_base(request)
+        if host:
+            base_host = f"{scheme}://{host}"
+        else:
+            base_host = request.host_url.rstrip("/")
+        resp = service.download(fid_int, base_host=base_host,
+                                remaining=remaining,
+                                reset_iso=_iso_utc(reset))
+    except FileNotFoundError:
+        return compat_error("subtitle not found", 404, "not_found")
+    return jsonify(resp)
+
+
+@compat_bp.route("/download/stream/<stream_token>", methods=["GET"])
+def download_stream(stream_token):
+    """Pre-signed download URL.
+
+    Auth model: the HMAC-signed stream_token is the authorization, with
+    exp enforced by parse_file_stream_token (see auth.py). Api-Key is
+    not required here, but the Jellyfin plugin sends it on every request
+    including this follow-up; the route accepts it silently so the plugin
+    does not have to special-case this endpoint.
+
+    Same-origin contract: the link returned by /download always points at
+    this host (service.download constructs it from the request's own
+    scheme+host or the forwarded headers). Never return a link to a
+    third-party host, the plugin's request helper forwards the Bazarr
+    Api-Key header on the follow-up, which would leak the token to
+    whoever owns that host.
+
+    Empty-body contract (P0 from plugin docs): when provider content is
+    missing, return 200 + empty body, not 404. The plugin uses this
+    signal to blocklist the file_id and skip it on future scans. A 404
+    is treated as transient and retried forever.
+    """
+    import logging
+    _log = logging.getLogger("bazarr.compat.routes")
+    try:
+        blob, ctype = service.serve_subtitle_content(stream_token)
+    except UnsafeURLError:
+        return compat_error("provider URL blocked by SSRF guard", 403, "auth")
+    except ValueError:
+        return compat_error("stream token expired", 410, "not_found")
+    except FileNotFoundError:
+        return compat_error("subtitle not found", 404, "not_found")
+    except Exception as e:
+        _log.exception("compat stream: unexpected: %s", e)
+        return compat_error("provider fetch failed", 503, "upstream")
+    return Response(blob, mimetype=ctype)
+
+
+@compat_bp.route("/infos/user", methods=["GET"])
+@compat_auth(require_jwt=False)
+def infos_user():
+    """Api-Key alone is sufficient. OS-compat clients (Jellyfin) poll /infos/user
+    for remaining-downloads updates without re-minting the JWT each time."""
+    limit, window = _quota_config()
+    jti = _jti_from_request() or ""
+    remaining, reset = rate_limiter.inspect(jti, limit, window)
+    return jsonify(M.user_info_response(remaining=remaining, allowed=limit,
+                                          reset_iso=_iso_utc(reset)))
+
+
+@compat_bp.route("/infos/languages", methods=["GET"])
+def infos_languages():
+    return jsonify(M.languages_response())
+
+
+@compat_bp.route("/utilities/guessit", methods=["POST"])
+@compat_auth(require_jwt=False)
+def utilities_guessit():
+    body = request.get_json(silent=True) or {}
+    filename = body.get("filename") or request.args.get("filename") or ""
+    try:
+        return jsonify(service.guessit_filename(filename))
+    except ValueError:
+        return compat_error("bad filename", 400, "bad-request")

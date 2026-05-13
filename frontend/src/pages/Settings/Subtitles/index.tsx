@@ -21,6 +21,7 @@ import {
 import {
   adaptiveSearchingDelayOption,
   adaptiveSearchingDeltaOption,
+  adaptiveSearchingMaxAgeOption,
   colorOptions,
   embeddedSubtitlesParserOption,
   folderOptions,
@@ -228,6 +229,39 @@ const SettingsSubtitlesView: FunctionComponent = () => {
           </Message>
         </CollapseBox>
       </Section>
+      <Section header="Whisper As Fallback">
+        <Check
+          label="Use Whisper as Fallback for Automated Searches"
+          settingKey="settings-general-use_whisper_fallback"
+        ></Check>
+        <CollapseBox settingKey={"settings-general-use_whisper_fallback"}>
+          <Message>
+            When enabled, Bazarr will ignore the Radarr/Sonarr minimum score and
+            fall back to a Whisper generated subtitle when no provider reaches
+            that minimum score. To avoid overloading Whisper, this fallback is
+            used only during automated tasks like Search for Missing Movie
+            Subtitles and Search for Missing Series Subtitles, or by invoking
+            Search from the Wanted menu. You are responsible for ensuring that
+            only one Whisper transcription or translation runs at a time, unless
+            your hardware can handle more.
+          </Message>
+        </CollapseBox>
+        <CollapseBox settingKey={"settings-general-use_whisper_fallback"}>
+          <Check
+            label="Use Whisper as Fallback for Single Series Searches"
+            settingKey="settings-general-use_whisper_fallback_series"
+          ></Check>
+          <CollapseBox
+            settingKey={"settings-general-use_whisper_fallback_series"}
+          >
+            <Message>
+              When enabled, Bazarr will also use Whisper fallback for single
+              series subtitle searches. All of the warnings about overloading
+              Whisper from the previous setting also apply to this one.
+            </Message>
+          </CollapseBox>
+        </CollapseBox>
+      </Section>
       <Section header="Upgrading Subtitles">
         <Check
           label="Upgrade Previously Downloaded Subtitles"
@@ -284,6 +318,19 @@ const SettingsSubtitlesView: FunctionComponent = () => {
             The delay between Bazarr searching for subtitles in adaptive search
             mode. If the media has been searched for more recently than this
             value, Bazarr will skip searching for subtitles.
+          </Message>
+          <Selector
+            settingKey="settings-general-adaptive_searching_max_age"
+            settingOptions={{ onSaved: (v) => (v === undefined ? "" : v) }}
+            options={adaptiveSearchingMaxAgeOption}
+          ></Selector>
+          <Message>
+            When the timespan between the first and last failed search attempt
+            for a subtitle language reaches this threshold, Bazarr will
+            permanently stop searching for it and remove it from the missing
+            subtitles list. Requires at least two recorded attempts. Set to
+            Disabled to always keep searching. Changing this will trigger a
+            missing subtitles re-scan for all episodes and movies.
           </Message>
         </CollapseBox>
         <Check

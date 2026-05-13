@@ -2,7 +2,7 @@ import logging
 
 import pytest
 
-from bazarr.utilities import video_analyzer
+from utilities import video_analyzer
 
 logging.getLogger("knowit").setLevel(logging.WARNING)
 
@@ -203,7 +203,7 @@ M_INFO = {
 }
 
 
-from subzero.language import Language
+from subzero.language import Language  # noqa: E402
 
 
 @pytest.fixture
@@ -237,10 +237,10 @@ def mediainfo_data():
 def test_embedded_subs_reader(mediainfo_data, video_file):
     from unittest.mock import patch
     with patch(
-        "bazarr.utilities.video_analyzer.parse_video_metadata",
+        "utilities.video_analyzer.parse_video_metadata",
         return_value={"mediainfo": mediainfo_data},
     ), patch(
-        "bazarr.utilities.video_analyzer.alpha3_from_alpha2", return_value=None
+        "utilities.video_analyzer.alpha3_from_alpha2", return_value=None
     ):
         result = video_analyzer.embedded_subs_reader(video_file, 1e6)
         assert ["spl", False, False, "SubRip"] in result
@@ -251,10 +251,10 @@ def test_embedded_subs_reader(mediainfo_data, video_file):
 def test_embedded_audio_reader(mediainfo_data, video_file):
     from unittest.mock import patch
     with patch(
-        "bazarr.utilities.video_analyzer.parse_video_metadata",
+        "utilities.video_analyzer.parse_video_metadata",
         return_value={"mediainfo": mediainfo_data},
     ), patch(
-        "bazarr.utilities.video_analyzer.language_from_alpha3", side_effect=lambda alpha3: alpha3
+        "utilities.video_analyzer.language_from_alpha3", side_effect=lambda alpha3: alpha3
     ):
         result = video_analyzer.embedded_audio_reader(video_file, 1e6)
         assert {"pob", "por"} == set(result)

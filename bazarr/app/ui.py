@@ -64,7 +64,7 @@ def check_login(actual_method):
                 })
         elif settings.auth.type == 'form':
             if 'logged_in' not in session:
-                return abort(401, message="Unauthorized")
+                return abort(401)
         return actual_method(*args, **kwargs)
     return wrapper
 
@@ -128,14 +128,14 @@ def catch_all(path):
     return render_template("index.html", BAZARR_SERVER_INJECT=inject, baseUrl=template_url)
 
 
-@check_login
 @ui_bp.route('/' + FILE_LOG)
+@check_login
 def download_log():
     return send_file(get_log_file_path(), max_age=0, as_attachment=True)
 
 
-@check_login
 @ui_bp.route('/images/series/<path:url>', methods=['GET'])
+@check_login
 def series_images(url):
     url = url.strip("/")
     apikey = settings.sonarr.apikey
@@ -149,8 +149,8 @@ def series_images(url):
         return Response(stream_with_context(req.iter_content(2048)), content_type=req.headers['content-type'])
 
 
-@check_login
 @ui_bp.route('/images/movies/<path:url>', methods=['GET'])
+@check_login
 def movies_images(url):
     apikey = settings.radarr.apikey
     baseUrl = settings.radarr.base_url
@@ -163,8 +163,8 @@ def movies_images(url):
         return Response(stream_with_context(req.iter_content(2048)), content_type=req.headers['content-type'])
 
 
-@check_login
 @ui_bp.route('/system/backup/download/<path:filename>', methods=['GET'])
+@check_login
 def backup_download(filename):
     fullpath = os.path.normpath(os.path.join(settings.backup.folder, filename))
     if not fullpath.startswith(settings.backup.folder):
@@ -209,9 +209,277 @@ def _resolve_and_validate(url_str):
     return safe_ip, hostname, parsed
 
 
+def _resolve_and_validate_constrained(url_str):
+    """Relaxed twin of _resolve_and_validate for the connection-test path.
+
+    Caller hard-codes the request path to /api/system/status or
+    /api/v3/system/status, so an authenticated UI session can only probe
+    whether a Sonarr/Radarr-shaped service is listening at the user's
+    typed host:port. The bounded surface justifies allowing loopback,
+    link-local, and private targets that the strict guard rejects.
+
+    Loopback supports bare-metal installs where Bazarr+ and Sonarr both
+    bind to localhost. IPv6 link-local (fe80::/10) is the default for
+    every IPv6 NIC on a single-host install. IPv4 link-local
+    (169.254.0.0/16) is the DHCP fallback. None of these are valid
+    rejection targets once the path is locked.
+
+    The IP-class guard is reduced to a sanity filter: only multicast
+    and unspecified addresses are rejected because those cannot host a
+    TCP service. Everything else passes.
+
+    Returns (resolved_ips, hostname, parsed) where `resolved_ips` is a
+    de-duplicated list of every safe address from the DNS query in the
+    order returned by getaddrinfo. The list lets the caller fall back
+    to the next address when a connection is refused, which matters on
+    dual-stack hosts where a hostname resolves to both IPv6 and IPv4 but
+    only one of the two has the service actually listening (the typical
+    'localhost -> ::1 first, but only 127.0.0.1 binds' case).
+
+    Raises ValueError if no usable address was returned.
+    """
+    parsed = urlparse(url_str)
+    hostname = parsed.hostname
+    if not hostname:
+        raise ValueError("No hostname in URL")
+    port = parsed.port or (443 if parsed.scheme == 'https' else 80)
+    addrs = socket.getaddrinfo(hostname, port)
+    if not addrs:
+        raise ValueError("DNS resolution returned no results")
+    seen = set()
+    resolved_ips = []
+    for _, _, _, _, sockaddr in addrs:
+        ip_str = sockaddr[0]
+        if ip_str in seen:
+            continue
+        seen.add(ip_str)
+        ip = ipaddress.ip_address(ip_str)
+        if ip.is_multicast or ip.is_unspecified:
+            continue
+        resolved_ips.append(ip_str)
+    if not resolved_ips:
+        raise ValueError(
+            "No usable address resolved (multicast and unspecified are not valid TCP targets)"
+        )
+    return resolved_ips, hostname, parsed
+
+
+# Each entry pins:
+#   paths: tuple of upstream status endpoints to probe in order. First 200
+#          wins. Sonarr/Radarr accept a v1 legacy + v3 path; Whisper-ASR
+#          exposes a single /status endpoint.
+#   apikey_required: True for Sonarr/Radarr (X-Api-Key required upstream);
+#                    False for Whisper which has no API-key concept.
+#   has_verify_ssl_setting: True only if `settings.<service>.verify_ssl`
+#                           exists. get_ssl_verify is consulted in that
+#                           case; otherwise we default verify=True so
+#                           public Whisper instances over HTTPS still
+#                           validate certificates.
+_TEST_SERVICES = {
+    'sonarr':    {'paths': ('/api/system/status', '/api/v3/system/status'),
+                  'apikey_required': True,
+                  'has_verify_ssl_setting': True},
+    'radarr':    {'paths': ('/api/system/status', '/api/v3/system/status'),
+                  'apikey_required': True,
+                  'has_verify_ssl_setting': True},
+    'whisperai': {'paths': ('/status',),
+                  'apikey_required': False,
+                  'has_verify_ssl_setting': False},
+}
+
+
+def _validate_test_base_url(base):
+    """Reject obviously hostile or nonsensical inputs. Allow reverse-proxy
+    base paths like /sonarr but refuse anything that smuggles a different
+    request via .., query string, or fragment.
+    """
+    parsed = urlparse(base)
+    if parsed.scheme not in ('http', 'https'):
+        raise ValueError('unsupported protocol')
+    if not parsed.hostname:
+        raise ValueError('missing host')
+    if parsed.query or parsed.fragment:
+        raise ValueError('query strings and fragments are not allowed in url')
+    if '..' in (parsed.path or ''):
+        raise ValueError('relative path segments are not allowed in url')
+    return parsed
+
+
+def _format_host_header(hostname, original_port, scheme):
+    """Build an RFC 7230 §5.4-compliant Host header value.
+
+    IPv6 literals MUST be bracketed in the Host header (`[::1]:8989`,
+    not `::1:8989`) because the colon is otherwise ambiguous with the
+    port separator. urlparse(...).hostname strips brackets, so we have
+    to put them back when emitting the header. Codex P2 from PR #95
+    review round 3.
+
+    Port is included only when non-default for the scheme, matching the
+    convention urllib3 follows when it generates Host headers itself.
+    """
+    is_ipv6 = ':' in hostname
+    host = f'[{hostname}]' if is_ipv6 else hostname
+    default_port = 443 if scheme == 'https' else 80
+    if original_port and original_port != default_port:
+        return f'{host}:{original_port}'
+    return host
+
+
+def _build_request_url(base_parsed, status_path, resolved_ip, hostname, pin):
+    """Construct the (request_url, request_headers) pair for one probe.
+
+    When `pin=True`, the URL is rewritten to use `resolved_ip` in the
+    netloc and a `Host:` header is set so DNS rebinding between resolve
+    and connect cannot redirect the request. This mode is correct for
+    HTTP and for HTTPS with TLS verification disabled.
+
+    When `pin=False`, the original hostname is preserved so urllib3 can
+    set SNI to the hostname and validate the TLS certificate against
+    it. This mode is correct for HTTPS with verify_ssl enabled. Pinning
+    in that case would replace the hostname with an IP literal in the
+    URL, urllib3 would set SNI to the IP, the server's cert (issued for
+    e.g. sonarr.example.com) would not match the IP, and TLS hostname
+    validation would fail every legitimate test. Codex P2.
+    """
+    base_path = (base_parsed.path or '').rstrip('/')
+    test_path = base_path + status_path
+    test_url = base_parsed._replace(path=test_path).geturl()
+    headers = dict(HEADERS)
+    if not pin:
+        return test_url, headers
+    parsed = urlparse(test_url)
+    port = parsed.port or (443 if parsed.scheme == 'https' else 80)
+    pinned_netloc = (f'[{resolved_ip}]:{port}' if ':' in resolved_ip
+                     else f'{resolved_ip}:{port}')
+    pinned_url = parsed._replace(netloc=pinned_netloc).geturl()
+    headers['Host'] = _format_host_header(hostname, parsed.port, parsed.scheme)
+    return pinned_url, headers
+
+
+@ui_bp.route('/test/<service>', methods=['GET'])
 @check_login
+def proxy_service(service):
+    """Constrained connection tester for Sonarr/Radarr.
+
+    Frontend supplies only base URL and apikey via query params; backend
+    appends the known /api/[v3/]system/status path itself, so the surface
+    available to an authenticated UI session is bounded to a status probe
+    against the user-typed host:port. Loopback and link-local are allowed
+    targets here (bare-metal installs, single-NIC IPv6 hosts) because the
+    locked path makes the bounded surface safe.
+
+    See LavX/bazarr#92 for the original report and rationale.
+    """
+    if service not in _TEST_SERVICES:
+        return dict(status=False, error='unsupported service', code=0)
+    config = _TEST_SERVICES[service]
+    base = (request.args.get('url') or '').strip()
+    apikey = (request.args.get('apikey') or '').strip()
+    if not base:
+        return dict(status=False, error='missing url', code=0)
+    if config['apikey_required'] and not apikey:
+        return dict(status=False, error='missing apikey', code=0)
+
+    try:
+        base_parsed = _validate_test_base_url(base)
+    except ValueError as e:
+        return dict(status=False, error=f'Request blocked: {e}', code=0)
+
+    try:
+        resolved_ips, hostname, _ = _resolve_and_validate_constrained(
+            base_parsed.geturl()
+        )
+    except (ValueError, socket.gaierror) as e:
+        return dict(status=False, error=f'Request blocked: {e}', code=0)
+
+    verify = (get_ssl_verify(service)
+              if config['has_verify_ssl_setting'] else True)
+    # Pin to a resolved IP only when TLS hostname validation is NOT
+    # going to do the work for us. For HTTPS + verify=True, the cert's
+    # SAN/CN check provides equivalent DNS-rebinding mitigation: an
+    # attacker who poisons DNS still cannot mint a valid cert for the
+    # hostname. Pinning in that case would replace the hostname with
+    # the IP literal in the URL, SNI would be set to the IP, and a
+    # legitimate cert installation would fail TLS validation. Codex P2.
+    pin_to_ip = not (base_parsed.scheme == 'https' and verify is True)
+    # When pinning is off, dual-stack fallback is unnecessary: urllib3
+    # already iterates DNS-resolved addresses internally during the
+    # actual GET. Iterate only the first usable IP slot in that case;
+    # `_build_request_url(pin=False)` ignores it.
+    candidate_ips = resolved_ips if pin_to_ip else resolved_ips[:1]
+
+    last_response_code = 0
+    last_error = None
+    last_connection_error = None
+    reachable_ip = None
+    # Outer loop: each safe IP returned by DNS, in original order. Inner
+    # loop: each status path. Fall through to the next IP on
+    # ConnectionError so dual-stack hosts where one address family is
+    # not actually listening (e.g. localhost -> ::1 first but only
+    # 127.0.0.1 binds) still produce a successful test.
+    for resolved_ip in candidate_ips:
+        if reachable_ip and reachable_ip != resolved_ip:
+            # Already proven a different IP is reachable; do not
+            # cross-probe additional addresses.
+            break
+        for status_path in config['paths']:
+            request_url, request_headers = _build_request_url(
+                base_parsed, status_path, resolved_ip, hostname, pin_to_ip
+            )
+            if apikey:
+                request_headers['X-Api-Key'] = apikey
+            try:
+                result = requests.get(request_url, allow_redirects=False,
+                                      verify=verify,
+                                      timeout=5, headers=request_headers)
+            except requests.ConnectionError as e:
+                last_connection_error = repr(e)
+                # Cannot reach this IP; try the next one. Skip the
+                # remaining status paths for this IP.
+                break
+            except Exception as e:
+                return dict(status=False, error=repr(e))
+            reachable_ip = resolved_ip
+            last_response_code = result.status_code
+            if result.status_code == 200:
+                try:
+                    version = result.json()['version']
+                    return dict(status=True, version=version,
+                                code=result.status_code)
+                except Exception:
+                    last_error = 'Error Occurred. Check your settings.'
+                    continue
+            elif result.status_code == 401:
+                return dict(status=False,
+                            error='Access Denied. Check API key.',
+                            code=result.status_code)
+            elif result.status_code == 404:
+                last_error = 'Cannot get version. Maybe unsupported legacy API call?'
+                continue
+            elif 300 <= result.status_code <= 399:
+                return dict(status=False, error='Wrong URL Base.',
+                            code=result.status_code)
+            else:
+                # Codex P2: result.raise_for_status() RAISES on 4xx/5xx
+                # rather than returning a value, so wrapping it in dict()
+                # made the route propagate an HTTPError to Flask and
+                # surface as 500 to the frontend. Return a structured
+                # error string instead so the UI can show the upstream
+                # status code on transient failures.
+                return dict(status=False,
+                            error=f'Upstream returned status {result.status_code}',
+                            code=result.status_code)
+    if reachable_ip is None and last_connection_error is not None:
+        return dict(status=False,
+                    error=f'Cannot connect: {last_connection_error}', code=0)
+    return dict(status=False,
+                error=last_error or 'Cannot reach Sonarr/Radarr at the configured URL.',
+                code=last_response_code)
+
+
 @ui_bp.route('/test', methods=['GET'])
 @ui_bp.route('/test/<protocol>/<path:url>', methods=['GET'])
+@check_login
 def proxy(protocol, url):
     if protocol.lower() not in ['http', 'https']:
         return dict(status=False, error='Unsupported protocol', code=0)

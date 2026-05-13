@@ -6,6 +6,7 @@ import logging
 import errno
 from literals import EXIT_INTERRUPT, EXIT_NORMAL, EXIT_PORT_ALREADY_IN_USE_ERROR
 from utilities.central import restart_bazarr, stop_bazarr
+from utilities.tracemalloc_dumper import install as install_tracemalloc_dumper
 
 from waitress.server import create_server
 from time import sleep
@@ -18,6 +19,8 @@ from .database import close_database
 from .app import create_app
 
 app = create_app()
+from compat import register as register_compat  # noqa: E402
+register_compat(app, base_url=base_url)
 app.register_blueprint(api_bp, url_prefix=base_url.rstrip('/') + '/api')
 app.register_blueprint(ui_bp, url_prefix=base_url.rstrip('/'))
 
@@ -37,16 +40,28 @@ class Server:
         self.port = int(args.port) if args.port else int(settings.general.port)
         self.interrupted = False
 
+        install_tracemalloc_dumper()
+
         while not self.connected:
             sleep(0.1)
             self.configure_server()
 
     def configure_server(self):
         try:
+            # Trust X-Forwarded-* only from 127.0.0.1 (the supervisor proxy
+            # in docker/supervisor.py). Direct clients that inject these
+            # headers are untrusted and Waitress strips them. The compat
+            # endpoint reads X-Forwarded-Host/Proto for download-link
+            # construction; trusting arbitrary client values would let an
+            # attacker forge stream URLs and exfiltrate the Api-Key.
             self.server = create_server(app,
                                         host=self.address,
                                         port=self.port,
-                                        threads=100)
+                                        threads=100,
+                                        trusted_proxy='127.0.0.1',
+                                        trusted_proxy_headers={'x-forwarded-host',
+                                                               'x-forwarded-proto',
+                                                               'x-forwarded-for'})
             self.connected = True
         except OSError as error:
             if error.errno == errno.EADDRNOTAVAIL:
@@ -74,15 +89,16 @@ class Server:
                 self.shutdown()
 
     def interrupt_handler(self, signum, frame):
-        # print('Server signal interrupt handler called with signal', signum)
         if not self.interrupted:
             # ignore user hammering Ctrl-C; we heard you the first time!
             self.interrupted = True
-            self.shutdown(EXIT_INTERRUPT)
+            status = EXIT_INTERRUPT if signum == signal.SIGINT else EXIT_NORMAL
+            self.shutdown(status)
 
     def start(self):
         self.server.print_listen("BAZARR is started and waiting for requests on: http://{}:{}")
         signal.signal(signal.SIGINT, self.interrupt_handler)
+        signal.signal(signal.SIGTERM, self.interrupt_handler)
         try:
             self.server.run()
         except (KeyboardInterrupt, SystemExit):
@@ -113,3 +129,4 @@ class Server:
 
 
 webserver = Server()
+

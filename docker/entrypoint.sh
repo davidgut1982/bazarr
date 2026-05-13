@@ -30,15 +30,17 @@ Repository: https://github.com/LavX/bazarr
 
 echo "Starting with UID: $PUID, GID: $PGID"
 
-# Update bazarr user/group IDs if they differ
+# Update bazarr user/group IDs if they differ. -o allows the target UID/GID
+# to be shared with an existing user/group, which is required on Unraid where
+# PGID=100 (the host's "users" group) is already taken inside the container.
 if [ "$(id -u bazarr)" != "$PUID" ]; then
     echo "Updating bazarr user UID to $PUID..."
-    usermod -u $PUID bazarr
+    usermod -o -u "$PUID" bazarr
 fi
 
 if [ "$(id -g bazarr)" != "$PGID" ]; then
     echo "Updating bazarr group GID to $PGID..."
-    groupmod -g $PGID bazarr
+    groupmod -o -g "$PGID" bazarr
 fi
 
 # Fix ownership of key config paths synchronously (fast, only top-level)

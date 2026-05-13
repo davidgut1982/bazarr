@@ -38,6 +38,12 @@ class YifySubtitle(Subtitle):
         self.release_info = release.replace('\n', ', ')
         self.uploader = uploader
         self.rating = rating
+        # Compat layer exposes attributes.ratings; prefer YIFY's own rating
+        # (community vote count) over our score-derived fallback.
+        try:
+            self.ratings = float(rating) if rating else 0.0
+        except (TypeError, ValueError):
+            self.ratings = 0.0
         self.matches = set()
 
     @property

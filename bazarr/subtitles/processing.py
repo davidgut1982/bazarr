@@ -11,7 +11,8 @@ from languages.get_languages import alpha2_from_alpha3, alpha2_from_language, al
 from app.database import TableShows, TableEpisodes, TableMovies, database, select
 from radarr.notify import notify_radarr
 from sonarr.notify import notify_sonarr
-from plex.operations import plex_set_movie_added_date_now, plex_update_library, plex_set_episode_added_date_now, plex_refresh_item
+from plex.operations import plex_set_movie_added_date_now, plex_update_library, plex_set_episode_added_date_now, plex_refresh_item  # noqa: F401
+from jellyfin.operations import jellyfin_refresh_item
 from app.event_handler import event_stream
 
 from .utils import _get_download_code3
@@ -61,7 +62,7 @@ def process_subtitle(subtitle, media_type, audio_language, path, max_score, is_u
         modifier_string = " forced"
     else:
         modifier_string = ""
-    logging.debug(f'BAZARR Subtitles file saved to disk: {downloaded_path}')
+    logging.debug(f'BAZARR Subtitles file saved to disk: {downloaded_path}')  # noqa: G004
     if is_upgrade:
         action = "upgraded"
     elif is_manual:
@@ -78,8 +79,8 @@ def process_subtitle(subtitle, media_type, audio_language, path, max_score, is_u
 
     if media_type == 'series':
         episode_metadata = database.execute(
-            select(TableShows.imdbId, TableEpisodes.sonarrSeriesId, TableEpisodes.sonarrEpisodeId,
-                   TableEpisodes.season, TableEpisodes.episode)
+            select(TableShows.imdbId, TableShows.tvdbId, TableEpisodes.sonarrSeriesId,
+                   TableEpisodes.sonarrEpisodeId, TableEpisodes.season, TableEpisodes.episode)
                 .join(TableShows)\
                 .where(TableEpisodes.path == path_mappings.path_replace_reverse(path)))\
             .first()
@@ -100,7 +101,7 @@ def process_subtitle(subtitle, media_type, audio_language, path, max_score, is_u
                            job_id=job_id)
     else:
         movie_metadata = database.execute(
-            select(TableMovies.radarrId, TableMovies.imdbId)
+            select(TableMovies.radarrId, TableMovies.imdbId, TableMovies.tmdbId)
                 .where(TableMovies.path == path_mappings.path_replace_reverse_movie(path)))\
             .first()
         if not movie_metadata:
@@ -132,11 +133,11 @@ def process_subtitle(subtitle, media_type, audio_language, path, max_score, is_u
             pp_threshold = int(settings.general.postprocessing_threshold_movie)
 
         if not use_pp_threshold or (use_pp_threshold and percent_score < pp_threshold):
-            logging.debug(f"BAZARR Using post-processing command: {command}")
+            logging.debug(f"BAZARR Using post-processing command: {command}")  # noqa: G004
             postprocessing(command, path)
             set_chmod(subtitles_path=downloaded_path)
         else:
-            logging.debug(f"BAZARR post-processing skipped because subtitles score isn't below this "
+            logging.debug(f"BAZARR post-processing skipped because subtitles score isn't below this "  # noqa: G004
                           f"threshold value: {pp_threshold}%")
 
     if media_type == 'series':
@@ -153,6 +154,11 @@ def process_subtitle(subtitle, media_type, audio_language, path, max_score, is_u
                                 season=episode_metadata.season, episode=episode_metadata.episode)
             if settings.plex.set_episode_added is True:
                 plex_set_episode_added_date_now(episode_metadata)
+        if settings.general.use_jellyfin is True:
+            if settings.jellyfin.update_series_library is True:
+                jellyfin_refresh_item(episode_metadata.imdbId, is_movie=False,
+                                      season=episode_metadata.season, episode=episode_metadata.episode,
+                                      tvdb_id=episode_metadata.tvdbId)
 
     else:
         reversed_path = path_mappings.path_replace_reverse_movie(path)
@@ -165,6 +171,10 @@ def process_subtitle(subtitle, media_type, audio_language, path, max_score, is_u
             if settings.plex.update_movie_library is True:
                 # Use specific item refresh instead of full library scan
                 plex_refresh_item(movie_metadata.imdbId, is_movie=True)
+        if settings.general.use_jellyfin is True:
+            if settings.jellyfin.update_movie_library is True:
+                jellyfin_refresh_item(movie_metadata.imdbId, is_movie=True,
+                                      tmdb_id=movie_metadata.tmdbId)
 
     # Call external webhook after all processing is complete if enabled
     call_external_webhook(

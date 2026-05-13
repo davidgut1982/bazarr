@@ -12,7 +12,7 @@ from alembic.migration import MigrationContext
 from radarr.info import get_radarr_info
 from sonarr.info import get_sonarr_info
 from app.get_args import args
-from app.database import engine, database, select
+from app.database import engine, database, select  # noqa: F401
 from init import startTime
 
 from ..utils import authenticate
@@ -82,5 +82,11 @@ class SystemStatus(Resource):
         system_status.update({'start_time': startTime})
         system_status.update({'timezone': timezone})
         system_status.update({'cpu_cores': os.cpu_count()})
+
+        try:
+            from compat import compat_active
+            system_status.update({'compat_active': compat_active})
+        except Exception:
+            system_status.update({'compat_active': False})
 
         return {'data': system_status}

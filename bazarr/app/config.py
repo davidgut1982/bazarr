@@ -1,6 +1,6 @@
 # coding=utf-8
 
-import hashlib
+import hashlib  # noqa: F401
 import os
 import ast
 import json
@@ -85,6 +85,11 @@ validators = [
     # general section
     Validator('general.flask_secret_key', must_exist=True, default=hexlify(os.urandom(16)).decode(),
               is_type_of=str),
+    # Master key for the bazarr.secrets crypto module (encrypts every
+    # user-visible credential at rest). Default empty so the key is
+    # generated lazily on first read - matches the pattern of the legacy
+    # plex.encryption_key. Never round-trips through the API.
+    Validator('general.secrets_encryption_key', must_exist=True, default='', is_type_of=str),
     Validator('general.ip', must_exist=True, default='*', is_type_of=str, condition=validate_ip_address),
     Validator('general.port', must_exist=True, default=6767, is_type_of=int, gte=1, lte=65535),
     Validator('general.hostname', must_exist=True, default=platform.node(), is_type_of=str),
@@ -114,6 +119,7 @@ validators = [
     Validator('general.use_sonarr', must_exist=True, default=False, is_type_of=bool),
     Validator('general.use_radarr', must_exist=True, default=False, is_type_of=bool),
     Validator('general.use_plex', must_exist=True, default=False, is_type_of=bool),
+    Validator('general.use_jellyfin', must_exist=True, default=False, is_type_of=bool),
     Validator('general.path_mappings_movie', must_exist=True, default=[], is_type_of=list),
     Validator('general.serie_tag_enabled', must_exist=True, default=False, is_type_of=bool),
     Validator('general.movie_tag_enabled', must_exist=True, default=False, is_type_of=bool),
@@ -138,6 +144,8 @@ validators = [
               is_in=['1w', '2w', '3w', '4w']),
     Validator('general.adaptive_searching_delta', must_exist=True, default='1w', is_type_of=str,
               is_in=['3d', '1w', '2w', '3w', '4w']),
+    Validator('general.adaptive_searching_max_age', must_exist=True, default='', is_type_of=str,
+              is_in=['', '1m', '3m', '6m', '1y', '2y']),
     Validator('general.enabled_providers', must_exist=True, default=[], is_type_of=list),
     Validator('general.provider_priorities', must_exist=True, default={}, is_type_of=dict),
     Validator('general.use_provider_priority', must_exist=True, default=True, is_type_of=bool),
@@ -148,6 +156,8 @@ validators = [
     Validator('general.chmod', must_exist=True, default='0640', is_type_of=str),
     Validator('general.subfolder', must_exist=True, default='current', is_type_of=str),
     Validator('general.subfolder_custom', must_exist=True, default='', is_type_of=str),
+    Validator('general.use_whisper_fallback', must_exist=True, default=False, is_type_of=bool),
+    Validator('general.use_whisper_fallback_series', must_exist=True, default=False, is_type_of=bool),
     Validator('general.upgrade_subs', must_exist=True, default=True, is_type_of=bool),
     Validator('general.upgrade_frequency', must_exist=True, default=12, is_type_of=int,
               is_in=[6, 12, 24, 168, ONE_HUNDRED_YEARS_IN_HOURS]),
@@ -296,6 +306,21 @@ validators = [
     Validator('plex.disable_auto_migration', must_exist=True, default=False, is_type_of=bool),
     Validator('plex.client_identifier', must_exist=True, default='', is_type_of=str),
 
+    # jellyfin section
+    Validator('jellyfin.url', must_exist=True, default='', is_type_of=str),
+    Validator('jellyfin.apikey', must_exist=True, default='', is_type_of=str),
+    Validator('jellyfin.movie_library', must_exist=True, default=[], is_type_of=list),
+    Validator('jellyfin.series_library', must_exist=True, default=[], is_type_of=list),
+    Validator('jellyfin.movie_library_ids', must_exist=True, default=[], is_type_of=list),
+    Validator('jellyfin.series_library_ids', must_exist=True, default=[], is_type_of=list),
+    Validator('jellyfin.update_movie_library', must_exist=True, default=False, is_type_of=bool),
+    Validator('jellyfin.update_series_library', must_exist=True, default=False, is_type_of=bool),
+    Validator('jellyfin.refresh_method', must_exist=True, default='immediate', is_type_of=str,
+              is_in=['immediate', 'async']),
+    # Default to verifying TLS like sonarr/radarr/plex; users with self-signed
+    # homelab certs can flip this off explicitly. Matches feedback_codeql memory.
+    Validator('jellyfin.verify_ssl', must_exist=True, default=True, is_type_of=bool),
+
     # proxy section
     Validator('proxy.type', must_exist=True, default=None, is_type_of=(NoneType, str),
               is_in=[None, 'socks5', 'socks5h', 'http']),
@@ -381,6 +406,10 @@ validators = [
     # legendasnet section
     Validator('legendasnet.username', must_exist=True, default='', is_type_of=str, cast=str),
     Validator('legendasnet.password', must_exist=True, default='', is_type_of=str, cast=str),
+
+    # pipocas section
+    Validator('pipocas.username', must_exist=True, default='', is_type_of=str, cast=str),
+    Validator('pipocas.password', must_exist=True, default='', is_type_of=str, cast=str),
 
     # ktuvit section
     Validator('ktuvit.email', must_exist=True, default='', is_type_of=str),
@@ -484,6 +513,51 @@ validators = [
     
     # subsro section
     Validator('subsro.api_key', must_exist=True, default='', is_type_of=str, cast=str),
+
+    # compat_endpoint section
+    # NOTE: secret length enforcement happens at blueprint registration via
+    # boot_hmac_selftest (see bazarr/compat/auth.py). Do NOT add len_min
+    # validators here that fire on the "Save" path -- they would reject the
+    # first save that flips enabled=True (secrets still empty at that moment
+    # because auto-generation runs at next boot, not at save time).
+    Validator('compat_endpoint.enabled', default=False, cast=bool),
+    Validator('compat_endpoint.consent', default=False, cast=bool),
+    Validator('compat_endpoint.token', default='', cast=str),
+    Validator('compat_endpoint.jwt_secret', default='', cast=str),
+    Validator('compat_endpoint.file_id_secret', default='', cast=str),
+    Validator('compat_endpoint.cache_ttl_seconds',
+              default=1800, cast=int, gte=60, lte=86400),
+    Validator('compat_endpoint.cache_ttl_partial_seconds',
+              default=300, cast=int, gte=30, lte=3600),
+    Validator('compat_endpoint.search_timeout_seconds',
+              default=20, cast=int, gte=5, lte=120),
+    # per_provider_timeout is not a user-facing knob: it's derived as
+    # 60% of the wall timeout inside _do_fanout. The log-label threshold
+    # should scale with the wall, not be tuned independently.
+    # Compat fanout shares one process-wide bounded ThreadPoolExecutor
+    # so repeated timed-out searches cannot keep spawning provider
+    # threads. fanout_max_workers caps total background provider
+    # threads; max_concurrent_fanouts caps simultaneous fanouts so a
+    # burst of requests cannot drain the pool with abandoned work.
+    Validator('compat_endpoint.fanout_max_workers',
+              default=32, cast=int, gte=4, lte=256),
+    Validator('compat_endpoint.max_concurrent_fanouts',
+              default=4, cast=int, gte=1, lte=16),
+    Validator('compat_endpoint.file_id_ttl_seconds',
+              default=3600, cast=int, gte=300, lte=86400),
+    Validator('compat_endpoint.stream_token_ttl_seconds',
+              default=300, cast=int, gte=60, lte=3600),
+    Validator('compat_endpoint.jwt_ttl_seconds',
+              default=86400, cast=int, gte=3600, lte=604800),
+    Validator('compat_endpoint.downloads_per_window',
+              default=1000, cast=int, gte=1, lte=1000000),
+    Validator('compat_endpoint.downloads_window_seconds',
+              default=86400, cast=int, gte=60, lte=2592000),
+    Validator('compat_endpoint.serve_local_subs',
+              default=True, is_type_of=bool),
+    # OMDB: optional title/year resolution for movies that aren't in the
+    # local library. Free tier at omdbapi.com (1000 req/day). Empty = skip.
+    Validator('omdb.apikey', default='', cast=str),
 ]
 
 
@@ -533,42 +607,96 @@ while failed_validator:
         failed_validator = False
     except ValidationError as e:
         current_validator_details = e.details[0][0]
-        logging.error(f"Validator failed for {current_validator_details.names[0]}: {e}")
+        logging.error(f"Validator failed for {current_validator_details.names[0]}: {e}")  # noqa: G004
         if hasattr(current_validator_details, 'default') and current_validator_details.default is not empty:
             old_value = settings.get(current_validator_details.names[0], 'undefined')
             settings[current_validator_details.names[0]] = current_validator_details.default
-            logging.warning(f"VALIDATOR RESET: {current_validator_details.names[0]} from '{old_value}' to '{current_validator_details.default}'")
+            logging.warning(f"VALIDATOR RESET: {current_validator_details.names[0]} from '{old_value}' to '{current_validator_details.default}'")  # noqa: G004
         else:
-            logging.critical(f"Value for {current_validator_details.names[0]} doesn't pass validation and there's no "
+            logging.critical(f"Value for {current_validator_details.names[0]} doesn't pass validation and there's no "  # noqa: G004
                              f"default value. This issue must be reported to and fixed by the development team. "
                              f"Bazarr won't work until it's been fixed.")
             stop_bazarr(EXIT_VALIDATION_ERROR)
 
+# Decrypt every USER_VISIBLE_SECRET in the live settings object so the
+# rest of bazarr reads plaintext credentials. On a freshly-upgraded
+# instance the values are still plaintext (no marker prefix) and this
+# call is a no-op; on subsequent boots the values come from disk as
+# ciphertext and get decrypted in place. The complementary encryption
+# happens inside write_config() before the dict hits config.yaml.
+from secret_store import (  # noqa: E402
+    decrypt_settings_dict,
+    decrypt_settings_in_place,
+    encrypt_settings_dict,
+    has_plaintext_secrets_on_disk,
+    migrate_legacy_plex_encryption,
+)
+
+# Legacy Plex encryption (URLSafeSerializer + plex.encryption_key) used a
+# different at-rest format with no marker prefix. If we hand its
+# ciphertext to decrypt_settings_in_place, the marker check fails and the
+# bytes get treated as plaintext - the next save would re-encrypt them
+# under the unified key and the user's Plex creds would be unrecoverable.
+# Migrate FIRST so the rest of the pipeline only sees plaintext.
+migrate_legacy_plex_encryption(settings)
+
+# Detect plaintext credentials BEFORE decrypt_settings_in_place runs - it
+# is a passthrough on plaintext, so afterwards the in-memory state and
+# the on-disk state match for plaintext fields and write_config's
+# comparison would skip the rewrite. Capture the "needs migration" bit
+# now and force a write below.
+_force_first_save_migration = has_plaintext_secrets_on_disk(settings)
+
+decrypt_settings_in_place(settings)
+
 
 def write_config():
-    if settings.as_dict() == Dynaconf(
-        settings_file=config_yaml_file,
-        core_loaders=['YAML']
-    ).as_dict():
+    # On-disk shape compared in plaintext form: encrypt_secret is non-
+    # deterministic (per-payload salt + timestamp), so naive ciphertext
+    # comparison would always diff and rewrite config.yaml on every save.
+    global _force_first_save_migration
+    in_memory_plaintext = {k.lower(): v for k, v in settings.as_dict().items()}
+    on_disk_dict = {
+        k.lower(): v for k, v in Dynaconf(
+            settings_file=config_yaml_file,
+            core_loaders=['YAML'],
+        ).as_dict().items()
+    }
+    on_disk_plaintext = decrypt_settings_dict(on_disk_dict)
+
+    if in_memory_plaintext == on_disk_plaintext and not _force_first_save_migration:
         logging.debug("Nothing changed when comparing to config file. Skipping write to file.")
+        return
+
+    forced_migration = _force_first_save_migration
+    if forced_migration:
+        logging.info("secret_store: forcing config rewrite to encrypt plaintext credentials on disk")
+
+    try:
+        write(settings_path=config_yaml_file + '.tmp',
+              settings_data=encrypt_settings_dict(in_memory_plaintext),
+              merge=False)
+    except Exception as error:
+        logging.exception(f"Exception raised while trying to save temporary settings file: {error}")  # noqa: G004
     else:
         try:
-            write(settings_path=config_yaml_file + '.tmp',
-                  settings_data={k.lower(): v for k, v in settings.as_dict().items()},
-                  merge=False)
+            move(config_yaml_file + '.tmp', config_yaml_file)
         except Exception as error:
-            logging.exception(f"Exception raised while trying to save temporary settings file: {error}")
+            logging.exception(f"Exception raised while trying to overwrite settings file with temporary settings "  # noqa: G004
+                              f"file: {error}")
         else:
-            try:
-                move(config_yaml_file + '.tmp', config_yaml_file)
-            except Exception as error:
-                logging.exception(f"Exception raised while trying to overwrite settings file with temporary settings "
-                                  f"file: {error}")
+            # Only clear the forced-migration flag once the new
+            # encrypted config is durably in place. Clearing it on the
+            # logging branch above would silently swallow the migration
+            # if write() or move() failed (disk full, permission, I/O):
+            # the next write_config() would short-circuit on the
+            # plaintext-equality check at the top of this function and
+            # never retry, leaving credentials unencrypted on disk.
+            if forced_migration:
+                _force_first_save_migration = False
 
 
 base_url = settings.general.base_url.rstrip('/')
-
-ignore_keys = ['flask_secret_key']
 
 array_keys = ['excluded_tags',
               'exclude',
@@ -635,14 +763,23 @@ write_config()
 
 
 def get_settings():
-    # return {k.lower(): v for k, v in settings.as_dict().items()}
+    # API serializer for /api/system/settings. SYSTEM_SECRETS are masked
+    # with '***' (key still present so the wire shape is stable, value
+    # hidden); USER_VISIBLE_SECRETS pass through unchanged because the
+    # in-memory settings already hold their decrypted plaintext.
+    from secret_store import is_system_secret  # noqa: PLC0415, RUF100
     settings_to_return = {}
     for k, v in settings.as_dict().items():
         if isinstance(v, dict):
             k = k.lower()
             settings_to_return[k] = dict()
             for subk, subv in v.items():
-                if subk.lower() in ignore_keys:
+                full_path = f"{k}.{subk.lower()}"
+                if is_system_secret(full_path):
+                    # Keep empty values literally empty so the UI can
+                    # distinguish "not configured" from "configured but
+                    # hidden". Non-empty system secrets get the mask.
+                    settings_to_return[k][subk] = '***' if subv else subv
                     continue
                 if subv in empty_values and subk.lower() in array_keys:
                     settings_to_return[k].update({subk: []})
@@ -688,7 +825,10 @@ def save_settings(settings_items):
     undefined_audio_track_default_changed = False
     undefined_subtitles_track_default_changed = False
     audio_tracks_parsing_changed = False
+    adaptive_searching_max_age_changed = False
     reset_providers = False
+    reset_fanout_pool = False
+    reset_compat_pool = False
 
     # Subzero Mods
     update_subzero = False
@@ -740,6 +880,10 @@ def save_settings(settings_items):
         if key in ['settings-general-use_embedded_subs', 'settings-general-ignore_pgs_subs',
                    'settings-general-ignore_vobsub_subs', 'settings-general-ignore_ass_subs']:
             use_embedded_subs_changed = True
+
+        if key == 'settings-general-adaptive_searching_max_age':
+            if value != settings.general.adaptive_searching_max_age:
+                adaptive_searching_max_age_changed = True
 
         if key == 'settings-general-default_und_audio_lang':
             undefined_audio_track_default_changed = True
@@ -798,31 +942,31 @@ def save_settings(settings_items):
 
         if key in ['settings-sonarr-excluded_tags', 'settings-sonarr-only_monitored',
                    'settings-sonarr-excluded_series_types', 'settings-sonarr-exclude_season_zero',
-                   'settings.radarr.excluded_tags', 'settings-radarr-only_monitored']:
+                   'settings-radarr-excluded_tags', 'settings-radarr-only_monitored']:
             exclusion_updated = True
 
         if key in ['settings-sonarr-excluded_tags', 'settings-sonarr-only_monitored',
                    'settings-sonarr-excluded_series_types', 'settings-sonarr-exclude_season_zero']:
             sonarr_exclusion_updated = True
 
-        if key in ['settings.radarr.excluded_tags', 'settings-radarr-only_monitored']:
+        if key in ['settings-radarr-excluded_tags', 'settings-radarr-only_monitored']:
             radarr_exclusion_updated = True
 
         if key == 'settings-addic7ed-username':
-            if key != settings.addic7ed.username:
+            if value != settings.addic7ed.username:
                 reset_providers = True
                 region.delete('addic7ed_data')
         elif key == 'settings-addic7ed-password':
-            if key != settings.addic7ed.password:
+            if value != settings.addic7ed.password:
                 reset_providers = True
                 region.delete('addic7ed_data')
 
         if key == 'settings-legendasdivx-username':
-            if key != settings.legendasdivx.username:
+            if value != settings.legendasdivx.username:
                 reset_providers = True
                 region.delete('legendasdivx_cookies2')
         elif key == 'settings-legendasdivx-password':
-            if key != settings.legendasdivx.password:
+            if value != settings.legendasdivx.password:
                 reset_providers = True
                 region.delete('legendasdivx_cookies2')
 
@@ -844,30 +988,50 @@ def save_settings(settings_items):
 
 
         if key == 'settings-opensubtitlescom-username':
-            if key != settings.opensubtitlescom.username:
+            if value != settings.opensubtitlescom.username:
                 reset_providers = True
                 region.delete('oscom_token')
         elif key == 'settings-opensubtitlescom-password':
-            if key != settings.opensubtitlescom.password:
+            if value != settings.opensubtitlescom.password:
                 reset_providers = True
                 region.delete('oscom_token')
 
         if key == 'settings-titlovi-username':
-            if key != settings.titlovi.username:
+            if value != settings.titlovi.username:
                 reset_providers = True
                 region.delete('titlovi_token')
         elif key == 'settings-titlovi-password':
-            if key != settings.titlovi.password:
+            if value != settings.titlovi.password:
                 reset_providers = True
                 region.delete('titlovi_token')
 
         if key == 'settings-subsource-apikey':
-            if key != settings.subsource.apikey:
+            if value != settings.subsource.apikey:
                 reset_providers = True
+
+        if key == 'settings-general-enabled_providers':
+            # Defer the reset until AFTER all values in this batch are
+            # written, same reasoning as reset_fanout_pool below.
+            reset_compat_pool = True
+
+        if key in ('settings-compat_endpoint-fanout_max_workers',
+                   'settings-compat_endpoint-max_concurrent_fanouts'):
+            # Defer the reset until AFTER all values in this batch are
+            # written. Resetting in-loop opens a window where a
+            # concurrent compat request could re-init the shared
+            # executor by reading the OLD value before the assignment
+            # at the bottom of the loop body lands.
+            reset_fanout_pool = True
 
         if reset_providers:
             from .get_providers import reset_throttled_providers
             reset_throttled_providers(only_auth_or_conf_error=True)
+            # Defer the compat-pool reset for the same race reason as
+            # the fanout pool above. Resetting here, before the
+            # settings[...] = value assignment lands, would let a
+            # concurrent /compat request re-init the provider pool
+            # with stale provider settings or credentials.
+            reset_compat_pool = True
 
         if settings_keys[0] == 'settings':
             if len(settings_keys) == 3:
@@ -896,7 +1060,7 @@ def save_settings(settings_items):
 
             update_subzero = True
 
-    if use_embedded_subs_changed or undefined_audio_track_default_changed:
+    if use_embedded_subs_changed or undefined_audio_track_default_changed or adaptive_searching_max_age_changed:
         from .scheduler import scheduler
         from subtitles.indexer.series import list_missing_subtitles
         from subtitles.indexer.movies import list_missing_subtitles_movies
@@ -926,11 +1090,38 @@ def save_settings(settings_items):
     if update_subzero:
         settings.general.subzero_mods = ','.join(subzero_mods)
 
+    if reset_fanout_pool:
+        # All in-loop assignments have committed by now, so the next
+        # _get_pool() call will read the new sizing values.
+        try:
+            from subliminal_patch.core_persistent import reset_pool as _reset_fanout
+            _reset_fanout()
+        except Exception:
+            pass
+
+    if reset_compat_pool:
+        # All in-loop assignments have committed by now, so the next
+        # /compat request that constructs a pool sees the updated
+        # provider list / credentials instead of the stale pre-save
+        # values.
+        try:
+            from compat.service import reset_compat_pool as _reset_compat
+            _reset_compat()
+        except Exception:
+            pass
+
     try:
         settings.validators.validate()
         validate_log_regex()
     except ValidationError:
+        # Re-decrypt after reload: settings.reload() pulls the on-disk
+        # ciphertext back into the live Dynaconf object, so without this
+        # second pass downstream code would see `enc:v1:` strings for
+        # API keys, auth credentials, provider passwords, and compat
+        # tokens until the next process restart. Codex P1.
         settings.reload()
+        migrate_legacy_plex_encryption(settings)
+        decrypt_settings_in_place(settings)
         raise
     else:
         write_config()
@@ -1141,7 +1332,7 @@ def migrate_apikey_to_oauth():
         # Add random delay to prevent thundering herd (0-30 seconds)
         import random
         delay = random.uniform(0, 30)
-        logging.debug(f"Migration delay: {delay:.1f}s to prevent server overload")
+        logging.debug(f"Migration delay: {delay:.1f}s to prevent server overload")  # noqa: G004
         time.sleep(delay)
         
         # Decrypt the API key
@@ -1156,7 +1347,7 @@ def migrate_apikey_to_oauth():
             else:
                 decrypted_api_key = api_key
         except Exception as e:
-            logging.error(f"Failed to decrypt API key for migration: {e}")
+            logging.error(f"Failed to decrypt API key for migration: {e}")  # noqa: G004
             return
             
         # Use API key to fetch user data from Plex with retry logic
@@ -1176,7 +1367,7 @@ def migrate_apikey_to_oauth():
                                            headers=headers, timeout=10)
                 
                 if user_response.status_code == 429:  # Rate limited
-                    logging.warning(f"Rate limited by Plex API, attempt {attempt + 1}/{max_retries}")
+                    logging.warning(f"Rate limited by Plex API, attempt {attempt + 1}/{max_retries}")  # noqa: G004
                     if attempt < max_retries - 1:
                         time.sleep(retry_delay * (attempt + 1))  # Exponential backoff
                         continue
@@ -1193,7 +1384,7 @@ def migrate_apikey_to_oauth():
                 break
                 
             except requests.exceptions.Timeout:
-                logging.warning(f"Timeout getting user data, attempt {attempt + 1}/{max_retries}")
+                logging.warning(f"Timeout getting user data, attempt {attempt + 1}/{max_retries}")  # noqa: G004
                 if attempt < max_retries - 1:
                     time.sleep(retry_delay)
                     continue
@@ -1201,7 +1392,7 @@ def migrate_apikey_to_oauth():
                     logging.error("Migration failed due to timeouts, will retry later")
                     return
             except Exception as e:
-                logging.error(f"Failed to fetch user data for migration: {e}")
+                logging.error(f"Failed to fetch user data for migration: {e}")  # noqa: G004
                 return
             
         # Get user's servers with retry logic
@@ -1213,7 +1404,7 @@ def migrate_apikey_to_oauth():
                                               timeout=10)
                 
                 if servers_response.status_code == 429:  # Rate limited
-                    logging.warning(f"Rate limited getting servers, attempt {attempt + 1}/{max_retries}")
+                    logging.warning(f"Rate limited getting servers, attempt {attempt + 1}/{max_retries}")  # noqa: G004
                     if attempt < max_retries - 1:
                         time.sleep(retry_delay * (attempt + 1))
                         continue
@@ -1267,13 +1458,13 @@ def migrate_apikey_to_oauth():
                             
                             servers.append(server)
                 else:
-                    logging.error(f"Unexpected response format: {content_type}")
+                    logging.error(f"Unexpected response format: {content_type}")  # noqa: G004
                     return
                 
                 break
                 
             except requests.exceptions.Timeout:
-                logging.warning(f"Timeout getting servers, attempt {attempt + 1}/{max_retries}")
+                logging.warning(f"Timeout getting servers, attempt {attempt + 1}/{max_retries}")  # noqa: G004
                 if attempt < max_retries - 1:
                     time.sleep(retry_delay)
                     continue
@@ -1281,7 +1472,7 @@ def migrate_apikey_to_oauth():
                     logging.error("Migration failed due to timeouts, will retry later")
                     return
             except Exception as e:
-                logging.error(f"Failed to fetch servers for migration: {e}")
+                logging.error(f"Failed to fetch servers for migration: {e}")  # noqa: G004
                 return
             
         # Find the server that matches current manual configuration
@@ -1367,7 +1558,7 @@ def migrate_apikey_to_oauth():
             settings.plex.token = original_token
             
         except Exception as e:
-            logging.error(f"OAuth pre-validation failed: {e}")
+            logging.error(f"OAuth pre-validation failed: {e}")  # noqa: G004
             # Restore original values
             settings.plex.auth_method = original_auth_method
             settings.plex.token = original_token
@@ -1405,8 +1596,8 @@ def migrate_apikey_to_oauth():
         # Save configuration with OAuth settings
         write_config()
         
-        logging.info(f"Migrated Plex configuration to OAuth for user '{username}'")
-        logging.info(f"Selected server: {selected_server['name']} ({selected_connection['uri']})")
+        logging.info(f"Migrated Plex configuration to OAuth for user '{username}'")  # noqa: G004
+        logging.info(f"Selected server: {selected_server['name']} ({selected_connection['uri']})")  # noqa: G004
         logging.info("Legacy manual configuration fields cleared (ip, port, ssl)")
         
         # Final validation test
@@ -1422,7 +1613,7 @@ def migrate_apikey_to_oauth():
             logging.info("Legacy API key permanently removed after successful OAuth migration")
             
         except Exception as e:
-            logging.error(f"Final OAuth validation failed: {e}")
+            logging.error(f"Final OAuth validation failed: {e}")  # noqa: G004
             
             # Restore backup configuration
             logging.info("Restoring backup configuration...")
@@ -1454,11 +1645,11 @@ def migrate_apikey_to_oauth():
                 logging.info("Rollback successful - legacy API key connection restored")
                 logging.error("OAuth migration failed but legacy configuration is working. Please configure OAuth manually through the GUI.")
             except Exception as rollback_error:
-                logging.error(f"Rollback validation also failed: {rollback_error}")
+                logging.error(f"Rollback validation also failed: {rollback_error}")  # noqa: G004
                 logging.error("CRITICAL: Manual intervention required. Please reset Plex settings.")
             
     except Exception as e:
-        logging.error(f"Unexpected error during Plex OAuth migration: {e}")
+        logging.error(f"Unexpected error during Plex OAuth migration: {e}")  # noqa: G004
         # Keep existing configuration intact
 
 
@@ -1472,7 +1663,7 @@ def cleanup_legacy_oauth_config():
         
     # Check if any legacy values exist
     has_legacy_ip = bool(settings.plex.get('ip', '').strip())
-    has_legacy_ssl = settings.plex.get('ssl', False) == True
+    has_legacy_ssl = settings.plex.get('ssl', False) == True  # noqa: E712
     has_legacy_port = settings.plex.get('port', 32400) != 32400
     
     # Only disable auto-migration if migration was actually successful
@@ -1516,7 +1707,7 @@ def migrate_plex_library_to_list():
         old_value = settings.plex.movie_library
         if old_value:  # Only migrate if not empty
             settings.plex.movie_library = [old_value]
-            logging.info(f"Migrated plex.movie_library from string to list: {old_value}")
+            logging.info(f"Migrated plex.movie_library from string to list: {old_value}")  # noqa: G004
             changed = True
         else:
             settings.plex.movie_library = []
@@ -1527,7 +1718,7 @@ def migrate_plex_library_to_list():
         old_value = settings.plex.series_library
         if old_value:  # Only migrate if not empty
             settings.plex.series_library = [old_value]
-            logging.info(f"Migrated plex.series_library from string to list: {old_value}")
+            logging.info(f"Migrated plex.series_library from string to list: {old_value}")  # noqa: G004
             changed = True
         else:
             settings.plex.series_library = []

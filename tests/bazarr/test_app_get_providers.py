@@ -3,7 +3,7 @@ import inspect
 import pytest
 from subliminal_patch.core import Language
 
-from bazarr.app import get_providers
+from app import get_providers
 
 
 def test_get_providers_auth():

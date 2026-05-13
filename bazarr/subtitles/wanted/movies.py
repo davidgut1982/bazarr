@@ -15,6 +15,7 @@ from app.get_providers import get_providers
 from app.database import get_exclusion_clause, get_audio_profile_languages, TableMovies, database, update, select
 from app.event_handler import event_stream
 from app.jobs_queue import jobs_queue
+from app.config import settings
 
 from ..adaptive_searching import is_search_active, updateFailedAttempts
 from ..download import generate_subtitles
@@ -38,7 +39,7 @@ def _wanted_movie(movie, providers_list, job_id=None):
             languages_to_stamp.append(language)
 
         else:
-            logging.info(f"BAZARR Search is throttled by adaptive search for this movie {movie.path} and "
+            logging.info(f"BAZARR Search is throttled by adaptive search for this movie {movie.path} and "  # noqa: G004
                          f"language: {language}")
 
     found_any = False
@@ -50,7 +51,8 @@ def _wanted_movie(movie, providers_list, job_id=None):
                                      'movie',
                                      movie.profileId,
                                      check_if_still_required=True,
-                                     job_id=job_id):
+                                     job_id=job_id,
+                                     fallback_allowed=settings.general.use_whisper_fallback):
 
         if result:
             found_any = True
@@ -86,7 +88,7 @@ def wanted_download_subtitles_movie(radarr_id, job_id=None):
     movie = database.execute(stmt).first()
 
     if not movie:
-        logging.debug(f"BAZARR no movie with that radarrId can be found in database: {radarr_id}")
+        logging.debug(f"BAZARR no movie with that radarrId can be found in database: {radarr_id}")  # noqa: G004
         return
     elif movie.subtitles is None:
         # subtitles indexing for this movie is incomplete, we'll do it again

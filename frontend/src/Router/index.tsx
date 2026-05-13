@@ -29,7 +29,9 @@ import SeriesHistoryView from "@/pages/History/Series";
 import MovieView from "@/pages/Movies";
 import MovieDetailView from "@/pages/Movies/Details";
 import SeriesView from "@/pages/Series";
+import SettingsExternalView from "@/pages/Settings/External";
 import SettingsGeneralView from "@/pages/Settings/General";
+import SettingsJellyfinView from "@/pages/Settings/Jellyfin";
 import SettingsLanguagesView from "@/pages/Settings/Languages";
 import SettingsNotificationsView from "@/pages/Settings/Notifications";
 import SettingsPlexView from "@/pages/Settings/Plex";
@@ -203,6 +205,11 @@ function useRoutes(): CustomRouteObject[] {
                 element: <SettingsPlexView></SettingsPlexView>,
               },
               {
+                path: "jellyfin",
+                name: "Jellyfin",
+                element: <SettingsJellyfinView></SettingsJellyfinView>,
+              },
+              {
                 divider: "Subtitles",
                 path: "languages",
                 name: "Languages",
@@ -222,6 +229,11 @@ function useRoutes(): CustomRouteObject[] {
                 path: "translator",
                 name: "AI Translator",
                 element: <SettingsTranslatorView></SettingsTranslatorView>,
+              },
+              {
+                path: "external",
+                name: "External Integration",
+                element: <SettingsExternalView></SettingsExternalView>,
               },
               {
                 divider: "Application",

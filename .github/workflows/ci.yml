@@ -97,13 +97,24 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install UI
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ env.UI_ARTIFACT_NAME }}
           path: "${{ env.UI_DIRECTORY }}/build"
 
       - name: Install Python dependencies
         run: pip install -r requirements.txt
+
+      - name: Install dev dependencies
+        run: pip install -r dev-requirements.txt
+
+      - name: Lint with ruff
+        run: ruff check .
+
+      - name: pytest compat subpackage
+        run: |
+          pip install pytest pyjwt
+          pytest tests/compat/ -v --tb=short
 
       - name: Unit Tests
         run: |

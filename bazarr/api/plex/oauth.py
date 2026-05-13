@@ -1,6 +1,7 @@
 # coding=utf-8
 
 import os
+import secrets as _secrets
 import time
 import uuid
 import requests
@@ -14,14 +15,27 @@ import plexapi
 from plexapi.exceptions import BadRequest
 
 from . import api_ns_plex
-from .exceptions import *
-from .security import (TokenManager, sanitize_log_data, pin_cache, get_or_create_encryption_key, sanitize_server_url,
-                       encrypt_api_key)
-from app.config import get_ssl_verify
-from app.config import settings, write_config
-from app.logger import logger
-from utilities.plex_utils import _get_library_locations
-from ..utils import authenticate
+from .exceptions import *  # noqa: F403
+from .security import sanitize_log_data, pin_cache, sanitize_server_url
+
+
+def _generate_state_token() -> str:
+    """OAuth CSRF state token. Just a high-entropy random string - the
+    encryption-at-rest pipeline owns the apikey/token persistence, but
+    the per-PIN state token is purely for protecting the redirect from
+    forged requests. Lives in pin_cache only, never on disk."""
+    return _secrets.token_urlsafe(32)
+
+
+def _validate_state_token(state: str, stored_state: str) -> bool:
+    if not state or not stored_state:
+        return False
+    return _secrets.compare_digest(state, stored_state)
+from app.config import get_ssl_verify  # noqa: E402
+from app.config import settings, write_config  # noqa: E402
+from app.logger import logger  # noqa: E402
+from utilities.plex_utils import _get_library_locations  # noqa: E402
+from ..utils import authenticate  # noqa: E402
 
 def _update_plexapi_headers():
     """Update plexapi headers to show Bazarr identity in Plex.
@@ -39,30 +53,21 @@ def _update_plexapi_headers():
     plexapi.BASE_HEADERS['X-Plex-Client-Identifier'] = client_id
 
 
-def get_token_manager():
-    # Check if encryption key exists before attempting to create one
-    key_existed = bool(getattr(settings.plex, 'encryption_key', None))
-    key = get_or_create_encryption_key(settings.plex, 'encryption_key')
-    # Save config if a new key was generated
-    if not key_existed:
-        write_config()
-    return TokenManager(key)
-
-
+# Pre-secret_store, Plex used a per-namespace TokenManager backed by
+# plex.encryption_key. encrypt_token / decrypt_token are kept as
+# compatibility shims that pass the credential through unchanged - the
+# secret_store at-rest pipeline owns encryption now, and the in-memory
+# values are already plaintext by the time these helpers see them.
 def encrypt_token(token):
-    if not token:
-        return None
-    return get_token_manager().encrypt(token)
+    return token if token else None
 
 
 def decrypt_token(encrypted_token):
     if not encrypted_token:
         return None
-    try:
-        return get_token_manager().decrypt(encrypted_token)
-    except Exception as e:
-        logger.error(f"Token decryption failed: {type(e).__name__}: {str(e)}")
-        raise InvalidTokenError("Failed to decrypt stored authentication token. The token may be corrupted or the encryption key may have changed. Please re-authenticate with Plex.")
+    # The unified pipeline decrypts on boot; what we have here IS the
+    # plaintext. Returning it unchanged is correct.
+    return encrypted_token
 
 
 def generate_client_id():
@@ -89,21 +94,9 @@ def get_decrypted_token():
 
     if auth_method == 'oauth':
         token = settings.plex.get('token')
-        if not token:
-            return None
-        return decrypt_token(token)
-    else:
-        apikey = settings.plex.get('apikey')
-        if not apikey:
-            return None
-
-        if not settings.plex.get('apikey_encrypted', False):
-            if encrypt_api_key():
-                apikey = settings.plex.get('apikey')
-            else:
-                return None
-
-        return decrypt_token(apikey)
+        return token if token else None
+    apikey = settings.plex.get('apikey')
+    return apikey if apikey else None
 
 
 def check_plex_pass_feature(account, feature_name):
@@ -141,7 +134,7 @@ def check_plex_pass_feature(account, feature_name):
 
 def validate_plex_token(token):
     if not token:
-        raise InvalidTokenError("No authentication token provided. Please authenticate with Plex first.")
+        raise InvalidTokenError("No authentication token provided. Please authenticate with Plex first.")  # noqa: F405
 
     try:
         headers = {
@@ -154,27 +147,27 @@ def validate_plex_token(token):
             timeout=10
         )
         if response.status_code == 401:
-            raise InvalidTokenError("Plex server rejected the authentication token. Token may be invalid or expired.")
+            raise InvalidTokenError("Plex server rejected the authentication token. Token may be invalid or expired.")  # noqa: F405
         elif response.status_code == 403:
-            raise UnauthorizedError("Access forbidden. Your Plex account may not have sufficient permissions.")
+            raise UnauthorizedError("Access forbidden. Your Plex account may not have sufficient permissions.")  # noqa: F405
         elif response.status_code == 404:
-            raise PlexConnectionError("Plex user API endpoint not found. Please check your Plex server version.")
+            raise PlexConnectionError("Plex user API endpoint not found. Please check your Plex server version.")  # noqa: F405
         response.raise_for_status()
         return response.json()
     except requests.exceptions.ConnectionError as e:
         logger.error(f"Connection to Plex.tv failed: {str(e)}")
-        raise PlexConnectionError("Unable to connect to Plex.tv servers. Please check your internet connection.")
+        raise PlexConnectionError("Unable to connect to Plex.tv servers. Please check your internet connection.")  # noqa: F405
     except requests.exceptions.Timeout as e:
         logger.error(f"Plex.tv request timed out: {str(e)}")
-        raise PlexConnectionError("Request to Plex.tv timed out. Please try again later.")
+        raise PlexConnectionError("Request to Plex.tv timed out. Please try again later.")  # noqa: F405
     except requests.exceptions.RequestException as e:
         logger.error(f"Plex token validation failed: {type(e).__name__}: {str(e)}")
-        raise PlexConnectionError(f"Failed to validate token with Plex.tv: {str(e)}")
+        raise PlexConnectionError(f"Failed to validate token with Plex.tv: {str(e)}")  # noqa: F405
 
 
 def refresh_token(token):
     if not token:
-        raise InvalidTokenError("No authentication token provided for refresh.")
+        raise InvalidTokenError("No authentication token provided for refresh.")  # noqa: F405
 
     try:
         headers = {
@@ -189,22 +182,22 @@ def refresh_token(token):
         )
 
         if response.status_code == 401:
-            raise TokenExpiredError("Plex authentication token has expired and cannot be refreshed.")
+            raise TokenExpiredError("Plex authentication token has expired and cannot be refreshed.")  # noqa: F405
         elif response.status_code == 403:
-            raise UnauthorizedError("Access forbidden during token refresh. Your Plex account may not have sufficient permissions.")
+            raise UnauthorizedError("Access forbidden during token refresh. Your Plex account may not have sufficient permissions.")  # noqa: F405
 
         response.raise_for_status()
         return token
 
     except requests.exceptions.ConnectionError as e:
         logger.error(f"Connection to Plex.tv failed during token refresh: {str(e)}")
-        raise PlexConnectionError("Unable to connect to Plex.tv servers for token refresh. Please check your internet connection.")
+        raise PlexConnectionError("Unable to connect to Plex.tv servers for token refresh. Please check your internet connection.")  # noqa: F405
     except requests.exceptions.Timeout as e:
         logger.error(f"Plex.tv token refresh timed out: {str(e)}")
-        raise PlexConnectionError("Token refresh request to Plex.tv timed out. Please try again later.")
+        raise PlexConnectionError("Token refresh request to Plex.tv timed out. Please try again later.")  # noqa: F405
     except requests.exceptions.RequestException as e:
         logger.error(f"Plex token refresh failed: {type(e).__name__}: {str(e)}")
-        raise PlexConnectionError(f"Failed to refresh token with Plex.tv: {str(e)}")
+        raise PlexConnectionError(f"Failed to refresh token with Plex.tv: {str(e)}")  # noqa: F405
 
 
 def test_plex_connection(uri, token):
@@ -246,7 +239,7 @@ class PlexPin(Resource):
     @api_ns_plex.doc(parser=post_request_parser)
     def post(self):
         try:
-            args = self.post_request_parser.parse_args()
+            args = self.post_request_parser.parse_args()  # noqa: F841
             
             # Use persistent client identifier for consistent device identity
             client_id = get_or_create_client_identifier()
@@ -255,7 +248,7 @@ class PlexPin(Resource):
             instance_name = settings.general.get('instance_name', 'Bazarr')
             bazarr_version = os.environ.get('BAZARR_VERSION', 'unknown')
 
-            state_token = get_token_manager().generate_state_token()
+            state_token = _generate_state_token()
 
             headers = {
                 'Accept': 'application/json',
@@ -320,11 +313,11 @@ class PlexPinCheck(Resource):
 
             cached_pin = pin_cache.get(pin_id)
             if not cached_pin:
-                raise PlexPinExpiredError("PIN not found or expired")
+                raise PlexPinExpiredError("PIN not found or expired")  # noqa: F405
 
             stored_state = cached_pin.get('state_token')
             if stored_state:
-                if not state_param or not get_token_manager().validate_state_token(state_param, stored_state):
+                if not state_param or not _validate_state_token(state_param, stored_state):
                     logger.warning(f"CSRF state validation failed for PIN {pin_id}")
                     abort(403, "Request validation failed")
 
@@ -341,7 +334,7 @@ class PlexPinCheck(Resource):
 
             if response.status_code == 404:
                 pin_cache.delete(pin_id)
-                raise PlexPinExpiredError("PIN expired or consumed")
+                raise PlexPinExpiredError("PIN expired or consumed")  # noqa: F405
 
             response.raise_for_status()
             pin_data = response.json()
@@ -435,7 +428,7 @@ class PlexValidate(Resource):
                     'auth_method': auth_method
                 }
             }
-        except PlexAuthError as e:
+        except PlexAuthError as e:  # noqa: F405
             return {
                 'data': {
                     'valid': False,
@@ -471,7 +464,7 @@ class PlexServers(Resource):
                 return {'data': []}
             elif response.status_code != 200:
                 logger.error(f"Plex API error: {response.status_code}")
-                raise PlexConnectionError(f"Failed to get servers: HTTP {response.status_code}")
+                raise PlexConnectionError(f"Failed to get servers: HTTP {response.status_code}")  # noqa: F405
 
             response.raise_for_status()
 
@@ -484,7 +477,7 @@ class PlexServers(Resource):
                 for device in root.findall('Device'):
                     connections = []
                     for conn in device.findall('Connection'):
-                        connections.append({
+                        connections.append({  # noqa: PERF401
                             'uri': conn.get('uri'),
                             'protocol': conn.get('protocol'),
                             'address': conn.get('address'),
@@ -504,7 +497,7 @@ class PlexServers(Resource):
                             'device': device.get('device')
                         })
             else:
-                raise PlexConnectionError(f"Unexpected response format: {content_type}")
+                raise PlexConnectionError(f"Unexpected response format: {content_type}")  # noqa: F405
 
             servers = []
             for device in resources_data:
@@ -781,15 +774,11 @@ class PlexEncryptApiKey(Resource):
     @authenticate
     @api_ns_plex.doc(parser=post_request_parser)
     def post(self):
-        try:
-            if encrypt_api_key():
-                return {'success': True, 'message': 'API key encrypted successfully'}
-            else:
-                return {'success': False, 'message': 'No plain text API key found or already encrypted'}
-
-        except Exception as e:
-            logger.error(f"API key encryption failed: {e}")
-            return {'error': 'Failed to encrypt API key'}, 500
+        # Encryption is now automatic at write time via secret_store, so
+        # this endpoint is a no-op. Kept for any frontend code that still
+        # POSTs here on save - returning success preserves the old
+        # protocol without touching the credential.
+        return {'success': True, 'message': 'API key encryption is automatic now'}
 
 
 @api_ns_plex.route('plex/apikey')
@@ -807,15 +796,17 @@ class PlexApiKey(Resource):
             if not apikey:
                 return {'error': 'API key is required'}, 400
 
-            encrypted_apikey = encrypt_token(apikey)
-
-            settings.plex.apikey = encrypted_apikey
-            settings.plex.apikey_encrypted = True
+            # Plaintext into in-memory settings; secret_store encrypts on
+            # write_config(). The legacy apikey_encrypted=True flag is no
+            # longer needed - leave it cleared so the legacy migration
+            # path doesn't get re-triggered on reboot.
+            settings.plex.apikey = apikey
+            settings.plex.apikey_encrypted = False
             settings.plex.auth_method = 'apikey'
 
             write_config()
 
-            logger.debug("API key saved and encrypted")
+            logger.debug("API key saved")
             return {'success': True, 'message': 'API key saved securely'}
 
         except Exception as e:
@@ -887,7 +878,7 @@ class PlexSelectServer(Resource):
             else:
                 return {'data': None}
 
-        except Exception as e:
+        except Exception as e:  # noqa: F841
             return {'data': None}
 
     post_request_parser = reqparse.RequestParser()
@@ -938,7 +929,7 @@ class PlexWebhookCreate(Resource):
         try:
             decrypted_token = get_decrypted_token()
             if not decrypted_token:
-                raise UnauthorizedError()
+                raise UnauthorizedError()  # noqa: F405
 
             # Update plexapi device name before using the library
             _update_plexapi_headers()
@@ -1056,7 +1047,7 @@ class PlexWebhookList(Resource):
         try:
             decrypted_token = get_decrypted_token()
             if not decrypted_token:
-                raise UnauthorizedError()
+                raise UnauthorizedError()  # noqa: F405
 
             # Update plexapi device name before using the library
             _update_plexapi_headers()
@@ -1118,7 +1109,7 @@ class PlexWebhookDelete(Resource):
             
             decrypted_token = get_decrypted_token()
             if not decrypted_token:
-                raise UnauthorizedError()
+                raise UnauthorizedError()  # noqa: F405
 
             # Update plexapi device name before using the library
             _update_plexapi_headers()
@@ -1157,7 +1148,7 @@ class PlexAutopulseConfig(Resource):
         try:
             decrypted_token = get_decrypted_token()
             if not decrypted_token:
-                raise UnauthorizedError()
+                raise UnauthorizedError()  # noqa: F405
 
             # Use config generator from utilities (handles OAuth and decryption internally)
             from utilities.autopulse_webhook import generate_autopulse_config
@@ -1170,7 +1161,7 @@ class PlexAutopulseConfig(Resource):
             else:
                 return {'error': 'Failed to get Plex configuration for Autopulse'}, 400
 
-        except UnauthorizedError:
+        except UnauthorizedError:  # noqa: F405
             return {'error': 'Plex authentication required'}, 401
         except Exception as e:
             logger.error(f"Failed to get Autopulse config: {e}")

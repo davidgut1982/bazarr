@@ -25,10 +25,67 @@ from pathlib import Path
 
 from aiohttp import ClientSession, ClientTimeout, WSMsgType, web
 
-# Add bundled libs to path so we can import yaml (PyYAML)
+# Add bundled libs to path so we can import yaml (PyYAML), cryptography
+# (Fernet), and itsdangerous (legacy URLSafeSerializer fallback). The
+# supervisor reads config.yaml directly without going through the bazarr
+# settings pipeline, so it has to do the decrypt itself.
 APP_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(APP_DIR / "libs"))
+import base64  # noqa: E402
+import hashlib  # noqa: E402
 import yaml  # noqa: E402
+from cryptography.fernet import Fernet, InvalidToken  # noqa: E402
+from itsdangerous import BadPayload, BadSignature, URLSafeSerializer  # noqa: E402
+
+# Same marker as bazarr.secret_store.crypto.SECRET_MARKER_PREFIX. Kept as
+# a literal here (instead of importing from bazarr/) so the supervisor
+# doesn't pull in the full bazarr bootstrap (Dynaconf, validators, etc.)
+# just to decrypt one value.
+_SECRET_MARKER_PREFIX = "enc:v1:"
+
+
+def _fernet_key_from_master(master_key: str) -> bytes:
+    """Mirrors bazarr.secret_store.crypto._fernet_key_from_master. Same KDF
+    so encrypt-via-bazarr and decrypt-via-supervisor agree on the key."""
+    digest = hashlib.sha256(master_key.encode("utf-8")).digest()
+    return base64.urlsafe_b64encode(digest)
+
+
+def _decrypt_apikey_if_encrypted(apikey: str, master_key: str) -> str:
+    """If the apikey carries the secret_store marker prefix, decrypt it.
+
+    Tries Fernet (current AEAD format) first, then falls back to the
+    legacy URLSafeSerializer payload shape so a config written before
+    the AEAD migration still serves login bytes correctly until the
+    backend re-saves under Fernet.
+
+    Tolerant: a missing master_key, a corrupt payload, or a value with no
+    marker is returned unchanged. The supervisor MUST keep starting even
+    when the credential is unreadable - the user can still fix things
+    once the backend boots and the Settings page renders.
+    """
+    if not isinstance(apikey, str) or not apikey.startswith(_SECRET_MARKER_PREFIX):
+        return apikey
+    if not master_key:
+        return apikey
+    payload_text = apikey[len(_SECRET_MARKER_PREFIX):]
+
+    # Current format: Fernet (AES-128-CBC + HMAC-SHA256)
+    try:
+        return Fernet(_fernet_key_from_master(master_key)).decrypt(
+            payload_text.encode("ascii")
+        ).decode("utf-8")
+    except (InvalidToken, ValueError):
+        pass
+
+    # Legacy URLSafeSerializer payload (pre-AEAD)
+    try:
+        payload = URLSafeSerializer(master_key).loads(payload_text)
+    except (BadSignature, BadPayload, ValueError):
+        return apikey
+    if isinstance(payload, dict) and "secret" in payload:
+        return payload["secret"]
+    return apikey
 
 # Unbuffered print so logs appear immediately when redirected to a file
 _print = print
@@ -47,7 +104,7 @@ BACKEND_PORT = 6768  # internal port for bazarr backend
 DEFAULT_PORT = 6767  # external port users connect to
 
 # Paths that get proxied to the backend
-PROXY_PREFIXES = ("/api/", "/images/", "/test/", "/bazarr.log")
+PROXY_PREFIXES = ("/api/", "/images/", "/test/", "/system/backup/download/", "/bazarr.log")
 
 
 # ---------------------------------------------------------------------------
@@ -202,11 +259,45 @@ async def proxy_handler(request: web.Request) -> web.StreamResponse:
     try:
         timeout = ClientTimeout(total=300, connect=5)
         async with ClientSession(timeout=timeout) as session:
+            # Strip hop-by-hop / framing headers before forwarding. The body
+            # has already been fully read via request.read() (aiohttp de-chunks
+            # at parse time), so forwarding Transfer-Encoding: chunked would
+            # either cause aiohttp to re-chunk a body that's no longer
+            # chunked, or tell waitress to expect more chunk frames that
+            # never come - waitress then hangs waiting for the trailer.
+            # This manifested as silent 100s+ hangs on any POST from clients
+            # like .NET's HttpClient that default to chunked request bodies.
+            _drop = {"host", "content-length", "transfer-encoding",
+                     "connection", "keep-alive", "expect"}
+            forwarded_headers = {k: v for k, v in request.headers.items()
+                                 if k.lower() not in _drop}
+            # Advertise the CLIENT-facing URL to the backend. Without
+            # these, Flask's request.host is the internal 127.0.0.1:6768
+            # and any absolute URL it builds (download links, base_url,
+            # etc.) is unreachable from the outside. If an outer reverse
+            # proxy already set these, preserve them; otherwise fill
+            # them in from what THIS supervisor sees.
+            # X-Forwarded-Host: always overwrite from request.host (the Host
+            # header from the immediate upstream). Preserving client-supplied
+            # values would let an attacker inject an arbitrary host into
+            # compat download links, leaking the Api-Key off-box.
+            #
+            # X-Forwarded-Proto: preserve if already set by an outer TLS
+            # terminator (nginx/traefik sets this to "https" while
+            # forwarding to us over plain http). Only fill in our own
+            # scheme when absent, since request.scheme here is always
+            # "http" behind a TLS proxy and overwriting would downgrade
+            # all download links to http://.
+            forwarded_headers["X-Forwarded-Host"] = request.host
+            fwd_proto_lower = {k.lower() for k in forwarded_headers}
+            if "x-forwarded-proto" not in fwd_proto_lower:
+                forwarded_headers["X-Forwarded-Proto"] = request.scheme
+            if request.remote:
+                forwarded_headers["X-Forwarded-For"] = request.remote
             async with session.request(
                 method=request.method,
                 url=target_url,
-                headers={k: v for k, v in request.headers.items()
-                         if k.lower() not in ("host", "content-length")},
+                headers=forwarded_headers,
                 data=await request.read(),
                 allow_redirects=False,
             ) as resp:
@@ -257,7 +348,14 @@ async def _proxy_websocket(request: web.Request, target_url: str) -> web.WebSock
 
 
 def _read_bazarr_config(config_dir: str) -> dict:
-    """Read the bazarr config.yaml to extract apiKey and baseUrl."""
+    """Read the bazarr config.yaml to extract apiKey and baseUrl.
+
+    The apikey on disk is encrypted under general.secrets_encryption_key
+    via bazarr.secret_store. Decrypt it before injecting into index.html
+    so the SPA receives the same plaintext value the backend serves over
+    /api/system/settings. Without this, the bundle gets the ciphertext as
+    its X-API-KEY and every authenticated API call returns 401.
+    """
     config_path = Path(config_dir) / "config" / "config.yaml"
     defaults = {"baseUrl": "/", "apiKey": "", "canUpdate": False, "hasUpdate": False}
     try:
@@ -266,8 +364,10 @@ def _read_bazarr_config(config_dir: str) -> dict:
                 cfg = yaml.safe_load(f) or {}
             auth = cfg.get("auth", {})
             general = cfg.get("general", {})
-            if auth.get("apikey"):
-                defaults["apiKey"] = auth["apikey"]
+            apikey = auth.get("apikey") or ""
+            if apikey:
+                master_key = general.get("secrets_encryption_key") or ""
+                defaults["apiKey"] = _decrypt_apikey_if_encrypted(apikey, master_key)
             if general.get("base_url"):
                 defaults["baseUrl"] = general["base_url"]
     except Exception as e:

@@ -130,10 +130,15 @@ class OpenSubtitlesScraperMixin:
                 code_2 = _LANG_3_TO_2.get(code_3, code_3)
                 lang_codes.append(code_2)
 
-            subs_response = self._scraper_request('/api/v1/subtitles', {
-                'movie_url': movie_url,
-                'languages': lang_codes,
-            })
+            subs_data = {
+                 'movie_url': movie_url,
+                 'languages': lang_codes,
+            }
+            if is_episode and season is not None:
+                subs_data['season'] = season
+            if is_episode and episode is not None:
+                subs_data['episode'] = episode
+            subs_response = self._scraper_request('/api/v1/subtitles', subs_data)
 
             subtitle_list = subs_response.get('subtitles', [])
             if not subtitle_list:
@@ -275,6 +280,13 @@ class OpenSubtitlesScraperMixin:
                 )
 
                 subtitle.uploader = sub.get('uploader', 'anonymous')
+                # Compat layer exposes these on attributes.download_count /
+                # attributes.ratings so Jellyfin plugin sort has real popularity
+                # data to work with instead of all zeros.
+                try:
+                    subtitle.download_count = int(sub.get('download_count') or 0)
+                except (TypeError, ValueError):
+                    subtitle.download_count = 0
                 # Store download_url for the download step
                 subtitle.scraper_download_url = download_url
 

@@ -124,7 +124,7 @@ jobs:
           fetch-depth: 0  # Full history for git describe
 
       - name: Download Frontend Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: frontend-build-${{ github.run_id }}
           path: ${{ env.UI_DIRECTORY }}/build
@@ -273,7 +273,7 @@ jobs:
             VCS_REF=${{ github.sha }}
 
       - name: Generate Artifact Attestation
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.push.outputs.digest }}
