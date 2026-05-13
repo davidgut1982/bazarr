@@ -209,7 +209,7 @@ const RouteItem: FunctionComponent<{
               }
             }}
           ></NavbarItem>
-          <Collapse hidden={children.length === 0} in={isOpen}>
+          <Collapse hidden={children.length === 0} expanded={isOpen}>
             {elements}
           </Collapse>
         </Stack>

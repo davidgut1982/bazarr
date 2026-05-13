@@ -42,7 +42,7 @@ export interface GroupedSelectorOptions<T> {
 
 export type GroupedSelectorProps<T> = Override<
   {
-    options: ComboboxItemGroup[];
+    options: GroupedSelectorOptions<T>[];
     getkey?: (value: T) => string;
   },
   Omit<SelectProps, "data">
@@ -56,7 +56,7 @@ export function GroupedSelector<T>({
     <Select
       data-testid="input-selector"
       comboboxProps={{ withinPortal: true }}
-      data={options}
+      data={options as unknown as ComboboxItemGroup<string>[]}
       {...select}
     ></Select>
   );
