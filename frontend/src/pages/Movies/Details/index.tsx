@@ -25,6 +25,7 @@ import {
 import {
   useMovieAction,
   useMovieById,
+  useMovieHistory,
   useMovieModification,
 } from "@/apis/hooks/movies";
 import { useInstanceName } from "@/apis/hooks/site";
@@ -46,6 +47,7 @@ const MovieDetailView: FunctionComponent = () => {
   const id = Number.parseInt(param.id ?? "");
   const movieQuery = useMovieById(id);
   const { data: movie, isFetched } = movieQuery;
+  const { data: movieHistory } = useMovieHistory(movie?.radarrId);
 
   const profile = useLanguageProfileBy(movie?.profileId);
 
@@ -254,6 +256,7 @@ const MovieDetailView: FunctionComponent = () => {
             movie={movie ?? null}
             profile={profile}
             disabled={hasTask}
+            history={movieHistory}
           ></Table>
         </Stack>
       </QueryOverlay>
