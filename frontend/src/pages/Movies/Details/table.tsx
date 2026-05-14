@@ -34,7 +34,7 @@ const ScoreBadge: React.FC<{ score?: string }> = ({ score }) => {
   const color = pct >= 90 ? "green" : pct >= 70 ? "yellow" : "red";
   return (
     <Badge color={color} size="sm">
-      {score}%
+      {score}
     </Badge>
   );
 };
@@ -63,9 +63,8 @@ const Table: FunctionComponent<Props> = ({
     const map = new Map<string, History.Movie>();
     history?.forEach((h) => {
       if (!h.subtitles_path) return;
-      if (h.action === 1 || h.action === 3) {
-        const existing = map.get(h.subtitles_path);
-        if (!existing || h.timestamp > existing.timestamp) {
+      if (h.action === 1 || h.action === 2 || h.action === 3) {
+        if (!map.has(h.subtitles_path)) {
           map.set(h.subtitles_path, h);
         }
       }
