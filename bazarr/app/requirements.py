@@ -2,9 +2,11 @@
 
 import importlib
 import importlib.util
+from importlib import metadata
 import logging
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 
@@ -20,6 +22,7 @@ RUNTIME_IMPORTS = (
     "deathbycaptcha",
     "click_option_group",
     "tomlkit",
+    "msgpack",
     "aiohttp",
     "cachetools",
     "lxml",
@@ -37,6 +40,50 @@ WINDOWS_RUNTIME_IMPORTS = (
     "win32con",
 )
 
+RUNTIME_REQUIREMENTS = {
+    "setuptools": ("setuptools", ">=82.0.1"),
+    "signalrcore": ("signalrcore", "==0.9.71"),
+    "subliminal": ("subliminal", "==2.6.0"),
+    "flask_compress": ("Flask-Compress", "==1.24"),
+    "py7zr": ("py7zr", "==1.1.0"),
+    "deathbycaptcha": ("deathbycaptcha-official", "==4.7.1"),
+    "click_option_group": ("click-option-group", ">=0.5.6"),
+    "tomlkit": ("tomlkit", ">=0.13.2"),
+    "msgpack": ("msgpack", "==1.0.2"),
+    "aiohttp": ("aiohttp", ">=3.13.5"),
+    "cachetools": ("cachetools", ">=7.1.1"),
+    "lxml": ("lxml", ">=6.1.0"),
+    "numpy": ("numpy", ">=2.0.0,<2.4.0"),
+    "webrtcvad": ("webrtcvad-wheels", ">=2.0.14"),
+    "PIL": ("Pillow", ">=12.2.0"),
+    "cryptography": ("cryptography", ">=48.0.0"),
+    "jwt": ("PyJWT", ">=2.12.1"),
+    "yaml": ("PyYAML", ">=6.0.3"),
+}
+
+WINDOWS_RUNTIME_REQUIREMENTS = {
+    "win32api": ("pywin32", ">=311"),
+    "win32con": ("pywin32", ">=311"),
+}
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+FORBIDDEN_RUNTIME_ORIGINS = (
+    REPO_ROOT / "libs",
+    REPO_ROOT / "custom_libs",
+)
+
+UNVENDORED_RUNTIME_IMPORTS = {
+    "signalrcore",
+    "subliminal",
+    "flask_compress",
+    "py7zr",
+    "deathbycaptcha",
+    "click_option_group",
+    "tomlkit",
+    "msgpack",
+    "yaml",
+}
+
 
 def is_virtualenv():
     base_prefix = getattr(sys, "base_prefix", None)
@@ -44,19 +91,75 @@ def is_virtualenv():
     return base_prefix != real_prefix
 
 
+def _version_tuple(version):
+    parts = re.findall(r"\d+", version.split("+", 1)[0].split("-", 1)[0])
+    return tuple(int(part) for part in parts)
+
+
+def _satisfies_spec(installed_version, spec):
+    installed = _version_tuple(installed_version)
+    for item in spec.split(","):
+        item = item.strip()
+        if item.startswith("=="):
+            if installed != _version_tuple(item[2:]):
+                return False
+        elif item.startswith(">="):
+            if installed < _version_tuple(item[2:]):
+                return False
+        elif item.startswith("<"):
+            if installed >= _version_tuple(item[1:]):
+                return False
+        else:
+            raise ValueError(f"Unsupported requirement specifier: {item}")
+    return True
+
+
+def _module_origin(module):
+    spec = importlib.util.find_spec(module)
+    if not spec or not spec.origin or spec.origin in ("built-in", "frozen"):
+        return None
+    return Path(spec.origin).resolve()
+
+
+def _has_forbidden_origin(module):
+    origin = _module_origin(module)
+    if not origin:
+        return False
+    return any(origin.is_relative_to(path) for path in FORBIDDEN_RUNTIME_ORIGINS)
+
+
+def _requirement_is_satisfied(distribution, spec):
+    try:
+        installed_version = metadata.version(distribution)
+    except metadata.PackageNotFoundError:
+        return False
+    return _satisfies_spec(installed_version, spec)
+
+
 def missing_runtime_requirements():
-    missing = []
+    missing = set()
     probes = list(RUNTIME_IMPORTS)
+    requirements = dict(RUNTIME_REQUIREMENTS)
     if os.name == "nt":
         probes.extend(WINDOWS_RUNTIME_IMPORTS)
+        requirements.update(WINDOWS_RUNTIME_REQUIREMENTS)
 
     for module in probes:
         try:
             importlib.import_module(module)
         except ImportError:
-            missing.append(module)
+            missing.add(module)
+            continue
 
-    return missing
+        if module in UNVENDORED_RUNTIME_IMPORTS and _has_forbidden_origin(module):
+            missing.add(module)
+            continue
+
+        requirement = requirements.get(module)
+        if requirement and not _requirement_is_satisfied(*requirement):
+            missing.add(module)
+
+    return sorted(missing)
 
 
 def install_requirements(missing_modules=None):
@@ -75,6 +178,7 @@ def install_requirements(missing_modules=None):
         "-m",
         "pip",
         "install",
+        "--upgrade",
         "-qq",
         "--disable-pip-version-check",
         "-r",

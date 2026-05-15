@@ -100,6 +100,7 @@ def test_subliminal_patch_monkey_patches_core_surface():
     assert subliminal.core.list_all_subtitles is subliminal_patch.core.list_all_subtitles
     assert subliminal.download_best_subtitles is subliminal_patch.core.download_best_subtitles
     assert subliminal.core.download_best_subtitles is subliminal_patch.core.download_best_subtitles
+    assert subliminal.core.search_external_subtitles is subliminal_patch.core.search_external_subtitles
 
     assert subliminal.video.Video is subliminal_patch.video.Video
     assert subliminal.Video is subliminal_patch.video.Video
@@ -235,6 +236,81 @@ def test_provider_pool_keeps_configured_priority_order_for_early_stop(monkeypatc
 
     assert calls == ["preferred"]
     assert len(subtitles) == 1
+
+
+def test_provider_pool_continues_after_wrong_language_or_low_score(monkeypatch):
+    from subliminal_patch.core import SZProviderPool
+
+    class FakeSubtitle:
+        def __init__(self, subtitle_id, language):
+            self.id = subtitle_id
+            self.language = language
+            self.provider_name = subtitle_id
+
+        def get_matches(self, video):
+            return {"series", "season", "episode", "title"}
+
+    calls = []
+
+    def fake_list_subtitles_provider(self, provider, video, languages):
+        calls.append(provider)
+        if provider == "wrong-language":
+            return [FakeSubtitle("wrong-language", Language("spa"))]
+        if provider == "low-score":
+            return [FakeSubtitle("low-score", Language("eng"))]
+        return [FakeSubtitle("fallback", Language("eng"))]
+
+    def fake_score(matches, subtitle, video, hearing_impaired):
+        return (0 if subtitle.id == "low-score" else 1, None)
+
+    monkeypatch.setattr(SZProviderPool, "list_subtitles_provider", fake_list_subtitles_provider)
+
+    video = subliminal.video.Episode("Show.S01E02.mkv", series="Show", season=1, episode=2)
+    pool = SZProviderPool(providers=["wrong-language", "low-score", "fallback"])
+    subtitles = pool.list_subtitles_prioritized(
+        video,
+        {Language("eng")},
+        min_score=1,
+        compute_score=fake_score,
+    )
+
+    assert calls == ["wrong-language", "low-score", "fallback"]
+    assert [subtitle.id for subtitle in subtitles] == ["wrong-language", "low-score", "fallback"]
+
+
+def test_provider_pool_continues_until_all_requested_languages_are_satisfied(monkeypatch):
+    from subliminal_patch.core import SZProviderPool
+
+    class FakeSubtitle:
+        def __init__(self, subtitle_id, language):
+            self.id = subtitle_id
+            self.language = language
+            self.provider_name = subtitle_id
+
+        def get_matches(self, video):
+            return {"series", "season", "episode", "title"}
+
+    calls = []
+
+    def fake_list_subtitles_provider(self, provider, video, languages):
+        calls.append(provider)
+        if provider == "english":
+            return [FakeSubtitle("english", Language("eng"))]
+        return [FakeSubtitle("spanish", Language("spa"))]
+
+    monkeypatch.setattr(SZProviderPool, "list_subtitles_provider", fake_list_subtitles_provider)
+
+    video = subliminal.video.Episode("Show.S01E02.mkv", series="Show", season=1, episode=2)
+    pool = SZProviderPool(providers=["english", "spanish"])
+    subtitles = pool.list_subtitles_prioritized(
+        video,
+        {Language("eng"), Language("spa")},
+        min_score=1,
+        compute_score=lambda matches, subtitle, video, hearing_impaired: (1, None),
+    )
+
+    assert calls == ["english", "spanish"]
+    assert [subtitle.id for subtitle in subtitles] == ["english", "spanish"]
 
 
 def test_provider_pool_update_treats_priority_reorder_as_update():
@@ -399,6 +475,58 @@ def test_podnapisi_patch_uses_upstream_26_json_search_endpoint():
             10,
         )
     ]
+
+
+def test_podnapisi_patch_maps_429_status_to_too_many_requests():
+    from subliminal_patch.exceptions import TooManyRequests
+    from subliminal_patch.providers.podnapisi import PodnapisiProvider
+
+    class Response:
+        status_code = 429
+        text = "Too Many Requests"
+
+        def raise_for_status(self):
+            raise AssertionError("429 should be handled before generic HTTP errors")
+
+    class Session:
+        def get(self, url, params, timeout):
+            return Response()
+
+    provider = PodnapisiProvider()
+    provider.session = Session()
+
+    try:
+        provider.query(Language("eng"), "Upstream Probe", season=1, episode=2, year=2024)
+    except TooManyRequests:
+        pass
+    else:
+        raise AssertionError("Expected TooManyRequests")
+
+
+def test_podnapisi_patch_maps_429_text_to_too_many_requests():
+    from subliminal_patch.exceptions import TooManyRequests
+    from subliminal_patch.providers.podnapisi import PodnapisiProvider
+
+    class Response:
+        status_code = 200
+        text = "429 Too Many Requests"
+
+        def raise_for_status(self):
+            return None
+
+    class Session:
+        def get(self, url, params, timeout):
+            return Response()
+
+    provider = PodnapisiProvider()
+    provider.session = Session()
+
+    try:
+        provider.query(Language("eng"), "Upstream Probe", season=1, episode=2, year=2024)
+    except TooManyRequests:
+        pass
+    else:
+        raise AssertionError("Expected TooManyRequests")
 
 
 def test_subtitulamostv_patch_keeps_bazarr_id_with_upstream_language_catalog():

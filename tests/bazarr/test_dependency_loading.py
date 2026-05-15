@@ -98,6 +98,19 @@ def test_py7zr_is_loaded_from_python_environment_not_custom_libs():
     assert "py7zr" not in custom_versions
 
 
+def test_msgpack_is_not_bundled_and_can_follow_signalrcore_dependency():
+    import msgpack
+
+    repo_root = Path(__file__).resolve().parents[2]
+    libs_dir = repo_root / "libs"
+    msgpack_path = Path(msgpack.__file__).resolve()
+    libs_versions = (repo_root / "libs" / "version.txt").read_text()
+
+    assert not (libs_dir / "msgpack").exists()
+    assert not msgpack_path.is_relative_to(libs_dir)
+    assert "msgpack==" not in libs_versions
+
+
 def test_py_pretty_dependency_is_replaced_by_local_utility():
     repo_root = Path(__file__).resolve().parents[2]
     custom_libs_dir = repo_root / "custom_libs"
@@ -149,8 +162,39 @@ def test_startup_requirements_probe_covers_unvendored_runtime_imports():
         "deathbycaptcha",
         "click_option_group",
         "tomlkit",
+        "msgpack",
         "yaml",
     } <= set(RUNTIME_IMPORTS)
+
+
+def test_startup_requirements_probe_rejects_wrong_pinned_versions(monkeypatch):
+    from app import requirements
+
+    monkeypatch.setattr(requirements, "RUNTIME_IMPORTS", ("subliminal",))
+    monkeypatch.setattr(requirements, "RUNTIME_REQUIREMENTS", {"subliminal": ("subliminal", "==2.6.0")})
+    monkeypatch.setattr(requirements.importlib, "import_module", lambda module: object())
+    monkeypatch.setattr(requirements, "_module_origin", lambda module: None)
+    monkeypatch.setattr(requirements.metadata, "version", lambda distribution: "2.5.0")
+
+    assert requirements.missing_runtime_requirements() == ["subliminal"]
+
+
+def test_startup_requirements_probe_rejects_removed_vendor_origins(monkeypatch):
+    from app import requirements
+
+    repo_root = Path(__file__).resolve().parents[2]
+
+    monkeypatch.setattr(requirements, "RUNTIME_IMPORTS", ("subliminal",))
+    monkeypatch.setattr(requirements, "RUNTIME_REQUIREMENTS", {"subliminal": ("subliminal", "==2.6.0")})
+    monkeypatch.setattr(requirements.importlib, "import_module", lambda module: object())
+    monkeypatch.setattr(
+        requirements,
+        "_module_origin",
+        lambda module: repo_root / "custom_libs" / "subliminal" / "__init__.py",
+    )
+    monkeypatch.setattr(requirements.metadata, "version", lambda distribution: "2.6.0")
+
+    assert requirements.missing_runtime_requirements() == ["subliminal"]
 
 
 def test_legacy_sonarr_signalr_support_is_removed():
@@ -190,6 +234,7 @@ def test_sonarr_sub_v4_api_compat_paths_are_removed():
 
 def test_sonarr_signalr_core_support_requires_known_v4(monkeypatch):
     from sonarr.info import GetSonarrInfo
+    import semver
 
     info = GetSonarrInfo()
 
@@ -202,3 +247,7 @@ def test_sonarr_signalr_core_support_requires_known_v4(monkeypatch):
 
     monkeypatch.setattr(info, "version", lambda: "4.0.9.2421")
     assert info.supports_signalr_core() is True
+    assert info.semver() == semver.Version(4, 0, 9, "2421")
+
+    monkeypatch.setattr(info, "version", lambda: "4.0.9.2244")
+    assert info.semver() < semver.Version(4, 0, 9, "2421")

@@ -17,7 +17,7 @@ behavior now belongs in `custom_libs/subliminal_patch`.
 
 | Upstream change | Bazarr handling in this branch |
 | --- | --- |
-| Provider additions and removals | Upstream 2.6 providers are imported from pip. Providers Bazarr still uses but upstream removed are restored in `subliminal_patch`. Registry tests lock both the Bazarr provider ids and the vanilla upstream `subliminal` provider ids. |
+| Provider additions and removals | Upstream 2.6 providers are imported from pip. Providers Bazarr still uses but upstream removed are restored in `subliminal_patch`. Registry tests lock both the Bazarr provider ids and the vanilla upstream `subliminal` provider ids. Upstream `opensubtitlesvip` and `opensubtitlescomvip` remain config-driven through Bazarr's existing OpenSubtitles providers, and upstream `subtitulamos` remains exposed through Bazarr's legacy `subtitulamostv` id. |
 | OpenSubtitles.com changes | The upstream 2.6 provider and converter are included. Bazarr still keeps its patched provider layer and OpenSubtitles converter registration. Credential-backed tests remain environment gated. |
 | Python `>=3.9` requirement | No shim is added. Runtime and image builds must stay on Python 3.9 or newer. |
 | `knowit` metadata extraction | `knowit` and `pymediainfo` are installed through the pip dependency tree. Linux images should still keep `mediainfo` or `libmediainfo` available for best metadata extraction. |
@@ -32,7 +32,7 @@ behavior now belongs in `custom_libs/subliminal_patch`.
 
 - `custom_libs/subliminal_patch`: compatibility layer, provider pools, scoring, HTTP/session wrappers,
   provider health, subtitle conversion, language converters, and Bazarr refiners.
-- Provider modules: 63 provider Python files in `custom_libs/subliminal_patch/providers`.
+- Provider modules: 63 provider Python files in `custom_libs/subliminal_patch/providers`, 60 concrete provider ids plus helper modules such as `_agent_list`, `avistaz_network`, and `opensubtitles_scraper`.
 - Converter modules: 9 Python files in `custom_libs/subliminal_patch/converters`.
 - Refiner modules: 10 Python files in `custom_libs/subliminal_patch/refiners`.
 - Monkey patches applied by `custom_libs/subliminal_patch/__init__.py`:
@@ -95,4 +95,5 @@ behavior now belongs in `custom_libs/subliminal_patch`.
 - Deterministic guard suite passed before changes: 59 passed.
 - Pre-existing broad failures included missing `SUBDL_TOKEN`, DNS/network provider failures,
   and existing provider behavior mismatches.
-- Post-rebase deterministic guard suite: 154 passed, 4 deselected, 2 warnings.
+- Post-rebase deterministic guard suite before review fixes: 154 passed, 4 deselected, 2 warnings.
+- Review-fix targeted guard suite: 98 passed, 1 warning.

@@ -27,6 +27,20 @@ from .utils import FIRST_THOUSAND_OR_SO_USER_AGENTS as AGENT_LIST
 logger = logging.getLogger(__name__)
 
 SUBTITLE_ARCHIVE_MEMORY_LIMIT = 100 * 1024 * 1024
+SUBTITLE_ARCHIVE_FILE_COUNT_LIMIT = 256
+SUBTITLE_ARCHIVE_SUBTITLE_FILE_COUNT_LIMIT = 64
+
+
+def _is_ignored_txt_file(file_name):
+    return file_name.lower().endswith('.txt') and re.search(
+        r'subsunacs\.net|танете част|прочети|^read ?me|procheti',
+        file_name,
+        re.I,
+    )
+
+
+def _is_subtitle_file(file_name):
+    return file_name.lower().endswith(('srt', '.sub', '.txt')) and not _is_ignored_txt_file(file_name)
 
 
 def fix_tv_naming(title):
@@ -246,29 +260,40 @@ class SubsUnacsProvider(Provider):
         type = 'episode' if isinstance(video, Episode) else 'movie'
 
         is_7zip = isinstance(archiveStream, SevenZipFile)
+        file_content = None
         if is_7zip:
-            file_content = BytesIOFactory(limit=SUBTITLE_ARCHIVE_MEMORY_LIMIT)
-            archiveStream.extractall(factory=file_content)
             file_list = sorted(archiveStream.getnames())
+            if len(file_list) > SUBTITLE_ARCHIVE_FILE_COUNT_LIMIT:
+                logger.warning('Ignoring archive with too many files: %d', len(file_list))
+                return []
+            file_list = [file_name for file_name in file_list if _is_subtitle_file(file_name)]
+            if len(file_list) > SUBTITLE_ARCHIVE_SUBTITLE_FILE_COUNT_LIMIT:
+                logger.warning('Ignoring archive with too many subtitle candidates: %d', len(file_list))
+                return []
+            file_content = BytesIOFactory(limit=SUBTITLE_ARCHIVE_MEMORY_LIMIT)
+            if file_list:
+                archiveStream.extract(targets=file_list, factory=file_content)
         else:
-            file_list = sorted(archiveStream.namelist())
+            all_files = sorted(archiveStream.namelist())
+            if len(all_files) > SUBTITLE_ARCHIVE_FILE_COUNT_LIMIT:
+                logger.warning('Ignoring archive with too many files: %d', len(all_files))
+                return []
+            file_list = [file_name for file_name in all_files if _is_subtitle_file(file_name)]
+            if len(file_list) > SUBTITLE_ARCHIVE_SUBTITLE_FILE_COUNT_LIMIT:
+                logger.warning('Ignoring archive with too many subtitle candidates: %d', len(file_list))
+                return []
 
         for file_name in file_list:
-            if file_name.lower().endswith(('srt', '.sub', '.txt')):
-                file_is_txt = True if file_name.lower().endswith('.txt') else False
-                if file_is_txt and re.search(r'subsunacs\.net|танете част|прочети|^read ?me|procheti', file_name, re.I):
-                    logger.info('Ignore readme txt file %r', file_name)
-                    continue
-                logger.info('Found subtitle file %r', file_name)
-                subtitle = SubsUnacsSubtitle(language, file_name, type, video, link, fps, num_cds)
-                if is_7zip:
-                    extracted_file = file_content.get(file_name)
-                    extracted_file.seek(0)
-                    subtitle.content = fix_line_ending(extracted_file.read())
-                else:
-                    subtitle.content = fix_line_ending(archiveStream.read(file_name))
-                if subtitle.is_valid():
-                    subtitles.append(subtitle)
+            logger.info('Found subtitle file %r', file_name)
+            subtitle = SubsUnacsSubtitle(language, file_name, type, video, link, fps, num_cds)
+            if is_7zip:
+                extracted_file = file_content.get(file_name)
+                extracted_file.seek(0)
+                subtitle.content = fix_line_ending(extracted_file.read())
+            else:
+                subtitle.content = fix_line_ending(archiveStream.read(file_name))
+            if subtitle.is_valid():
+                subtitles.append(subtitle)
 
         return subtitles
 
@@ -279,7 +304,7 @@ class SubsUnacsProvider(Provider):
         if request is NO_VALUE:
             request = self.session.get(link, headers={
                 'Referer': 'https://subsunacs.net/search.php'
-                })
+                }, timeout=10)
             request.raise_for_status()
             region.set(cache_key, request)
         else:

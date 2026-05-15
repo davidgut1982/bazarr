@@ -49,7 +49,8 @@ class GetSonarrInfo:
         if isinstance(self.version(), str) and self.version() not in ['', 'unknown']:
             split_version = self.version().split('.')
             if len(split_version) >= 3 and all(split_version[i].isdigit() for i in range(3)):
-                semver_version = semver.Version(*(int(part) for part in split_version[:3]))
+                prerelease = split_version[3] if len(split_version) > 3 and split_version[3].isdigit() else None
+                semver_version = semver.Version(*(int(part) for part in split_version[:3]), prerelease=prerelease)
         return semver_version
 
     def is_deprecated(self):
@@ -58,7 +59,7 @@ class GetSonarrInfo:
         @return: bool
         """
         sonarr_version = self.semver()
-        return sonarr_version is not None and sonarr_version < semver.Version(4, 0, 0)
+        return sonarr_version is not None and sonarr_version.major < 4
 
     def supports_signalr_core(self):
         """
@@ -66,7 +67,7 @@ class GetSonarrInfo:
         @return: bool
         """
         sonarr_version = self.semver()
-        return sonarr_version is not None and sonarr_version >= semver.Version(4, 0, 0)
+        return sonarr_version is not None and sonarr_version.major >= 4
 
 
 get_sonarr_info = GetSonarrInfo()

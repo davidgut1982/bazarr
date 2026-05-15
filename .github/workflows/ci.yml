@@ -8,6 +8,8 @@ on:
       - bazarr/**
       - libs/**
       - custom_libs/**
+      - tests/**
+      - docs/**
       - migrations/**
       - bazarr.py
       - requirements.txt

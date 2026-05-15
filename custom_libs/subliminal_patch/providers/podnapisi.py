@@ -10,12 +10,14 @@ from zipfile import ZipFile
 
 from babelfish import language_converters
 from guessit import guessit
+from requests import HTTPError
 from requests.adapters import HTTPAdapter
 from urllib3 import poolmanager
 
 from subliminal.providers.podnapisi import PodnapisiProvider as _PodnapisiProvider
 from subliminal.providers.podnapisi import PodnapisiSubtitle as _PodnapisiSubtitle
 from subliminal.video import Episode, Movie
+from subliminal_patch.exceptions import TooManyRequests
 from subliminal_patch.providers.mixins import ProviderSubtitleArchiveMixin
 from subliminal_patch.subtitle import guess_matches
 from subliminal_patch.utils import fix_inconsistent_naming as _fix_inconsistent_naming
@@ -50,6 +52,28 @@ def _flags(data):
 
 def _is_foreign_only(flags):
     return bool(flags & {"f", "foreign", "foreign_only", "foreign_part", "foreign_parts", "forced"})
+
+
+def _raise_for_status(response):
+    if getattr(response, "status_code", None) == 429:
+        raise TooManyRequests("Podnapisi rate limit exceeded")
+    try:
+        response.raise_for_status()
+    except HTTPError as error:
+        if getattr(error.response, "status_code", None) == 429:
+            raise TooManyRequests("Podnapisi rate limit exceeded") from error
+        raise
+
+
+def _loads_json_response(response):
+    try:
+        return json.loads(response.text)
+    except ValueError as error:
+        if getattr(response, "status_code", None) == 429 or (
+            "429" in response.text and "too many" in response.text.lower()
+        ):
+            raise TooManyRequests("Podnapisi rate limit exceeded") from error
+        raise
 
 
 class PodnapisiSubtitle(_PodnapisiSubtitle):
@@ -215,8 +239,8 @@ class PodnapisiProvider(_PodnapisiProvider, ProviderSubtitleArchiveMixin):
         pids = set()
         while True:
             response = self.session.get(self.server_url + '/search/advanced', params=params, timeout=self.timeout)
-            response.raise_for_status()
-            result = json.loads(response.text)
+            _raise_for_status(response)
+            result = _loads_json_response(response)
 
             for data in result['data']:
                 pid = str(data['id'])

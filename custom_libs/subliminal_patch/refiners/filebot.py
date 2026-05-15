@@ -17,6 +17,7 @@ FILEBOT_XATTR_PATTERN = re.compile(
     r'(?um)(net\.filebot\.filename(?=="|: )[=:" ]+|Attribute.+:\s)([^"\n\r\0]+)'
 )
 FILEBOT_STREAM_NAME = "net.filebot.filename"
+FILEBOT_XATTR_TIMEOUT = 10
 
 
 def _parse_filebot_output(output):
@@ -70,13 +71,23 @@ def get_filebot_attrs(filename):
         env.pop("LD_LIBRARY_PATH", None)
 
         try:
-            proc = subprocess.run(args, capture_output=True, text=True, env=env, check=False)
+            proc = subprocess.run(
+                args,
+                capture_output=True,
+                text=True,
+                env=env,
+                check=False,
+                timeout=FILEBOT_XATTR_TIMEOUT,
+            )
+        except subprocess.TimeoutExpired:
+            logger.info("%s: Timed out while getting filebot original filename, args: %r", filename, args)
+            return
         except Exception:
             logger.error("%s: Unexpected error while getting filebot original filename: %s",
                          filename, traceback.format_exc())
             return
 
-        if proc.returncode == 1:
+        if proc.returncode != 0:
             logger.info("%s: Couldn't get filebot original filename, args: %r, output: %r, error: %r",
                         filename, args, proc.stdout, proc.stderr)
             return

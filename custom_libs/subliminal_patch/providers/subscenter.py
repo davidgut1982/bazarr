@@ -99,7 +99,7 @@ class SubsCenterProvider(Provider):
             logger.debug('Logging in')
             url = self.server_url + 'subscenter/accounts/login/'
 
-            self.session.get(url)
+            self.session.get(url, timeout=10)
             csrf_token = self.session.cookies['csrftoken']
 
             data = {'username': self.username, 'password': self.password, 'csrfmiddlewaretoken': csrf_token}
@@ -163,7 +163,7 @@ class SubsCenterProvider(Provider):
             page_link = self.server_url + 'subtitle/movie/{}/'.format(url_title)
 
         logger.debug('Getting the list of subtitles')
-        r = self.session.get(url)
+        r = self.session.get(url, timeout=10)
         r.raise_for_status()
         results = json.loads(r.text)
 
