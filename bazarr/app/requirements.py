@@ -160,7 +160,7 @@ RUNTIME_REQUIREMENTS = {
     "unidecode": ("unidecode", "==1.4.0"),
     "urllib3": ("urllib3", "==2.6.3"),
     "waitress": ("waitress", "==3.0.2"),
-    "webrtcvad": ("webrtcvad", "==2.0.10"),
+    "webrtcvad": ("webrtcvad-wheels", ">=2.0.14"),
     "werkzeug": ("werkzeug", "==3.1.6"),
     "whichcraft": ("whichcraft", "==0.6.1"),
     "yaml": ("PyYAML", ">=6.0.3"),
