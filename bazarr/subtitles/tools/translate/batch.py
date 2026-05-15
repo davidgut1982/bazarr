@@ -83,6 +83,7 @@ def process_episode_translation(item, source_language, target_language, forced, 
             sonarr_series_id=sonarr_series_id,
             sonarr_episode_id=sonarr_episode_id,
             radarr_id=None,
+            metadata=episode,
             job_id=job_id
         )
         # Re-index subtitles so Bazarr's DB knows about the new translated file
@@ -151,6 +152,7 @@ def process_movie_translation(item, source_language, target_language, forced, hi
             sonarr_series_id=None,
             sonarr_episode_id=None,
             radarr_id=radarr_id,
+            metadata=movie,
             job_id=job_id
         )
         # Re-index subtitles so Bazarr's DB knows about the new translated file
