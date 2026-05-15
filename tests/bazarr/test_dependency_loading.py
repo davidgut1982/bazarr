@@ -285,18 +285,35 @@ def test_sonarr_signalr_core_support_requires_known_v4(monkeypatch):
     assert info.semver() < semver.Version(4, 0, 9, "2421")
 
 
-def test_sonarr_semver_returns_none_for_nightly_build_suffix(monkeypatch):
-    """Nightly/develop builds report a non-digit 4th segment (e.g. 4.0.9.2421-develop).
-    semver() must NOT drop the suffix and fabricate a Version(4,0,9), because that
-    would compare >= Version(4,0,9,2421) and trick sync_episodes() into skipping the
-    legacy episodeFile enrichment. Return None so the safe fallback path stays engaged.
+def test_sonarr_semver_preserves_build_number_on_nightly_or_ls_suffix(monkeypatch):
+    """Nightly/develop builds report e.g. "4.0.9.2421-develop" and linuxserver
+    images use "4.0.9.2421-ls123". The leading digits of the 4th segment are
+    the actual Sonarr build number and must survive semver parsing: they drive
+    the >= 4.0.9.2421 inline-episodeFile threshold in sync_episodes() and the
+    v4 channel detection in supports_signalr_core() depends on major/minor/patch
+    surviving as well. Dropping the build number to Version(4,0,9) falsely
+    satisfies the threshold (release > prerelease) and skips legacy enrichment;
+    returning None breaks v4 SignalR detection.
     """
+    import semver
+
     from sonarr.info import GetSonarrInfo
 
     info = GetSonarrInfo()
 
     monkeypatch.setattr(info, "version", lambda: "4.0.9.2421-develop")
-    assert info.semver() is None
+    assert info.semver() == semver.Version(4, 0, 9, "2421")
+    assert info.supports_signalr_core() is True
+    assert info.semver() >= semver.Version(4, 0, 9, "2421")
+
+    monkeypatch.setattr(info, "version", lambda: "4.0.9.2421-ls123")
+    assert info.semver() == semver.Version(4, 0, 9, "2421")
+    assert info.supports_signalr_core() is True
+
+    monkeypatch.setattr(info, "version", lambda: "4.0.9.2400-ls10")
+    assert info.semver() < semver.Version(4, 0, 9, "2421")
+    assert info.supports_signalr_core() is True
 
     monkeypatch.setattr(info, "version", lambda: "5.0.0.689-prerelease.0")
-    assert info.semver() is None
+    assert info.semver() == semver.Version(5, 0, 0, "689")
+    assert info.supports_signalr_core() is True

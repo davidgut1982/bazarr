@@ -295,7 +295,9 @@ def _read_bazarr_config(config_dir: str) -> dict:
     crash/restart, and once bazarr recovers the SPA keeps using whatever
     window.Bazarr.apiKey it was bootstrapped with as its X-API-KEY. An empty
     value strands every /api/* call at 401 with no recovery path under
-    auth.type=None until the user manually reloads."""
+    auth.type=None until the user manually reloads. The on-disk value is
+    encrypted with the secrets_encryption_key (enc:v1: marker), so we have
+    to decrypt before handing it to the SPA."""
     config_path = Path(config_dir) / "config" / "config.yaml"
     defaults = {"baseUrl": "/", "apiKey": "", "canUpdate": False, "hasUpdate": False}
     try:
@@ -306,11 +308,41 @@ def _read_bazarr_config(config_dir: str) -> dict:
             if general.get("base_url"):
                 defaults["baseUrl"] = general["base_url"]
             auth = cfg.get("auth", {})
-            if auth.get("apikey"):
-                defaults["apiKey"] = auth["apikey"]
+            apikey = auth.get("apikey") or ""
+            if apikey:
+                master_key = general.get("secrets_encryption_key") or ""
+                defaults["apiKey"] = _decrypt_apikey(apikey, master_key)
     except Exception as e:
         print(f"[supervisor] Warning: could not read config: {e}")
     return defaults
+
+
+def _decrypt_apikey(value: str, master_key: str) -> str:
+    """Decrypt an enc:v1:-prefixed apikey using the bazarr master key, or
+    return the value unchanged when it isn't encrypted. The supervisor runs
+    in the same container as bazarr and shares its cryptography install, so
+    we lean on bazarr.secret_store.crypto rather than duplicating Fernet
+    logic. On any failure we return the empty string so the SPA bootstrap
+    treats the apiKey as missing rather than serving ciphertext."""
+    marker = "enc:v1:"
+    if not value.startswith(marker):
+        return value
+    if not master_key:
+        print("[supervisor] Warning: encrypted apikey but no secrets_encryption_key in config")
+        return ""
+    try:
+        sys.path.insert(0, str(APP_DIR / "bazarr"))
+        try:
+            from secret_store.crypto import decrypt_secret
+        finally:
+            try:
+                sys.path.remove(str(APP_DIR / "bazarr"))
+            except ValueError:
+                pass
+        return decrypt_secret(value, master_key=master_key) or ""
+    except Exception as e:
+        print(f"[supervisor] Warning: could not decrypt apikey: {e}")
+        return ""
 
 
 def _get_index_html(config_dir: str) -> str:
