@@ -55,6 +55,7 @@ class TestProcessSubtitleItem:
             'max_offset_seconds': '60',
             'no_fix_framerate': True,
             'gss': True,
+            'metadata': MagicMock(),
         }
 
     @patch('subtitles.mass_operations.sync_subtitles', return_value=True)
@@ -114,6 +115,7 @@ class TestProcessSubtitleItem:
             sonarr_series_id=10,
             sonarr_episode_id=1,
             radarr_id=None,
+            metadata=item['metadata'],
         )
 
     @patch('subtitles.tools.translate.main.translate_subtitles_file', return_value=True)
@@ -126,6 +128,7 @@ class TestProcessSubtitleItem:
         call_kwargs = mock_translate.call_args[1]
         assert call_kwargs['media_type'] == 'movies'
         assert call_kwargs['radarr_id'] == 5
+        assert call_kwargs['metadata'] == item['metadata']
         assert 'job_id' not in call_kwargs
 
     def test_unknown_action_returns_false(self):
@@ -877,6 +880,7 @@ class TestTranslateDefaultOptions:
             'max_offset_seconds': '60',
             'no_fix_framerate': True,
             'gss': True,
+            'metadata': MagicMock(),
         }
         result = _process_subtitle_item(item, 'translate', {}, 'test_job')
         assert result is True

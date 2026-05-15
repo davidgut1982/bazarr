@@ -5,7 +5,7 @@ import logging
 import os
 
 from app.config import settings
-from app.database import TableEpisodes, TableMovies, TableHistory, TableHistoryMovie, database, select
+from app.database import TableEpisodes, TableMovies, TableHistory, TableHistoryMovie, TableShows, database, select
 from app.jobs_queue import jobs_queue
 from subtitles.sync import sync_subtitles
 from subtitles.tools.mods import subtitles_apply_mods
@@ -151,7 +151,11 @@ def _collect_episodes(series_ids=None, episode_ids=None, action='sync',
         TableEpisodes.sonarrSeriesId,
         TableEpisodes.path,
         TableEpisodes.subtitles,
-    )
+        TableEpisodes.season,
+        TableEpisodes.episode,
+        TableShows.imdbId,
+        TableShows.tvdbId
+    ).join(TableShows)
 
     filters = []
     if episode_ids:
@@ -218,6 +222,7 @@ def _collect_episodes(series_ids=None, episode_ids=None, action='sync',
                 'max_offset_seconds': max_offset,
                 'no_fix_framerate': no_fix_framerate,
                 'gss': gss,
+                'metadata': ep,
             })
 
     return items, skipped
@@ -231,6 +236,8 @@ def _collect_movies(movie_ids=None, action='sync', force_resync=False,
         TableMovies.radarrId,
         TableMovies.path,
         TableMovies.subtitles,
+        TableMovies.imdbId,
+        TableMovies.tmdbId
     )
 
     if movie_ids:
@@ -293,6 +300,7 @@ def _collect_movies(movie_ids=None, action='sync', force_resync=False,
                 'max_offset_seconds': max_offset,
                 'no_fix_framerate': no_fix_framerate,
                 'gss': gss,
+                'metadata': movie,
             })
 
     return items, skipped
@@ -337,6 +345,7 @@ def _process_subtitle_item(item, action, options, job_id):
             sonarr_series_id=item['sonarr_series_id'],
             sonarr_episode_id=item['sonarr_episode_id'],
             radarr_id=item['radarr_id'],
+            metadata=item['metadata'],
         )
         return True
     elif action in MOD_ACTIONS:
