@@ -103,6 +103,11 @@ jobs:
           name: ${{ env.UI_ARTIFACT_NAME }}
           path: "${{ env.UI_DIRECTORY }}/build"
 
+      - name: Install ffmpeg
+        # test_embeddedsubtitles uses real .mkv fixtures that require ffprobe to
+        # extract stream metadata. Ubuntu runners ship without it.
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg
+
       - name: Install Python dependencies
         run: pip install -r requirements.txt
 
