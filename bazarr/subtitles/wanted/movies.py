@@ -86,7 +86,7 @@ def _wanted_movie(movie, providers_list, job_id=None):
                     already_translated = database.execute(
                         select(TableHistoryMovie.id)
                         .where(TableHistoryMovie.radarrId == movie.radarrId)
-                        .where(TableHistoryMovie.language == lang_code)
+                        .where(TableHistoryMovie.language.like(f"{lang_code}%"))
                         .where(TableHistoryMovie.action == 6)
                         .limit(1)
                     ).first()

@@ -87,7 +87,7 @@ def _wanted_episode(episode, providers_list, job_id=None):
                     already_translated = database.execute(
                         select(TableHistory.id)
                         .where(TableHistory.sonarrEpisodeId == episode.sonarrEpisodeId)
-                        .where(TableHistory.language == lang_code)
+                        .where(TableHistory.language.like(f"{lang_code}%"))
                         .where(TableHistory.action == 6)
                         .limit(1)
                     ).first()
