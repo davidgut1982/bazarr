@@ -50,11 +50,7 @@ def _get_shared_store():
     Test: Import this module twice under different names and assert that
     ``_get_shared_store() is _get_shared_store()`` (same id).
     """
-    store = sys.modules.get(_SHARED_STORE_KEY)
-    if store is None:
-        store = {}
-        sys.modules[_SHARED_STORE_KEY] = store
-    return store
+    return sys.modules.setdefault(_SHARED_STORE_KEY, {})
 
 
 class _SubtitleCache:
@@ -74,7 +70,7 @@ class _SubtitleCache:
         # Use the module-level shared dict so every _SubtitleCache instance
         # in this process operates on the same storage.
         self._cache = _get_shared_store()
-        self._lock = threading.Lock()
+        self._lock = sys.modules.setdefault("_bazarr_subtitle_cache_shared_lock", threading.Lock())
 
     def _purge_expired(self):
         now = time.monotonic()
