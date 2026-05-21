@@ -78,9 +78,12 @@ class _SubtitleCache:
 
     def _purge_expired(self):
         now = time.monotonic()
-        expired = [k for k, (_, expiry) in self._cache.items() if now >= expiry]
+        expired = [k for k, (_, expiry) in list(self._cache.items()) if now >= expiry]
         for k in expired:
-            del self._cache[k]
+            try:
+                del self._cache[k]
+            except KeyError:
+                pass  # already deleted by another instance's concurrent purge
 
     def store(self, subtitle):
         """Store a subtitle object and return its cache key (UUID string).
@@ -97,10 +100,8 @@ class _SubtitleCache:
         with self._lock:
             self._purge_expired()
             self._cache[key] = (subtitle, expiry)
-        log.debug(
-            "CACHE store key=%s total_keys=%d id(cache)=%s module=%s",
-            key, len(self._cache), id(self._cache), __name__,
-        )
+            log.debug("CACHE store key=%s total_keys=%d id(cache)=%s module=%s",
+                      key, len(self._cache), id(self._cache), __name__)
         return key
 
     def get(self, key):
