@@ -58,7 +58,7 @@ def _wanted_movie(movie, providers_list, job_id=None):
                 history = database.execute(
                     select(TableHistoryMovie.score)
                     .where(TableHistoryMovie.radarrId == movie.radarrId)
-                    .where(TableHistoryMovie.language == translate_cfg['from'])
+                    .where(TableHistoryMovie.language.like(f"{translate_cfg['from']}%"))
                     .where(TableHistoryMovie.score.is_not(None))
                     .order_by(TableHistoryMovie.timestamp.desc())
                     .limit(1)

@@ -59,7 +59,7 @@ def _wanted_episode(episode, providers_list, job_id=None):
                 history = database.execute(
                     select(TableHistory.score)
                     .where(TableHistory.sonarrEpisodeId == episode.sonarrEpisodeId)
-                    .where(TableHistory.language == translate_cfg['from'])
+                    .where(TableHistory.language.like(f"{translate_cfg['from']}%"))
                     .where(TableHistory.score.is_not(None))
                     .order_by(TableHistory.timestamp.desc())
                     .limit(1)
