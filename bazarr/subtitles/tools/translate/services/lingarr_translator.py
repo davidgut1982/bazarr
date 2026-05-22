@@ -22,6 +22,11 @@ from ..core.translator_utils import add_translator_info, create_process_result, 
 logger = logging.getLogger(__name__)
 
 
+class LingarrAuthError(Exception):
+    """Raised for authentication failures that should not be retried."""
+    pass
+
+
 class LingarrTranslatorService:
     def __init__(self, source_srt_file, dest_srt_file, lang_obj, to_lang, from_lang, media_type,
                  video_path, orig_to_lang, forced, hi, sonarr_series_id, sonarr_episode_id,
@@ -110,8 +115,14 @@ class LingarrTranslatorService:
             jobs_queue.update_job_progress(job_id=job_id, progress_message=f'Lingarr translation failed: {str(e)}')
             raise
 
+    # Retry schedule for transient errors (e.g. 502 during back-translator cold-start ~60s):
+    # ~15s -> ~30s -> ~60s -> ~120s (max_delay caps jitter accumulation)
+    # Note: retries block the calling thread. Jobs queue uses N worker threads
+    # (settings.general.concurrent_jobs / settings.translator.openrouter_max_concurrent
+    # for translation jobs) so other jobs are not starved during retry waits.
+    # LingarrAuthError is intentionally NOT in the exceptions tuple so 401 surfaces immediately.
     @retry(exceptions=(TooManyRequests, RequestError, requests.exceptions.RequestException), tries=5, delay=15,
-           backoff=2, jitter=(0, 5))
+           backoff=2, jitter=(0, 5), max_delay=120)
     def _translate_content(self, lines_list, job_id):
         try:
             source_lang = self.language_code_convert_dict.get(self.from_lang, self.from_lang)
@@ -173,7 +184,7 @@ class LingarrTranslatorService:
                     logger.error(f'Unexpected response format from Lingarr API: {translated_batch}')  # noqa: G004
                     return None
             elif response.status_code == 401:
-                raise RequestError("Authentication failed: Invalid or missing API key")
+                raise LingarrAuthError("Authentication failed: Invalid or missing API key")
             elif response.status_code == 429:
                 raise TooManyRequests("Rate limit exceeded")
             elif response.status_code >= 500:
