@@ -43,7 +43,7 @@ def _ensure_provider_hub_registered():
         register_active_provider_classes()
     except Exception:
         logging.exception("Unable to register active Provider Hub providers")
-    finally:
+    else:
         _PROVIDER_HUB_REGISTRATION_DONE = True
 
 

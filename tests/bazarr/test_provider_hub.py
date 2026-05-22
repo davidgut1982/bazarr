@@ -372,6 +372,30 @@ def test_get_providers_registers_active_provider_hub_installation(tmp_path, monk
     assert get_providers.get_providers() == [provider_id]
 
 
+def test_get_providers_retries_provider_hub_registration_after_failure(monkeypatch):
+    from app import get_providers
+    import provider_hub.registry as hub_registry
+
+    calls = []
+
+    def fail_then_succeed():
+        calls.append("register")
+        if len(calls) == 1:
+            raise RuntimeError("temporary registration failure")
+
+    monkeypatch.setattr(get_providers, "_PROVIDER_HUB_REGISTRATION_DONE", False)
+    monkeypatch.setattr(hub_registry, "register_active_provider_classes", fail_then_succeed)
+
+    get_providers._ensure_provider_hub_registered()
+
+    assert get_providers._PROVIDER_HUB_REGISTRATION_DONE is False
+
+    get_providers._ensure_provider_hub_registered()
+
+    assert get_providers._PROVIDER_HUB_REGISTRATION_DONE is True
+    assert calls == ["register", "register"]
+
+
 def test_provider_hub_database_tables_are_registered():
     from app.database import (
         TableProviderHubCatalogEntry,
@@ -1924,6 +1948,53 @@ def test_check_updates_reports_available_updates(tmp_path, monkeypatch):
     assert job["state"] == "completed"
     assert job["details"]["updates_available"] == 1
     assert "1.0.0 -> 1.1.0" in job["message"]
+
+
+def test_latest_catalog_manifest_respects_prerelease_precedence():
+    from provider_hub.service import _latest_catalog_manifest
+
+    state = {
+        "catalog_entries": {
+            "official:examplehub:1.0.0-alpha": {
+                "provider_id": "examplehub",
+                "version": "1.0.0-alpha",
+                "manifest": {"provider_id": "examplehub", "version": "1.0.0-alpha"},
+            },
+            "official:examplehub:1.0.0-rc.1": {
+                "provider_id": "examplehub",
+                "version": "1.0.0-rc.1",
+                "manifest": {"provider_id": "examplehub", "version": "1.0.0-rc.1"},
+            },
+        }
+    }
+
+    assert _latest_catalog_manifest(state, "examplehub", "1.0.0") is None
+
+    state["catalog_entries"]["official:examplehub:1.0.0"] = {
+        "provider_id": "examplehub",
+        "version": "1.0.0",
+        "manifest": {"provider_id": "examplehub", "version": "1.0.0"},
+    }
+
+    latest = _latest_catalog_manifest(state, "examplehub", "1.0.0-rc.1")
+
+    assert latest["version"] == "1.0.0"
+
+
+def test_latest_catalog_manifest_ignores_build_metadata():
+    from provider_hub.service import _latest_catalog_manifest
+
+    state = {
+        "catalog_entries": {
+            "official:examplehub:1.2.3+build.5": {
+                "provider_id": "examplehub",
+                "version": "1.2.3+build.5",
+                "manifest": {"provider_id": "examplehub", "version": "1.2.3+build.5"},
+            },
+        }
+    }
+
+    assert _latest_catalog_manifest(state, "examplehub", "1.2.3") is None
 
 
 def test_add_catalog_source_records_activity_job(tmp_path, monkeypatch):

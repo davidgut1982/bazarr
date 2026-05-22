@@ -35,6 +35,9 @@ class ProviderHubInstallError(RuntimeError):
 
 SECRET_PLACEHOLDER = "********"
 _VERSION_TOKEN_RE = re.compile(r"\d+|[A-Za-z]+")
+_SEMVER_RE = re.compile(
+    r"^\s*v?(?P<core>\d+(?:\.\d+)*)(?:-(?P<prerelease>[0-9A-Za-z.-]+))?\s*$"
+)
 _JOB_LOG_LIMIT = 200
 
 
@@ -1150,19 +1153,41 @@ def check_updates() -> dict[str, Any]:
     return persisted or {}
 
 
-def _version_key(version: Any) -> list[tuple[int, int | str]]:
+def _version_key(version: Any) -> tuple[Any, ...] | None:
+    raw_version = str(version or "").strip()
+    if not raw_version:
+        return None
+    comparable_version = raw_version.split("+", 1)[0]
+    match = _SEMVER_RE.match(comparable_version)
+    if match:
+        core_parts = [int(part) for part in match.group("core").split(".")]
+        while len(core_parts) < 3:
+            core_parts.append(0)
+        prerelease = match.group("prerelease")
+        if prerelease is None:
+            prerelease_key = (1,)
+        else:
+            prerelease_tokens: list[tuple[int, int | str]] = []
+            for token in prerelease.split("."):
+                if token.isdigit():
+                    prerelease_tokens.append((0, int(token)))
+                else:
+                    prerelease_tokens.append((1, token.lower()))
+            prerelease_key = (0, tuple(prerelease_tokens))
+        return (1, tuple(core_parts), prerelease_key)
+
     tokens: list[tuple[int, int | str]] = []
-    for token in _VERSION_TOKEN_RE.findall(str(version or "")):
+    for token in _VERSION_TOKEN_RE.findall(comparable_version):
         if token.isdigit():
             tokens.append((0, int(token)))
         else:
             tokens.append((1, token.lower()))
-    return tokens
+    return (0, tuple(tokens))
 
 
 def _latest_catalog_manifest(state: dict[str, Any], provider_id: str, active_version: Any) -> dict[str, Any] | None:
     active_key = _version_key(active_version)
-    candidates: list[tuple[list[tuple[int, int | str]], dict[str, Any]]] = []
+    candidates: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
     for entry in (state.get("catalog_entries") or {}).values():
         if not isinstance(entry, dict) or entry.get("provider_id") != provider_id:
             continue
@@ -1170,7 +1195,9 @@ def _latest_catalog_manifest(state: dict[str, Any], provider_id: str, active_ver
         if not isinstance(manifest, dict):
             continue
         version_key = _version_key(manifest.get("version") or entry.get("version"))
-        if active_key and version_key <= active_key:
+        if version_key is None:
+            continue
+        if active_key is not None and version_key <= active_key:
             continue
         candidates.append((version_key, manifest))
     if not candidates:

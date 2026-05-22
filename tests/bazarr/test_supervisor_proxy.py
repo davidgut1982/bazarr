@@ -89,3 +89,23 @@ async def test_crashed_backend_serves_app_for_reconnection_flow(monkeypatch, tmp
 
     assert response.status == 200
     assert response.text == app_shell
+
+
+def test_supervisor_config_does_not_inject_configured_api_key(tmp_path):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "config.yaml").write_text(
+        """
+general:
+  base_url: /bazarr
+  secrets_encryption_key: test-master-key
+auth:
+  apikey: live-supervisor-secret
+""",
+        encoding="utf-8",
+    )
+
+    defaults = supervisor._read_bazarr_config(str(tmp_path))
+
+    assert defaults["baseUrl"] == "/bazarr"
+    assert defaults["apiKey"] == ""
