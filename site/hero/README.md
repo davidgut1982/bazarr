@@ -8,6 +8,7 @@ reproducible.
 
 | Version | Codename | Sketch |
 |--|--|--|
+| v2.3.0 | Keystone | [`keystone.html`](keystone.html) |
 | v2.2.0 | Synapse | [`synapse.html`](synapse.html) |
 
 ## Render workflow
