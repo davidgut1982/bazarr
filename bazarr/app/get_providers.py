@@ -30,6 +30,21 @@ from radarr.blacklist import blacklist_log_movie
 from sonarr.blacklist import blacklist_log
 
 _TRACEBACK_RE = re.compile(r'File "(.*?providers[\\/].*?)", line (\d+)')
+_PROVIDER_HUB_REGISTRATION_DONE = False
+
+
+def _ensure_provider_hub_registered():
+    global _PROVIDER_HUB_REGISTRATION_DONE
+    if _PROVIDER_HUB_REGISTRATION_DONE:
+        return
+
+    try:
+        from provider_hub.registry import register_active_provider_classes
+        register_active_provider_classes()
+    except Exception:
+        logging.exception("Unable to register active Provider Hub providers")
+    finally:
+        _PROVIDER_HUB_REGISTRATION_DONE = True
 
 
 def time_until_midnight(timezone) -> datetime.timedelta:
@@ -187,6 +202,7 @@ def get_language_equals(settings_=None):
 
 
 def get_providers():
+    _ensure_provider_hub_registered()
     providers_list = []
     existing_providers = provider_registry.names()
     providers = [x for x in settings.general.enabled_providers if x in existing_providers]
@@ -251,7 +267,7 @@ _FFMPEG_BINARY = get_binary("ffmpeg")
 
 
 def get_providers_auth():
-    return {
+    provider_configs = {
         'addic7ed': {
             'username': settings.addic7ed.username,
             'password': settings.addic7ed.password,
@@ -397,6 +413,33 @@ def get_providers_auth():
             'api_key': settings.subsro.api_key,
         }
     }
+    try:
+        from provider_hub.service import runtime_provider_configs
+        provider_configs.update(runtime_provider_configs())
+    except Exception:
+        logging.exception("Unable to load Provider Hub provider config")
+    try:
+        from provider_hub.state import active_installations
+        for installation in active_installations():
+            manifest = installation.manifest
+            schema = manifest.get("config_schema") if isinstance(manifest, dict) else {}
+            properties = schema.get("properties") if isinstance(schema, dict) else {}
+            if not isinstance(properties, dict):
+                continue
+            section = settings.get(installation.provider_id, {}) if hasattr(settings, "get") else {}
+            config = dict(provider_configs.get(installation.provider_id, {}))
+            for key, field in properties.items():
+                if not isinstance(field, dict):
+                    continue
+                if "default" in field and key not in config:
+                    config[key] = field["default"]
+                value = section.get(key) if hasattr(section, "get") else getattr(section, key, None)
+                if value not in (None, ""):
+                    config[key] = value
+            provider_configs[installation.provider_id] = config
+    except Exception:
+        logging.exception("Unable to load Provider Hub settings config")
+    return provider_configs
 
 
 def _handle_mgb(name, exception, ids, language):

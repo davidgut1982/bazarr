@@ -1,4 +1,5 @@
 import {
+  CSSProperties,
   Fragment,
   FunctionComponent,
   JSX,
@@ -9,24 +10,46 @@ import {
   useState,
 } from "react";
 import {
-  AutocompleteProps,
+  Badge,
   Button,
-  Divider,
+  Drawer,
   Group,
-  SimpleGrid,
+  MultiSelect,
   Stack,
   Text as MantineText,
+  TextInput,
+  UnstyledButton,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
-import { capitalize } from "lodash";
-import { Selector } from "@/components";
-import { useModals, withModal } from "@/modules/modals";
 import {
-  Card,
+  closestCenter,
+  DndContext,
+  DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  rectSortingStrategy,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
+  faArrowLeft,
+  faCircleInfo,
+  faLanguage,
+  faMagnifyingGlass,
+  faPlus,
+} from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { capitalize } from "lodash";
+import {
   Check,
   Chips,
-  Message,
-  Number,
   Password,
   ProviderTestButton,
   Selector as GlobalSelector,
@@ -44,22 +67,28 @@ import {
   SettingsProvider,
   useSettings,
 } from "@/pages/Settings/utilities/SettingsProvider";
-import { BuildKey, useSelectorOptions } from "@/utilities";
+import { BuildKey } from "@/utilities";
 import { ASSERT } from "@/utilities/console";
+import { getAvatarPaletteIndex } from "./avatar-palette";
 import { ProviderInfo, ProviderList } from "./list";
+import {
+  ALL_LANGUAGE_OPTIONS,
+  AUTH_FILTERS,
+  AUTH_LABEL,
+  AuthKind,
+  getLanguageName,
+  getShippedMeta,
+} from "./meta";
+import styles from "@/pages/Settings/Providers/hub/hub.module.scss";
 
 type SettingsKey =
   | "settings-general-enabled_providers"
   | "settings-general-enabled_integrations";
 
 interface ProviderViewProps {
+  addLabel?: string;
   availableOptions: Readonly<ProviderInfo[]>;
   settingsKey: SettingsKey;
-}
-
-interface ProviderSelect {
-  value: string;
-  payload: ProviderInfo;
 }
 
 const parseProviderPriorities = (
@@ -108,7 +137,165 @@ const resolveProviderPriorities = (
   return {};
 };
 
+interface SortableProviderTileProps {
+  provider: ProviderInfo;
+  priority: number;
+  rank: number;
+  onSelect: () => void;
+}
+
+function rankAccentClass(rank: number): string | undefined {
+  if (rank === 1) return styles.providerTileRankGold;
+  if (rank === 2) return styles.providerTileRankSilver;
+  if (rank === 3) return styles.providerTileRankBronze;
+  return undefined;
+}
+
+function avatarClass(providerKey: string): string {
+  const index = getAvatarPaletteIndex(providerKey);
+  const className = (styles as Record<string, string | undefined>)[
+    `providerTileAvatar${index}`
+  ];
+  return className ?? styles.providerTileAvatar0;
+}
+
+function authChipClass(auth: AuthKind): string | undefined {
+  switch (auth) {
+    case "none":
+      return styles.providerTileChipAuthNone;
+    case "account":
+      return styles.providerTileChipAuthAccount;
+    case "apikey":
+      return styles.providerTileChipAuthApikey;
+    case "cookies":
+      return styles.providerTileChipAuthCookies;
+  }
+}
+
+const SortableProviderTile: FunctionComponent<SortableProviderTileProps> = ({
+  provider,
+  priority,
+  rank,
+  onSelect,
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: provider.key });
+
+  const displayName = provider.name ?? capitalize(provider.key);
+  const shipped = getShippedMeta(provider.key, provider.inputs);
+  // Plugin providers carry their language list on the ProviderInfo (from the
+  // manifest); shipped providers fall back to provider-languages.json.
+  const languages = provider.languages ?? shipped.languages;
+  const meta = { ...shipped, languages };
+  const showAllLangs = meta.languages.length <= LANGUAGE_CHIP_THRESHOLD;
+  const langTooltip = meta.languages
+    .map((code) => getLanguageName(code))
+    .join(", ");
+
+  const tileStyle = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : undefined,
+    opacity: isDragging ? 0.85 : undefined,
+    boxShadow: isDragging ? "var(--bz-shadow-float)" : undefined,
+  } as CSSProperties;
+
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.target !== event.currentTarget) return;
+    // Space is reserved for @dnd-kit's KeyboardSensor (lift/drop). Enter opens
+    // the configuration drawer.
+    if (event.key === "Enter") {
+      event.preventDefault();
+      onSelect();
+    }
+  };
+
+  const initial = displayName.trim().charAt(0).toUpperCase() || "?";
+  const rankClassName = rankAccentClass(rank);
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={styles.providerTile}
+      style={tileStyle}
+      {...attributes}
+      {...listeners}
+      aria-label={`${displayName} (priority ${priority})`}
+      onClick={onSelect}
+      onKeyDown={handleKeyDown}
+    >
+      <span
+        aria-hidden="true"
+        className={
+          rankClassName
+            ? `${styles.providerTileRank} ${rankClassName}`
+            : styles.providerTileRank
+        }
+      >
+        {rank}
+      </span>
+      <div className={styles.providerTileHeader}>
+        <span
+          aria-hidden="true"
+          className={`${styles.providerTileAvatar} ${avatarClass(provider.key)}`}
+        >
+          {initial}
+        </span>
+        <span className={styles.providerTileNameRow}>
+          <span className={styles.providerTileName} title={displayName}>
+            {displayName}
+          </span>
+          {provider.source === "plugin" && (
+            <Badge size="xs" variant="light">
+              Plugin
+            </Badge>
+          )}
+        </span>
+      </div>
+      {provider.description && (
+        <span className={styles.providerTileDesc} title={provider.description}>
+          {provider.description}
+        </span>
+      )}
+      <div className={styles.providerTileMeta}>
+        <Badge
+          size="xs"
+          variant="outline"
+          color="gray"
+          className={authChipClass(meta.auth)}
+        >
+          {AUTH_LABEL[meta.auth]}
+        </Badge>
+        {meta.testable && (
+          <Badge size="xs" variant="outline" color="gray">
+            Testable
+          </Badge>
+        )}
+        {meta.languages.length > 0 &&
+          showAllLangs &&
+          meta.languages.map((code) => (
+            <Badge key={code} size="xs" variant="outline" color="gray">
+              {getLanguageName(code)}
+            </Badge>
+          ))}
+        {meta.languages.length > LANGUAGE_CHIP_THRESHOLD && (
+          <Badge size="xs" variant="outline" color="gray" title={langTooltip}>
+            {meta.languages.length} languages
+          </Badge>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export const ProviderView: FunctionComponent<ProviderViewProps> = ({
+  addLabel,
   availableOptions,
   settingsKey,
 }) => {
@@ -122,97 +309,348 @@ export const ProviderView: FunctionComponent<ProviderViewProps> = ({
 
   const { update } = useFormActions();
 
-  const modals = useModals();
+  const [drawerPayload, setDrawerPayload] = useState<{
+    payload: ProviderInfo | null;
+  } | null>(null);
 
   const select = useCallback(
     (v?: ProviderInfo) => {
       if (settings) {
-        modals.openContextModal(ProviderModal, {
-          payload: v ?? null,
-          enabledProviders: providers ?? [],
-          staged,
-          settings,
-          onChange: update,
-          availableOptions: availableOptions,
-          settingsKey: settingsKey,
-        });
+        setDrawerPayload({ payload: v ?? null });
       }
     },
-    [
-      modals,
-      providers,
-      settings,
-      staged,
-      update,
-      availableOptions,
-      settingsKey,
-    ],
+    [settings],
   );
 
-  const cards = useMemo(() => {
-    if (providers) {
-      return providers
-        .flatMap((v) => {
-          const item = availableOptions.find((inn) => inn.key === v);
-          if (item) {
-            return item;
-          } else {
-            return [];
-          }
-        })
-        .map((v, idx) => {
-          const priority = priorities[v.key] ?? 100;
-          return (
-            <Card
-              titleStyles={{ overflow: "hidden", textOverflow: "ellipsis" }}
-              key={BuildKey(v.key, idx)}
-              header={
-                <Group justify="space-between" wrap="nowrap">
-                  <MantineText fw={700}>
-                    {v.name ?? capitalize(v.key)}
-                  </MantineText>
-                  <MantineText size="xs" c="var(--bz-text-tertiary)">
-                    Priority: {priority}
-                  </MantineText>
-                </Group>
-              }
-              description={v.description}
-              onClick={() => select(v)}
-              lineClamp={2}
-            ></Card>
-          );
-        });
-    } else {
-      return [];
-    }
-  }, [providers, select, availableOptions, priorities]);
+  const closeDrawer = useCallback(() => setDrawerPayload(null), []);
+
+  const sortedItems = useMemo(() => {
+    if (!providers) return [];
+
+    // Never drop an enabled key just because its option isn't loaded yet
+    // (e.g. plugin providers whose hub query hasn't returned on a fresh page
+    // load after a restart). Render a minimal placeholder so the tile stays
+    // visible and the saved enabled-providers list never silently shrinks.
+    const decorated = providers
+      .map((key) => {
+        const item = availableOptions.find((opt) => opt.key === key);
+        return item ?? ({ key } satisfies ProviderInfo);
+      })
+      .map((v) => ({ v, priority: priorities[v.key] ?? 100 }));
+
+    decorated.sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      const an = a.v.name ?? capitalize(a.v.key);
+      const bn = b.v.name ?? capitalize(b.v.key);
+      return an.localeCompare(bn);
+    });
+
+    return decorated;
+  }, [providers, availableOptions, priorities]);
+
+  const itemIds = useMemo(
+    () => sortedItems.map((item) => item.v.key),
+    [sortedItems],
+  );
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+
+      const oldIndex = itemIds.indexOf(active.id as string);
+      const newIndex = itemIds.indexOf(over.id as string);
+      if (oldIndex === -1 || newIndex === -1) return;
+
+      const newOrder = arrayMove(itemIds, oldIndex, newIndex);
+      const newPriorities = { ...priorities };
+      newOrder.forEach((key, idx) => {
+        newPriorities[key] = (idx + 1) * 10;
+      });
+
+      update({
+        "settings-general-provider_priorities": JSON.stringify(newPriorities),
+      });
+    },
+    [itemIds, priorities, update],
+  );
 
   return (
-    <SimpleGrid cols={3}>
-      {cards}
-      <Card plus onClick={() => select()}></Card>
-    </SimpleGrid>
+    <>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext items={itemIds} strategy={rectSortingStrategy}>
+          <div className={styles.providerTileGrid}>
+            {sortedItems.map(({ v, priority }, idx) => (
+              <SortableProviderTile
+                key={v.key}
+                provider={v}
+                priority={priority}
+                rank={idx + 1}
+                onSelect={() => select(v)}
+              />
+            ))}
+            <UnstyledButton
+              className={styles.providerAddTile}
+              onClick={() => select()}
+              aria-label={addLabel ?? "Add provider"}
+            >
+              <span className={styles.providerAddTileIcon} aria-hidden="true">
+                <FontAwesomeIcon icon={faPlus} />
+              </span>
+              <span>{addLabel ?? "Add search provider"}</span>
+            </UnstyledButton>
+            {sortedItems.length === 0 && (
+              <p className={styles.providerEmptyHint}>
+                Add your first search provider to start downloading subtitles.
+              </p>
+            )}
+          </div>
+        </SortableContext>
+      </DndContext>
+      <Drawer
+        opened={drawerPayload !== null && settings !== null}
+        onClose={closeDrawer}
+        position="right"
+        size="min(720px, 92vw)"
+        padding="md"
+        title={
+          <MantineText size="lg" fw={600}>
+            Provider settings
+          </MantineText>
+        }
+        classNames={{
+          content: styles.providerDrawerContent,
+          body: styles.providerDrawerBody,
+        }}
+      >
+        {drawerPayload && settings && (
+          <ProviderTool
+            payload={drawerPayload.payload}
+            enabledProviders={providers ?? []}
+            staged={staged}
+            settings={settings}
+            onChange={update}
+            availableOptions={availableOptions}
+            settingsKey={settingsKey}
+            onClose={closeDrawer}
+          />
+        )}
+      </Drawer>
+    </>
   );
 };
 
 interface ProviderToolProps {
   payload: ProviderInfo | null;
-  // TODO: Find a better solution to pass this info to modal
   enabledProviders: readonly string[];
   staged: LooseObject;
   settings: Settings;
   onChange: (v: LooseObject) => void;
   availableOptions: Readonly<ProviderInfo[]>;
   settingsKey: Readonly<SettingsKey>;
+  onClose: () => void;
 }
 
-const SelectItem: AutocompleteProps["renderOption"] = ({ option }) => {
-  const provider = option as ProviderSelect;
+const LANGUAGE_CHIP_THRESHOLD = 3;
+
+interface ProviderPickerProps {
+  options: ProviderInfo[];
+  onPick: (provider: ProviderInfo) => void;
+}
+
+const ProviderPicker: FunctionComponent<ProviderPickerProps> = ({
+  options,
+  onPick,
+}) => {
+  const [search, setSearch] = useState("");
+  const [authFilter, setAuthFilter] = useState<AuthKind | "all">("all");
+  const [langFilter, setLangFilter] = useState<string[]>([]);
+
+  const decorated = useMemo(
+    () =>
+      options.map((v) => ({
+        v,
+        ...getShippedMeta(v.key, v.inputs),
+      })),
+    [options],
+  );
+
+  const counts = useMemo(() => {
+    const acc: Record<string, number> = { all: decorated.length };
+    for (const item of decorated) {
+      acc[item.auth] = (acc[item.auth] ?? 0) + 1;
+    }
+    return acc;
+  }, [decorated]);
+
+  const availableLanguageCodes = useMemo(() => {
+    const set = new Set<string>();
+    for (const item of decorated) {
+      for (const code of item.languages) set.add(code);
+    }
+    return set;
+  }, [decorated]);
+
+  const languageSelectData = useMemo(
+    () =>
+      ALL_LANGUAGE_OPTIONS.filter((o) =>
+        availableLanguageCodes.has(o.code),
+      ).map((o) => ({ value: o.code, label: o.name })),
+    [availableLanguageCodes],
+  );
+
+  const filtered = useMemo(() => {
+    let result = decorated;
+    if (authFilter !== "all") {
+      result = result.filter((item) => item.auth === authFilter);
+    }
+    if (langFilter.length > 0) {
+      result = result.filter((item) =>
+        langFilter.some((code) => item.languages.includes(code)),
+      );
+    }
+    const q = search.trim().toLowerCase();
+    if (q) {
+      result = result.filter(({ v }) => {
+        const name = (v.name ?? v.key).toLowerCase();
+        const desc = (v.description ?? "").toLowerCase();
+        return name.includes(q) || desc.includes(q);
+      });
+    }
+    return result;
+  }, [decorated, authFilter, langFilter, search]);
 
   return (
-    <Stack gap={1}>
-      <MantineText size="md">{provider.value}</MantineText>
-      <MantineText size="xs">{provider.payload.description}</MantineText>
+    <Stack gap="xs" className={styles.providerPickerStack}>
+      <div className={styles.providerPickerFilters}>
+        {AUTH_FILTERS.map(({ value, label }) => {
+          const count = counts[value] ?? 0;
+          const isActive = authFilter === value;
+          const isDisabled = value !== "all" && count === 0;
+          return (
+            <button
+              key={value}
+              type="button"
+              className={
+                isActive
+                  ? `${styles.providerPickerFilter} ${styles.providerPickerFilterActive}`
+                  : styles.providerPickerFilter
+              }
+              disabled={isDisabled}
+              onClick={() => setAuthFilter(value)}
+            >
+              {label}
+              <span className={styles.providerPickerFilterCount}>{count}</span>
+            </button>
+          );
+        })}
+      </div>
+      <MultiSelect
+        data={languageSelectData}
+        value={langFilter}
+        onChange={setLangFilter}
+        placeholder={langFilter.length === 0 ? "Filter by language" : undefined}
+        searchable
+        clearable
+        nothingFoundMessage="No matching language"
+        maxDropdownHeight={240}
+        comboboxProps={{ withinPortal: true }}
+        leftSection={<FontAwesomeIcon icon={faLanguage} />}
+      />
+      <TextInput
+        data-autofocus
+        placeholder="Search providers"
+        value={search}
+        onChange={(e) => setSearch(e.currentTarget.value)}
+        leftSection={<FontAwesomeIcon icon={faMagnifyingGlass} />}
+      />
+      <div className={styles.providerPickerList}>
+        {filtered.length === 0 ? (
+          <MantineText size="xs" c="dimmed" ta="center" py="md">
+            No providers match the current filter.
+          </MantineText>
+        ) : (
+          filtered.map(({ v, auth, testable, languages }) => {
+            const showAllLangs = languages.length <= LANGUAGE_CHIP_THRESHOLD;
+            const langTooltip = languages
+              .map((code) => getLanguageName(code))
+              .join(", ");
+            return (
+              <UnstyledButton
+                key={v.key}
+                className={styles.providerPickerRow}
+                onClick={() => onPick(v)}
+              >
+                <div className={styles.providerPickerHead}>
+                  <span className={styles.providerPickerName}>
+                    {v.name ?? capitalize(v.key)}
+                  </span>
+                  <Badge size="xs" variant="light">
+                    {v.source === "plugin" ? "Plugin" : "Shipped"}
+                  </Badge>
+                </div>
+                {v.description && (
+                  <div className={styles.providerPickerDesc}>
+                    {v.description}
+                  </div>
+                )}
+                <div className={styles.providerPickerChips}>
+                  <Badge size="xs" variant="outline" color="gray">
+                    {AUTH_LABEL[auth]}
+                  </Badge>
+                  {testable && (
+                    <Badge size="xs" variant="outline" color="gray">
+                      Testable
+                    </Badge>
+                  )}
+                  {languages.length > 0 &&
+                    showAllLangs &&
+                    languages.map((code) => (
+                      <Badge
+                        key={code}
+                        size="xs"
+                        variant="outline"
+                        color="gray"
+                      >
+                        {getLanguageName(code)}
+                      </Badge>
+                    ))}
+                  {languages.length > LANGUAGE_CHIP_THRESHOLD && (
+                    <Badge
+                      size="xs"
+                      variant="outline"
+                      color="gray"
+                      title={langTooltip}
+                    >
+                      {languages.length} languages
+                    </Badge>
+                  )}
+                </div>
+                {v.message && (
+                  <div className={styles.providerPickerNote}>
+                    <FontAwesomeIcon
+                      icon={faCircleInfo}
+                      className={styles.providerPickerNoteIcon}
+                    />
+                    <span>{v.message}</span>
+                  </div>
+                )}
+              </UnstyledButton>
+            );
+          })
+        )}
+      </div>
     </Stack>
   );
 };
@@ -246,9 +684,8 @@ const ProviderTool: FunctionComponent<ProviderToolProps> = ({
   onChange,
   availableOptions,
   settingsKey,
+  onClose,
 }) => {
-  const modals = useModals();
-
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
@@ -294,10 +731,10 @@ const ProviderTool: FunctionComponent<ProviderToolProps> = ({
           JSON.stringify(nextPriorities);
 
         onChangeRef.current(changes);
-        modals.closeAll();
+        onClose();
       }
     }
-  }, [payload, enabledProviders, modals, settingsKey, staged, settings]);
+  }, [payload, enabledProviders, onClose, settingsKey, staged, settings]);
 
   const submit = useCallback(
     (values: FormValues) => {
@@ -311,16 +748,23 @@ const ProviderTool: FunctionComponent<ProviderToolProps> = ({
         const changes = { ...values.settings };
         const hooks = values.hooks;
 
-        // Add this provider if not exist
-        if (enabledProviders.find((v) => v === info.key) === undefined) {
+        const isNewProvider =
+          enabledProviders.find((v) => v === info.key) === undefined;
+        if (isNewProvider) {
           changes[settingsKey] = [...enabledProviders, info.key];
         }
 
-        // Handle priority
         const priorityKey = `settings-general-provider_priorities-${info.key}`;
-        const priority = changes[priorityKey];
         const priorities = resolveProviderPriorities(values.settings, settings);
-        priorities[info.key] = priority ?? priorities[info.key] ?? 100;
+        if (isNewProvider) {
+          const maxPriority = Object.values(priorities).reduce(
+            (max, v) => (typeof v === "number" && v > max ? v : max),
+            0,
+          );
+          priorities[info.key] = maxPriority + 10;
+        } else if (priorities[info.key] === undefined) {
+          priorities[info.key] = 100;
+        }
         changes["settings-general-provider_priorities"] =
           JSON.stringify(priorities);
         delete changes[priorityKey];
@@ -329,10 +773,10 @@ const ProviderTool: FunctionComponent<ProviderToolProps> = ({
         runHooks(hooks, changes);
 
         onChangeRef.current(changes);
-        modals.closeAll();
+        onClose();
       }
     },
-    [info, enabledProviders, modals, settingsKey, form, settings],
+    [info, enabledProviders, onClose, settingsKey, form, settings],
   );
 
   const canSave = info !== null;
@@ -348,7 +792,7 @@ const ProviderTool: FunctionComponent<ProviderToolProps> = ({
     }
   }, []);
 
-  const options = useMemo(
+  const pickerOptions = useMemo(
     () =>
       availableOptions.filter(
         (v) =>
@@ -356,11 +800,6 @@ const ProviderTool: FunctionComponent<ProviderToolProps> = ({
           undefined,
       ),
     [info?.key, enabledProviders, availableOptions],
-  );
-
-  const selectorOptions = useSelectorOptions(
-    options,
-    (v) => v.name ?? capitalize(v.key),
   );
 
   const inputs = useMemo(() => {
@@ -465,60 +904,136 @@ const ProviderTool: FunctionComponent<ProviderToolProps> = ({
     return <Stack gap="xs">{elements}</Stack>;
   }, [info, form, form.values.settings]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const displayName =
+    info?.name ?? (info?.key ? capitalize(info.key) : undefined);
+
+  const isPickerMode = payload === null && info === null;
+
   return (
     <SettingsProvider value={settings}>
       <FormContext.Provider value={form}>
-        <Stack>
-          <Stack gap="xs">
-            <Selector
-              data-autofocus
-              searchable
-              placeholder="Click to Select a Provider"
-              renderOption={SelectItem}
-              disabled={payload !== null}
-              {...selectorOptions}
-              value={info}
-              onChange={onSelect}
-            ></Selector>
-            <Message>{info?.description}</Message>
-            {info?.key && (
-              <Number
-                label="Priority"
-                description="Lower number = higher priority (e.g., 10 is searched before 100)"
-                settingKey={`settings-general-provider_priorities-${info.key}`}
-                min={1}
-                max={999}
-              />
+        <div className={styles.providerDrawerLayout}>
+          <div
+            className={
+              isPickerMode
+                ? `${styles.providerDrawerScroll} ${styles.providerDrawerScrollPicker}`
+                : styles.providerDrawerScroll
+            }
+          >
+            <Stack gap="lg" className={styles.providerDrawerSections}>
+              {payload === null ? (
+                info === null ? (
+                  <Stack
+                    gap="xs"
+                    className={styles.providerDrawerPickerSection}
+                  >
+                    <MantineText size="sm" fw={600}>
+                      Choose a provider
+                    </MantineText>
+                    <MantineText size="xs" c="dimmed">
+                      Pick a shipped provider or an active installed plugin.
+                      Installed plugins are enabled for searches only after you
+                      add them here and save settings.
+                    </MantineText>
+                    <ProviderPicker options={pickerOptions} onPick={onSelect} />
+                  </Stack>
+                ) : (
+                  <Stack gap={4}>
+                    <Group gap="xs" justify="space-between" align="center">
+                      <Group gap="xs" align="center">
+                        <MantineText size="sm" fw={600}>
+                          {displayName ?? info.key}
+                        </MantineText>
+                        {info.source === "plugin" && (
+                          <Badge size="xs" variant="light">
+                            Plugin
+                          </Badge>
+                        )}
+                      </Group>
+                      <Button
+                        variant="subtle"
+                        size="xs"
+                        leftSection={<FontAwesomeIcon icon={faArrowLeft} />}
+                        onClick={() => setInfo(null)}
+                      >
+                        Change
+                      </Button>
+                    </Group>
+                    {info.description && (
+                      <MantineText size="xs" c="dimmed">
+                        {info.description}
+                      </MantineText>
+                    )}
+                  </Stack>
+                )
+              ) : (
+                displayName && (
+                  <Stack gap={4}>
+                    <Group gap="xs" align="center">
+                      <MantineText size="sm" fw={600}>
+                        {displayName}
+                      </MantineText>
+                      {info?.source === "plugin" && (
+                        <Badge size="xs" variant="light">
+                          Plugin
+                        </Badge>
+                      )}
+                    </Group>
+                    {info?.description && (
+                      <MantineText size="xs" c="dimmed">
+                        {info.description}
+                      </MantineText>
+                    )}
+                  </Stack>
+                )
+              )}
+
+              {info?.inputs && info.inputs.length > 0 && (
+                <Stack gap="xs">
+                  <MantineText size="sm" fw={600}>
+                    Credentials &amp; settings
+                  </MantineText>
+                  {inputs}
+                </Stack>
+              )}
+
+              {info?.message && (
+                <Stack gap="xs">
+                  <MantineText size="sm" fw={600}>
+                    Notes
+                  </MantineText>
+                  <MantineText size="xs" c="dimmed">
+                    {info.message}
+                  </MantineText>
+                </Stack>
+              )}
+            </Stack>
+          </div>
+
+          <div className={styles.providerDrawerActions}>
+            {payload ? (
+              <Button color="red" variant="subtle" onClick={deletePayload}>
+                Remove
+              </Button>
+            ) : (
+              <span />
             )}
-            {inputs}
-            <div hidden={info?.message === undefined}>
-              <Message>{info?.message}</Message>
-            </div>
-          </Stack>
-          <Divider></Divider>
-          <Group justify="right">
-            <Button hidden={!payload} color="red" onClick={deletePayload}>
-              Delete
-            </Button>
-            <Button variant="default" onClick={() => modals.closeAll()}>
-              Cancel
-            </Button>
-            <Button
-              disabled={!canSave}
-              onClick={() => {
-                submit(form.values);
-              }}
-            >
-              Save
-            </Button>
-          </Group>
-        </Stack>
+            <Group gap="xs">
+              <Button variant="default" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button
+                disabled={!canSave}
+                onClick={() => {
+                  submit(form.values);
+                }}
+              >
+                Save
+              </Button>
+            </Group>
+          </div>
+        </div>
       </FormContext.Provider>
     </SettingsProvider>
   );
 };
-
-const ProviderModal = withModal(ProviderTool, "provider-tool", {
-  title: "Provider",
-  size: "calc(50vw)",
-});
