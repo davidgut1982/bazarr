@@ -278,6 +278,21 @@ def _fetch_github_catalog(
     return payload, commit
 
 
+def _catalog_source_error_message(error: Exception) -> str:
+    if isinstance(error, (requests.exceptions.ConnectionError, requests.exceptions.Timeout)):
+        return (
+            "Could not reach GitHub while refreshing this catalog source. "
+            "Check network or DNS and try again."
+        )
+    if isinstance(error, requests.exceptions.HTTPError):
+        response = getattr(error, "response", None)
+        status_code = getattr(response, "status_code", None)
+        if status_code:
+            return f"GitHub returned HTTP {status_code} while refreshing this catalog source."
+        return "GitHub returned an error while refreshing this catalog source."
+    return str(error)
+
+
 def add_catalog_source(
     name: str, url: str, trusted: bool = False, dev_ref: str | None = None
 ) -> dict[str, Any]:
@@ -466,7 +481,7 @@ def refresh_catalog() -> dict[str, Any]:
                     source["last_error"] = None
                     refreshed_sources.add(source.get("id") or source["name"])
                 except Exception as error:
-                    source["last_error"] = str(error)
+                    source["last_error"] = _catalog_source_error_message(error)
                     failed_sources.append(source.get("name") or source.get("id") or "?")
                     continue
 

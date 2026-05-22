@@ -1795,6 +1795,40 @@ def test_refresh_catalog_uses_dev_ref_when_set(tmp_path, monkeypatch):
     ), f"calls were: {calls}"
 
 
+def test_refresh_catalog_reports_network_errors_for_users(tmp_path, monkeypatch):
+    import requests
+    from provider_hub.service import add_catalog_source, refresh_catalog
+    from provider_hub.state import load_state
+
+    def fake_get(url, timeout):
+        raise requests.exceptions.ConnectionError(
+            "HTTPSConnectionPool(host='api.github.com', port=443): "
+            "Max retries exceeded with url: /repos/example/providers/commits/main"
+        )
+
+    monkeypatch.setattr("provider_hub.service.requests.get", fake_get)
+    state_file = tmp_path / "state.json"
+    state_file.write_text(
+        json.dumps({"catalog_sources": {}, "installations": {}, "jobs": []}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("BAZARR_PROVIDER_HUB_STATE", str(state_file))
+
+    add_catalog_source(
+        "community",
+        "https://github.com/example/providers/blob/main/catalog.json",
+    )
+
+    refresh_catalog()
+
+    source = load_state()["catalog_sources"]["community"]
+    assert source["last_error"] == (
+        "Could not reach GitHub while refreshing this catalog source. "
+        "Check network or DNS and try again."
+    )
+    assert "HTTPSConnectionPool" not in source["last_error"]
+
+
 def test_patch_catalog_source_updates_dev_ref(tmp_path, monkeypatch):
     from provider_hub.service import (
         add_catalog_source,
