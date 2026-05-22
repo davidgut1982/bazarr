@@ -110,8 +110,8 @@ class LingarrTranslatorService:
             jobs_queue.update_job_progress(job_id=job_id, progress_message=f'Lingarr translation failed: {str(e)}')
             raise
 
-    @retry(exceptions=(TooManyRequests, RequestError, requests.exceptions.RequestException), tries=3, delay=1,
-           backoff=2, jitter=(0, 1))
+    @retry(exceptions=(TooManyRequests, RequestError, requests.exceptions.RequestException), tries=5, delay=15,
+           backoff=2, jitter=(0, 5))
     def _translate_content(self, lines_list, job_id):
         try:
             source_lang = self.language_code_convert_dict.get(self.from_lang, self.from_lang)
