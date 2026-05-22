@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  **External Integration for Jellyfin and VLSub** · No tracking · Provider priority · OpenSubtitles.org web scraper · AI translation via OpenRouter (300+ LLMs) · **Subtitle Editor with video preview, waveform, AI translate** · API key encryption at rest · Jellyfin library refresh · batch translation · mass subtitle sync · 11 bulk operations · advanced table filters · security hardening · Python 3.14 · navy + amber dark theme
+  <strong>Provider Hub marketplace for subtitle providers</strong> · <strong>External Integration for Jellyfin and VLSub</strong> · No tracking · Provider priority · OpenSubtitles.org web scraper · AI translation via OpenRouter (300+ LLMs) · <strong>Subtitle Editor with video preview, waveform, AI translate</strong> · API key encryption at rest · Jellyfin library refresh · batch translation · mass subtitle sync · 11 bulk operations · advanced table filters · security hardening · Python 3.14 · navy + amber dark theme
 </p>
 
 ---
@@ -27,6 +27,7 @@
 - Back up your `/config` directory first
 - Bazarr+ uses independent versioning starting at v2.0.0, unrelated to upstream version numbers
 - Config changes made by Bazarr+ are not backwards-compatible with upstream Bazarr, so switching back requires restoring your backup
+- Provider Hub is additive. Existing providers keep working, and installed plugin providers can be enabled under Settings > Providers after restart
 - Recommended: test with a copy of your config before committing to the switch
 
 ---
@@ -35,6 +36,7 @@
 
 | Feature | Upstream Bazarr | Bazarr+ |
 |---------|-----------------|---------|
+| **Provider Hub (catalog plugins)** | Not available | Marketplace for installable subtitle provider plugins with catalog sources, trust labels, staged activation, worker validation, isolated environments, and activity log. |
 | **External Integration (Jellyfin / VLSub)** | Not available | OpenSubtitles-compatible REST endpoint with JWT auth, signed download tokens, SSRF guard, and provider fanout. Two first-party clients: [Jellyfin plugin](https://github.com/LavX/jellyfin-plugin-bazarr-plus) and [VLSub Bazarr+](https://github.com/LavX/vlsub-bazarr-plus). |
 | **Jellyfin Library Refresh** | On upstream's `development` branch only (no released version) | Cherry-picked and polished: HTTPS with optional self-signed cert acceptance, per-library overrides, secret redaction, response cap, "Refresh now" Maintenance card |
 | **Provider Priority** | [Rejected](https://bazarr.featureupvote.com/suggestions/112323/provider-prioritization) (62 votes) | Dual mode: priority order with early stop, or classic simultaneous |
@@ -133,6 +135,18 @@ python3 docker/supervisor.py --config ./data --port 6767
 
 <details>
 <summary><strong>Feature Details</strong></summary>
+
+### Provider Hub (v2.3 Keystone)
+Bazarr+ v2.3 turns subtitle providers into installable plugins. Provider Hub lives under Settings > Providers and adds Marketplace, Updates, Sources, My Providers, and Activity views to the provider settings area.
+
+Provider Hub supports the official [LavX/bazarr-provider-catalog](https://github.com/LavX/bazarr-provider-catalog) source plus additional GitHub catalog sources for community providers. The catalog repository includes SDK tooling for provider authors, SmokeHub as the deterministic reference provider, and SubtitleCat as the first real catalog provider.
+
+- **Marketplace install flow**: browse provider cards, filter by source, see trust labels, install providers, test connections, uninstall plugins, and discover updates
+- **Staged lifecycle**: installs, updates, and active removals are staged first, then promoted or removed during restart
+- **Safety boundary**: bundles are hash-checked, dependencies are exact and hash-pinned, provider files are fetched from pinned GitHub commits, and imports are worker-validated before activation
+- **Isolated dependencies**: plugin dependencies install into provider-specific virtual environments instead of the app-wide runtime
+- **Activity log**: catalog refreshes, installs, updates, tests, removals, durations, target identities, version changes, and errors are visible to operators
+- **Provider author SDK**: `python3 -B -m sdk validate`, `python3 -B -m sdk hash providers/<id>`, `python3 -B -m sdk build-catalog`, and `python3 -B -m sdk smoke-test` help authors validate manifests, bundle hashes, catalog output, and smoke behavior
 
 ### External Integration (v2.2 Synapse)
 Bazarr+ exposes an OpenSubtitles-compatible REST endpoint under `/compat/*` so external clients can query your Bazarr+ instance as a federated subtitle service. Two first-party clients ship alongside this release: a [Jellyfin 10.11+ subtitle plugin](https://github.com/LavX/jellyfin-plugin-bazarr-plus) and a [VLC 3.0+ Lua extension (VLSub Bazarr+)](https://github.com/LavX/vlsub-bazarr-plus). Enable the endpoint under **Settings → External Integration**, copy the generated API token, paste it into the plugin/extension, and your Bazarr+ providers serve the client directly.

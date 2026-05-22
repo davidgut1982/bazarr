@@ -33,8 +33,8 @@ google-chrome --headless=new --disable-gpu --no-sandbox \
 # 2. Crop to exactly 3840x2160 from origin (drops the bottom slack)
 magick /tmp/hero_oversized.png -crop 3840x2160+0+0 +repage /tmp/hero_3840.png
 
-# 3. Downsample to final 1920x1080. Commit alongside the v2.0
-#    hero_eclipse.png so every release hero lives in screenshot/.
+# 3. Downsample to final 1920x1080. Commit alongside the
+#    previous release heroes so every release hero lives in screenshot/.
 magick /tmp/hero_3840.png -filter Lanczos -resize 1920x1080 \
   screenshot/hero-<codename>.png
 ```
@@ -70,7 +70,7 @@ codename, and adjust:
   pulses; future codenames should pick their own metaphor (Vortex, Aurora,
   Constellation, etc.).
 - **Pipeline**: render the sketch via the headless-chrome workflow above,
-  commit the rendered PNG to `site/screenshots/`, then update the release
+  commit the rendered PNG to `screenshot/`, then update the release
   notes hero reference.
 
 ## Why p5.js
