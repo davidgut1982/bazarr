@@ -1,0 +1,58 @@
+name: Deploy Pages
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'site/**'
+      - '.github/workflows/deploy-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@v6
+        with:
+          ref: master
+          path: src
+
+      - name: Checkout gh-pages
+        uses: actions/checkout@v6
+        with:
+          ref: gh-pages
+          path: pages
+
+      - name: Sync site/ to gh-pages
+        run: |
+          set -euo pipefail
+          # site/hero/ is a developer-side p5.js generator (release artwork
+          # source), not referenced from any deployed page. Everything else
+          # under site/ ships as-is, including .nojekyll.
+          rsync -a --delete \
+            --exclude '.git/' \
+            --exclude 'hero/' \
+            src/site/ pages/
+
+      - name: Commit and push if changed
+        working-directory: pages
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --staged --quiet; then
+            echo "No changes to deploy."
+            exit 0
+          fi
+          COMMIT_SHA=$(git -C ../src rev-parse --short HEAD)
+          git commit -m "deploy: site/ from ${COMMIT_SHA}"
+          git push origin gh-pages

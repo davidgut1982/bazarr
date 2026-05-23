@@ -5,7 +5,7 @@ import logging
 import os
 
 from app.config import settings
-from app.database import TableEpisodes, TableMovies, TableHistory, TableHistoryMovie, database, select
+from app.database import TableEpisodes, TableMovies, TableHistory, TableHistoryMovie, TableShows, database, select
 from app.jobs_queue import jobs_queue
 from subtitles.sync import sync_subtitles
 from subtitles.tools.mods import subtitles_apply_mods
@@ -146,12 +146,26 @@ def _collect_episodes(series_ids=None, episode_ids=None, action='sync',
                       force_resync=False, max_offset='60', gss=True, no_fix_framerate=True,
                       target_lang=None, source_lang=None):
     """Collect episode subtitles from the database."""
-    query = select(
+    columns = [
         TableEpisodes.sonarrEpisodeId,
         TableEpisodes.sonarrSeriesId,
         TableEpisodes.path,
         TableEpisodes.subtitles,
-    )
+    ]
+    if action == 'translate':
+        # translate_subtitles_file consumes show-level metadata (imdbId, tvdbId,
+        # season, episode) via postprocess_subtitles. Other actions do not, so
+        # the join to TableShows is scoped to translate to avoid dropping
+        # orphaned episodes from sync/mods batches.
+        columns.extend([
+            TableEpisodes.season,
+            TableEpisodes.episode,
+            TableShows.imdbId,
+            TableShows.tvdbId,
+        ])
+        query = select(*columns).join(TableShows)
+    else:
+        query = select(*columns)
 
     filters = []
     if episode_ids:
@@ -206,7 +220,7 @@ def _collect_episodes(series_ids=None, episode_ids=None, action='sync',
                     skipped += 1
                     continue
 
-            items.append({
+            item = {
                 'video_path': video_path,
                 'srt_path': mapped_sub_path,
                 'srt_lang': sub_lang,
@@ -218,7 +232,10 @@ def _collect_episodes(series_ids=None, episode_ids=None, action='sync',
                 'max_offset_seconds': max_offset,
                 'no_fix_framerate': no_fix_framerate,
                 'gss': gss,
-            })
+            }
+            if action == 'translate':
+                item['metadata'] = ep
+            items.append(item)
 
     return items, skipped
 
@@ -227,11 +244,18 @@ def _collect_movies(movie_ids=None, action='sync', force_resync=False,
                     max_offset='60', gss=True, no_fix_framerate=True,
                     target_lang=None, source_lang=None):
     """Collect movie subtitles from the database."""
-    query = select(
+    columns = [
         TableMovies.radarrId,
         TableMovies.path,
         TableMovies.subtitles,
-    )
+    ]
+    if action == 'translate':
+        # See _collect_episodes for why metadata columns are translate-only.
+        columns.extend([
+            TableMovies.imdbId,
+            TableMovies.tmdbId,
+        ])
+    query = select(*columns)
 
     if movie_ids:
         query = query.where(TableMovies.radarrId.in_(movie_ids))
@@ -281,7 +305,7 @@ def _collect_movies(movie_ids=None, action='sync', force_resync=False,
                     skipped += 1
                     continue
 
-            items.append({
+            item = {
                 'video_path': video_path,
                 'srt_path': mapped_sub_path,
                 'srt_lang': sub_lang,
@@ -293,7 +317,10 @@ def _collect_movies(movie_ids=None, action='sync', force_resync=False,
                 'max_offset_seconds': max_offset,
                 'no_fix_framerate': no_fix_framerate,
                 'gss': gss,
-            })
+            }
+            if action == 'translate':
+                item['metadata'] = movie
+            items.append(item)
 
     return items, skipped
 
@@ -337,6 +364,7 @@ def _process_subtitle_item(item, action, options, job_id):
             sonarr_series_id=item['sonarr_series_id'],
             sonarr_episode_id=item['sonarr_episode_id'],
             radarr_id=item['radarr_id'],
+            metadata=item['metadata'],
         )
         return True
     elif action in MOD_ACTIONS:

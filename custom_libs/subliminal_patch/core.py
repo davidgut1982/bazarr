@@ -25,11 +25,15 @@ from concurrent.futures import as_completed
 from .extensions import provider_registry
 from .exceptions import APIThrottled, MustGetBlacklisted
 from .score import compute_score, MAX_SCORES
-from subliminal.utils import hash_napiprojekt, hash_opensubtitles, hash_shooter, hash_thesubdb
 from subliminal.video import VIDEO_EXTENSIONS, Video, Episode, Movie
-from subliminal.core import guessit, ProviderPool, io, is_windows_special_path, \
-    ThreadPoolExecutor, check_video
+from subliminal.core import guessit, ProviderPool, ThreadPoolExecutor, check_video
 
+try:
+    from subliminal.core import is_windows_special_path
+except ImportError:
+    is_windows_special_path = False
+
+from subliminal_patch.hashes import hash_napiprojekt, hash_opensubtitles, hash_shooter, hash_thesubdb
 from subzero.language import Language, ENDSWITH_LANGUAGECODE_RE, FULL_LANGUAGE_LIST
 
 logger = logging.getLogger(__name__)
@@ -212,10 +216,14 @@ class _LanguageEquals(list):
 
 
 class SZProviderPool(ProviderPool):
+    @staticmethod
+    def _dedupe_provider_names(providers):
+        return list(dict.fromkeys(providers or []))
+
     def __init__(self, providers=None, provider_configs=None, blacklist=None, ban_list=None, throttle_callback=None,
                  pre_download_hook=None, post_download_hook=None, language_hook=None, language_equals=None):
         #: Name of providers to use
-        self.providers = list(providers or [])
+        self.providers = self._dedupe_provider_names(providers)
 
         #: Initialized providers
         self.initialized_providers = {}
@@ -251,24 +259,22 @@ class SZProviderPool(ProviderPool):
         # Check if the pool was initialized enough hours ago
         self._check_lifetime()
 
-        providers = list(providers or [])
+        providers = self._dedupe_provider_names(providers)
+        provider_names = set(providers)
 
         # Check if any new provider has been added
         updated = providers != self.providers or ban_list != self.ban_list
-        removed_providers = set(sorted(set(self.providers) - set(providers)))
+        removed_providers = set(self.providers) - provider_names
 
         logger.debug("Discarded providers: %s | New providers: %s", self.discarded_providers, providers)
-        self.discarded_providers.difference_update(set(providers))
+        self.discarded_providers.difference_update(provider_names)
         logger.debug("Updated discarded providers: %s", self.discarded_providers)
 
         removed_providers.update(self.discarded_providers)
 
         logger.debug("Removed providers: %s", removed_providers)
 
-        self.providers = [p for p in self.providers if p not in removed_providers]
-        for p in providers:
-            if p not in self.providers:
-                self.providers.append(p)
+        self.providers = [provider for provider in providers if provider not in removed_providers]
 
         # Terminate and delete removed providers from instance
         for removed in removed_providers:
@@ -474,12 +480,17 @@ class SZProviderPool(ProviderPool):
 
         return subtitles
 
-    def list_subtitles_prioritized(self, video, languages, min_score=0, provider_order=None, compute_score=None):
+    def list_subtitles_prioritized(self, video, languages, min_score=0, provider_order=None, compute_score=None,
+                                   exhaustive=False):
         """List subtitles with priority-based provider search.
 
         Search providers in priority order. Stop only when every requested
         language has at least one subtitle meeting min_score, or all providers
         have been exhausted.
+
+        When ``exhaustive=True`` (manual search), the early-exit on satisfied
+        languages is disabled so every provider is queried and the user sees
+        the full set of candidates regardless of score.
         """
         from .score import compute_score as default_compute_score
         compute_score = compute_score or default_compute_score
@@ -531,7 +542,7 @@ class SZProviderPool(ProviderPool):
 
             all_subtitles.extend(valid_subtitles)
 
-            if required_languages and satisfied_languages >= required_languages:
+            if not exhaustive and required_languages and satisfied_languages >= required_languages:
                 logger.info('All requested languages satisfied after provider %s, stopping search', name)
                 return all_subtitles
 
@@ -758,11 +769,11 @@ class SZProviderPool(ProviderPool):
             try:
                 provider_languages = self[name].languages
             except AttributeError:
-                logger.exception(f"{name} provider doesn't have a languages attribute")
+                logger.exception("%s provider doesn't have a languages attribute", name)
                 continue
 
             if provider_languages is None:
-                logger.info(f"Skipping provider {name} because it doesn't support any languages.")
+                logger.info("Skipping provider %s because it doesn't support any languages.", name)
                 continue
 
             # add the languages for this provider
@@ -784,11 +795,11 @@ class SZProviderPool(ProviderPool):
             try:
                 provider_video_type = self[name].video_types
             except AttributeError:
-                logger.exception(f"{name} provider doesn't have a video_types method")
+                logger.exception("%s provider doesn't have a video_types method", name)
                 continue
 
             if provider_video_type is None:
-                logger.info(f"Skipping provider {name} because it doesn't support any video type.")
+                logger.info("Skipping provider %s because it doesn't support any video type.", name)
                 continue
 
             # add the video types for this provider
@@ -874,7 +885,7 @@ class SZAsyncProviderPool(SZProviderPool):
             try:
                 provider_languages = {'provider': provider_name, 'languages': self[provider_name].languages}
             except AttributeError:
-                logger.exception(f"{provider_name} provider doesn't have a languages attribute")
+                logger.exception("%s provider doesn't have a languages attribute", provider_name)
 
             return provider_languages
 
@@ -904,7 +915,7 @@ class SZAsyncProviderPool(SZProviderPool):
                 provider_video_types = {'provider': provider_name,
                                         'video_types': self[provider_name].video_types}
             except AttributeError:
-                logger.exception(f"{provider_name} provider doesn't have a video_types attribute")
+                logger.exception("%s provider doesn't have a video_types attribute", provider_name)
 
             return provider_video_types
 
@@ -1392,6 +1403,5 @@ def refine(video, episode_refiners=None, movie_refiners=None, **kwargs):
         logger.info('Refining video with %s', refiner)
         try:
             refiner_manager[refiner].plugin(video, **kwargs)
-        except:
+        except Exception:
             logger.error('Failed to refine video: %s', traceback.format_exc())
-

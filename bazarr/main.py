@@ -22,6 +22,10 @@ os.environ["BAZARR_VERSION"] = bazarr_version.lstrip('v')
 import app.libs  # noqa: E402
 
 from app.get_args import args  # noqa: E402
+from app.requirements import ensure_requirements  # noqa: E402
+
+ensure_requirements(args.no_update)
+
 from app.check_update import apply_update, check_releases, check_if_new_update  # noqa: E402
 from app.config import settings, configure_proxy_func, base_url  # noqa: E402, F401
 from init import *  # noqa: E402, F403
@@ -43,6 +47,7 @@ else:
 from app.database import (System, database, update, migrate_db, create_db_revision, upgrade_languages_profile_values,  # noqa: E402
                           fix_languages_profiles_with_duplicate_ids)
 from app.notifier import update_notifier  # noqa: E402
+from provider_hub.service import activate_staged_installations  # noqa: E402
 from languages.get_languages import load_language_in_db  # noqa: E402
 from app.jobs_queue import jobs_queue  # noqa: E402
 from app.signalr_client import sonarr_signalr_client, radarr_signalr_client  # noqa: E402
@@ -58,6 +63,7 @@ else:
     migrate_db(app)
     upgrade_languages_profile_values()
     fix_languages_profiles_with_duplicate_ids()
+    activate_staged_installations()
 
 configure_proxy_func()
 

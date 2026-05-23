@@ -41,7 +41,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup NodeJS
         uses: actions/setup-node@v6
@@ -83,7 +83,7 @@ jobs:
           echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
 
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -94,7 +94,7 @@ jobs:
           path: ${{ env.UI_DIRECTORY }}/build
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -208,33 +208,10 @@ jobs:
           echo "- **Platforms:** linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
           echo "- **Cache Status:** GHA cache enabled" >> $GITHUB_STEP_SUMMARY
 
-  # ==========================================================================
-  # Create GitHub Release for tagged versions
-  # ==========================================================================
-  create-release:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v3
-        with:
-          generate_release_notes: true
-          body: |
-            ## 🐳 Docker Images
-            
-            ```bash
-            docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }}
-            ```
-            
-            ## 📝 Changes
-            
-            This release is based on upstream Bazarr with the following custom modifications:
-            - OpenSubtitles.org web scraper provider (no VIP API needed)
-            
-            See the auto-generated release notes below for detailed changes.
+  # Release-body management is intentionally NOT done from this workflow.
+  # Releases for the Bazarr+ fork are drafted by hand with a pandoc GFM
+  # pre-publish render check; an earlier softprops/action-gh-release step
+  # here ran on every refs/tags/v* push and clobbered the hand-authored
+  # body of the existing release (notably v2.2.0 Synapse on 2026-05-13).
+  # If post-tag automation is ever needed again, gate it so it only fills
+  # release bodies that are currently empty.
