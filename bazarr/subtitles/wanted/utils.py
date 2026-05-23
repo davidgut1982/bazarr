@@ -5,7 +5,7 @@ import ast
 import os
 
 
-def _find_existing_subtitle_path(subtitles_field, source_lang):
+def _find_existing_subtitle_path(subtitles_field, source_lang, path_replace_fn=None):
     """Return on-disk path of an existing external subtitle for source_lang
     (ignoring :hi / :forced variants), or None. subtitles_field is the raw
     DB value (a python-literal list of [code, path, length] tuples).
@@ -16,10 +16,16 @@ def _find_existing_subtitle_path(subtitles_field, source_lang):
     copy-paste divergence the previous duplicate implementations risked.
     What: Parses the stored subtitles list and returns the first path whose
     language matches source_lang and exists on disk (preferring plain over
-    :hi / :forced variants).
+    :hi / :forced variants). When path_replace_fn is provided (e.g.
+    path_mappings.path_replace / path_replace_movie), each candidate path
+    is mapped through it before the existence check and the mapped path is
+    returned, so Docker / remote setups with path mappings see the correct
+    on-disk location.
     Test: Pass a literal list like "[['en','/tmp/x.srt',null]]" with an
     existing file and source_lang='en' — assert it returns '/tmp/x.srt';
-    pass with a missing file or wrong code — assert None.
+    pass with a missing file or wrong code — assert None; pass a
+    path_replace_fn that rewrites '/remote/x.srt' to a real local path and
+    assert the mapped path is returned.
     """
     if not subtitles_field:
         return None
@@ -33,14 +39,16 @@ def _find_existing_subtitle_path(subtitles_field, source_lang):
             continue
         code = (entry[0] or '')
         path = entry[1]
-        if code == source_lang and path and os.path.exists(path):
-            return path
+        mapped = path_replace_fn(path) if (path_replace_fn and path) else path
+        if code == source_lang and mapped and os.path.exists(mapped):
+            return mapped
     # Fallback: accept any source-language variant
     for entry in entries:
         if not entry or len(entry) < 2:
             continue
         code = (entry[0] or '').split(':')[0]
         path = entry[1]
-        if code == source_lang and path and os.path.exists(path):
-            return path
+        mapped = path_replace_fn(path) if (path_replace_fn and path) else path
+        if code == source_lang and mapped and os.path.exists(mapped):
+            return mapped
     return None

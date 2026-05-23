@@ -69,8 +69,9 @@ def _trigger_auto_translation(downloaded_lang, subtitle_path, video_path, media_
         min_score = settings.translator.min_source_score
         if source_score_percent is not None and source_score_percent < min_score:
             logging.info(
-                f'BAZARR auto-translate skipped: source score {source_score_percent:.1f}% '
-                f'below threshold {min_score}% for {video_path}'
+                'BAZARR auto-translate skipped: source score %.1f%% '
+                'below threshold %s%% for %s',
+                source_score_percent, min_score, video_path,
             )
             return
 
@@ -119,10 +120,16 @@ def _trigger_auto_translation(downloaded_lang, subtitle_path, video_path, media_
 
             target_codes = {target_lang, f'{target_lang}:hi', f'{target_lang}:forced'}
             if not (missing_codes & target_codes):
-                logging.debug(f'BAZARR auto-translate skipped: {target_lang} already satisfied for {video_path}')
+                logging.debug(
+                    'BAZARR auto-translate skipped: %s already satisfied for %s',
+                    target_lang, video_path,
+                )
                 continue
 
-            logging.info(f'BAZARR auto-translate queuing {downloaded_lang} -> {target_lang} for {video_path}')
+            logging.info(
+                'BAZARR auto-translate queuing %s -> %s for %s',
+                downloaded_lang, target_lang, video_path,
+            )
             translate_media_type = 'series' if media_type == 'series' else 'movies'
             translate_subtitles_file(
                 video_path=video_path,

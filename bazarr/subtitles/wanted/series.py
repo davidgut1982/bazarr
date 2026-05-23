@@ -53,7 +53,11 @@ def _wanted_episode(episode, providers_list, job_id=None):
 
         translate_cfg = translate_from_map.get(lang_code)
         if translate_cfg:
-            source_srt = _find_existing_subtitle_path(episode.subtitles, translate_cfg['from'])
+            source_srt = _find_existing_subtitle_path(
+                episode.subtitles,
+                translate_cfg['from'],
+                path_replace_fn=path_mappings.path_replace,
+            )
             if source_srt:
                 min_score = settings.translator.min_source_score
                 history = database.execute(
@@ -74,15 +78,16 @@ def _wanted_episode(episode, providers_list, job_id=None):
                     source_score_pct = min_score
                 if source_score_pct < min_score:
                     logging.debug(
-                        f"BAZARR auto-translate (wanted-scan) skipped for {video_path}: "
-                        f"source score {source_score_pct}% < threshold {min_score}% "
-                        f"(falling back to provider search)"
+                        "BAZARR auto-translate (wanted-scan) skipped for %s: "
+                        "source score %s%% < threshold %s%% "
+                        "(falling back to provider search)",
+                        video_path, source_score_pct, min_score,
                     )
                 else:
                     # Guard: skip if we already have a translate history entry
-                    # for this target language. Why: the previous translate
-                    # history_log write is what blocks re-queuing after a
-                    # restart while the queued job hasn't run yet. Without this
+                    # for this target language. Why: the translate service
+                    # writes action=6 on successful completion, which blocks
+                    # re-queuing after a successful translation. Without this
                     # check, the wanted-scan would re-queue every cycle.
                     already_translated = database.execute(
                         select(TableHistory.id)
@@ -95,26 +100,10 @@ def _wanted_episode(episode, providers_list, job_id=None):
                         continue
                     try:
                         from subtitles.tools.translate.main import translate_subtitles_file
-                        from subtitles.tools.translate.core.translator_utils import create_process_result
-                        logging.info(f"BAZARR auto-translate (wanted-scan) queuing "
-                                     f"{translate_cfg['from']} -> {lang_code} for {video_path}")
-                        # Pre-log a translate history entry before queuing the async
-                        # translation job. Why: translate_subtitles_file (no job_id)
-                        # defers to the jobs queue and returns immediately; without a
-                        # marker the next wanted-scan cycle re-queues the same
-                        # translation before the worker runs.
-                        translate_msg = (f"BAZARR auto-translate (wanted-scan) queued "
-                                         f"{translate_cfg['from']} -> {lang_code}")
-                        pre_result = create_process_result(
-                            message=translate_msg,
-                            video_path=video_path,
-                            orig_to_lang=lang_code,
-                            forced=language.endswith(':forced') or translate_cfg['forced'],
-                            hi=language.endswith(':hi') or translate_cfg['hi'],
-                            dest_srt_file=source_srt,
-                            media_type='episode',
+                        logging.info(
+                            "BAZARR auto-translate (wanted-scan) queuing %s -> %s for %s",
+                            translate_cfg['from'], lang_code, video_path,
                         )
-                        history_log(6, episode.sonarrSeriesId, episode.sonarrEpisodeId, pre_result)
                         translate_subtitles_file(
                             video_path=video_path,
                             source_srt_file=source_srt,
@@ -129,9 +118,11 @@ def _wanted_episode(episode, providers_list, job_id=None):
                             metadata=None,
                         )
                         continue
-                    except Exception:
-                        logging.exception(f"BAZARR failed to queue auto-translate for {video_path} "
-                                          f"language {lang_code}; falling back to provider search")
+                    except Exception as e:
+                        logging.exception(
+                            "BAZARR failed to queue auto-translate for %s: %s",
+                            video_path, str(e),
+                        )
 
         if is_search_active(desired_language=language, attempt_string=episode.failedAttempts):
             hi_ = "True" if language.endswith(':hi') else "False"
