@@ -155,8 +155,9 @@ def store_subtitles(original_path, reversed_path, use_cache=True):
             if episode:
                 logging.debug(f"BAZARR storing those languages to DB: {actual_subtitles}")  # noqa: G004
                 list_missing_subtitles(epno=episode.sonarrEpisodeId)
-                _log_embedded_history(episode.sonarrSeriesId, episode.sonarrEpisodeId,
-                                      embedded_languages, reversed_path)
+                if embedded_languages:
+                    _log_embedded_history(episode.sonarrSeriesId, episode.sonarrEpisodeId,
+                                          embedded_languages, reversed_path)
             else:
                 logging.debug(f"BAZARR haven't been able to update existing subtitles to DB: {actual_subtitles}")  # noqa: G004
     else:
@@ -179,9 +180,6 @@ def _log_embedded_history(series_id, episode_id, embedded_languages, reversed_pa
     Test: Index an episode with an embedded track twice; assert exactly one
     action=7 row exists for that episode+language with score == score_out_of.
     """
-    if not embedded_languages:
-        return
-
     _, score_out_of, _ = _get_scores('series')
 
     for lang in embedded_languages:
