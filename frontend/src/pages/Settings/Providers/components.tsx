@@ -116,7 +116,7 @@ const parseProviderPriorities = (
   return null;
 };
 
-const parseProviderLanguages = (
+const parseProviderLanguageExclusions = (
   value: unknown,
 ): Record<string, string[]> | null => {
   if (!value) {
@@ -127,7 +127,7 @@ const parseProviderLanguages = (
     try {
       const parsed = JSON.parse(value);
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        return parseProviderLanguages(parsed);
+        return parseProviderLanguageExclusions(parsed);
       }
     } catch {
       return null;
@@ -174,18 +174,18 @@ const resolveProviderPriorities = (
   return {};
 };
 
-const resolveProviderLanguages = (
+const resolveProviderLanguageExclusions = (
   staged: LooseObject | undefined,
   settings: Settings | null,
 ): Record<string, string[]> => {
-  const fromStaged = parseProviderLanguages(
+  const fromStaged = parseProviderLanguageExclusions(
     staged?.["settings-general-provider_languages"],
   );
   if (fromStaged) {
     return { ...fromStaged };
   }
 
-  const fromSettings = parseProviderLanguages(
+  const fromSettings = parseProviderLanguageExclusions(
     settings?.general?.provider_languages,
   );
   if (fromSettings) {
@@ -749,7 +749,10 @@ const ProviderTool: FunctionComponent<ProviderToolProps> = ({
 
   const [info, setInfo] = useState<Nullable<ProviderInfo>>(payload);
   const seededPriorities = resolveProviderPriorities(staged, settings);
-  const seededProviderLanguages = resolveProviderLanguages(staged, settings);
+  const seededProviderLanguageExclusions = resolveProviderLanguageExclusions(
+    staged,
+    settings,
+  );
 
   const form = useForm<FormValues>({
     initialValues: {
@@ -758,7 +761,7 @@ const ProviderTool: FunctionComponent<ProviderToolProps> = ({
         [`settings-general-provider_priorities-${info?.key}`]:
           seededPriorities[info?.key ?? ""] ?? 100,
         [`settings-general-provider_languages-${info?.key}`]:
-          seededProviderLanguages[info?.key ?? ""] ?? [],
+          seededProviderLanguageExclusions[info?.key ?? ""] ?? [],
       },
       hooks: {},
     },
@@ -776,7 +779,7 @@ const ProviderTool: FunctionComponent<ProviderToolProps> = ({
 
       const languagesKey = `settings-general-provider_languages-${info.key}`;
       const languageValue =
-        resolveProviderLanguages(staged, settings)[info.key] ?? [];
+        resolveProviderLanguageExclusions(staged, settings)[info.key] ?? [];
       form.setFieldValue(`settings.${languagesKey}`, languageValue);
     }
   }, [info?.key]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -797,11 +800,16 @@ const ProviderTool: FunctionComponent<ProviderToolProps> = ({
           JSON.stringify(nextPriorities);
 
         if (settingsKey === "settings-general-enabled_providers") {
-          const providerLanguages = resolveProviderLanguages(staged, settings);
-          const nextProviderLanguages = { ...providerLanguages };
-          delete nextProviderLanguages[payload.key];
+          const providerLanguageExclusions = resolveProviderLanguageExclusions(
+            staged,
+            settings,
+          );
+          const nextProviderLanguageExclusions = {
+            ...providerLanguageExclusions,
+          };
+          delete nextProviderLanguageExclusions[payload.key];
           changes["settings-general-provider_languages"] = JSON.stringify(
-            nextProviderLanguages,
+            nextProviderLanguageExclusions,
           );
         }
 
@@ -846,23 +854,24 @@ const ProviderTool: FunctionComponent<ProviderToolProps> = ({
 
         if (settingsKey === "settings-general-enabled_providers") {
           const languageKey = `settings-general-provider_languages-${info.key}`;
-          const providerLanguages = resolveProviderLanguages(
+          const providerLanguageExclusions = resolveProviderLanguageExclusions(
             values.settings,
             settings,
           );
-          const selectedLanguages = values.settings[languageKey];
+          const excludedLanguages = values.settings[languageKey];
 
           if (
-            Array.isArray(selectedLanguages) &&
-            selectedLanguages.length > 0
+            Array.isArray(excludedLanguages) &&
+            excludedLanguages.length > 0
           ) {
-            providerLanguages[info.key] = selectedLanguages;
+            providerLanguageExclusions[info.key] = excludedLanguages;
           } else {
-            delete providerLanguages[info.key];
+            delete providerLanguageExclusions[info.key];
           }
 
-          changes["settings-general-provider_languages"] =
-            JSON.stringify(providerLanguages);
+          changes["settings-general-provider_languages"] = JSON.stringify(
+            providerLanguageExclusions,
+          );
           delete changes[languageKey];
         }
 
@@ -1122,7 +1131,7 @@ const ProviderTool: FunctionComponent<ProviderToolProps> = ({
                 settingsKey === "settings-general-enabled_providers" && (
                   <Stack gap="xs">
                     <MultiSelect
-                      label="Search languages"
+                      label="Excluded languages"
                       data={providerLanguageOptions}
                       value={
                         (form.values.settings[
@@ -1135,7 +1144,7 @@ const ProviderTool: FunctionComponent<ProviderToolProps> = ({
                           value,
                         )
                       }
-                      placeholder="All available languages"
+                      placeholder="No languages excluded"
                       searchable
                       clearable
                       hidePickedOptions

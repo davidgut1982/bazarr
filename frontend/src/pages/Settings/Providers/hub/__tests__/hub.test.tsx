@@ -341,7 +341,7 @@ describe("Settings > Providers (Provider Hub)", () => {
     ).toBeInTheDocument();
   });
 
-  it("stages per-provider language configuration from the provider drawer", async () => {
+  it("stages per-provider excluded language configuration from the provider drawer", async () => {
     const updateRequest = vi.fn();
     server.use(
       http.get("/api/system/settings", () => {
@@ -381,7 +381,7 @@ describe("Settings > Providers (Provider Hub)", () => {
       name: /Provider settings/i,
     });
     const languageInput =
-      await within(dialog).findByLabelText("Search languages");
+      await within(dialog).findByLabelText("Excluded languages");
 
     await userEvent.click(languageInput);
     await userEvent.type(languageInput, "English");

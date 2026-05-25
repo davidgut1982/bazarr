@@ -115,7 +115,7 @@ def test_get_language_equals_injected_settings_hi():
     assert result == [(Language("eng", hi=True), Language("eng"))]
 
 
-def test_get_provider_language_allowlist_parses_configured_languages():
+def test_get_provider_language_exclusions_parses_configured_languages():
     config = get_providers.settings
     original = getattr(config.general, "provider_languages", {})
     config.set(
@@ -127,7 +127,7 @@ def test_get_provider_language_allowlist_parses_configured_languages():
     )
 
     try:
-        result = get_providers.get_provider_language_allowlist(config)
+        result = get_providers.get_provider_language_exclusions(config)
     finally:
         config.set("general.provider_languages", original)
 
@@ -136,7 +136,7 @@ def test_get_provider_language_allowlist_parses_configured_languages():
     }
 
 
-def test_get_provider_language_hook_returns_configured_allowlist():
+def test_get_provider_language_hook_returns_configured_exclusions():
     config = get_providers.settings
     original = getattr(config.general, "provider_languages", {})
     config.set(

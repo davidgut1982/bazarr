@@ -201,7 +201,7 @@ def get_language_equals(settings_=None):
     return items
 
 
-def get_provider_language_allowlist(settings_=None):
+def get_provider_language_exclusions(settings_=None):
     settings_ = settings_ or settings
 
     configured = getattr(settings_.general, "provider_languages", {}) or {}
@@ -215,7 +215,7 @@ def get_provider_language_allowlist(settings_=None):
     if not isinstance(configured, dict):
         return {}
 
-    allowlist = {}
+    exclusions = {}
     for provider, language_codes in configured.items():
         if not provider or not isinstance(language_codes, (list, tuple, set)):
             continue
@@ -230,16 +230,16 @@ def get_provider_language_allowlist(settings_=None):
                 logging.info("Invalid provider language value for %s: '%s' [%s]", provider, language_code, error)
 
         if languages:
-            allowlist[str(provider)] = languages
+            exclusions[str(provider)] = languages
 
-    return allowlist
+    return exclusions
 
 
 def get_provider_language_hook(settings_=None):
     settings_ = settings_ or settings
 
     def provider_language_hook(provider):
-        return get_provider_language_allowlist(settings_).get(provider)
+        return get_provider_language_exclusions(settings_).get(provider)
 
     return provider_language_hook
 
