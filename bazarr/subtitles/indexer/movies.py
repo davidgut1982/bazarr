@@ -158,7 +158,8 @@ def store_subtitles_movie(original_path, reversed_path, use_cache=True):
             if movie:
                 logging.debug(f"BAZARR storing those languages to DB: {actual_subtitles}")  # noqa: G004
                 list_missing_subtitles_movies(no=movie.radarrId)
-                _log_embedded_history_movie(movie.radarrId, embedded_languages, reversed_path)
+                if embedded_languages:
+                    _log_embedded_history_movie(movie.radarrId, embedded_languages, reversed_path)
             else:
                 logging.debug(f"BAZARR haven't been able to update existing subtitles to DB: {actual_subtitles}")  # noqa: G004
     else:
@@ -182,32 +183,36 @@ def _log_embedded_history_movie(radarr_id, embedded_languages, reversed_path):
     Test: Index a movie with an embedded track twice; assert exactly one action=7
     row exists for that movie+language with score == score_out_of.
     """
-    if not embedded_languages:
-        return
+    try:
+        _, score_out_of, _ = _get_scores('movie')
 
-    _, score_out_of, _ = _get_scores('movie')
+        for lang in embedded_languages:
+            # Dedup: skip if we already logged action=7 for this movie+language.
+            # Not atomic under AUTOCOMMIT — concurrent indexing of the same movie
+            # could produce duplicates, but this is rare in practice and consistent
+            # with how other parts of Bazarr dedup history entries.
+            existing = database.execute(
+                select(TableHistoryMovie.id)
+                .where(TableHistoryMovie.radarrId == radarr_id)
+                .where(TableHistoryMovie.language == lang)
+                .where(TableHistoryMovie.action == 7)).first()
+            if existing:
+                continue
 
-    for lang in embedded_languages:
-        existing = database.execute(
-            select(TableHistoryMovie.id)
-            .where(TableHistoryMovie.radarrId == radarr_id)
-            .where(TableHistoryMovie.language == lang)
-            .where(TableHistoryMovie.action == 7)).first()
-        if existing:
-            continue
-
-        result = ProcessSubtitlesResult(
-            message=f"{lang} embedded subtitles detected.",
-            reversed_path=reversed_path,
-            downloaded_language_code2=lang.split(':')[0],
-            downloaded_provider="embedded",
-            score=score_out_of,
-            forced=lang.endswith(':forced'),
-            subtitle_id=None,
-            reversed_subtitles_path=None,
-            hearing_impaired=lang.endswith(':hi'))
-        history_log_movie(action=7, radarr_id=radarr_id, result=result,
-                          fake_provider="embedded", fake_score=score_out_of)
+            result = ProcessSubtitlesResult(
+                message=f"{lang} embedded subtitles detected.",
+                reversed_path=reversed_path,
+                downloaded_language_code2=lang.split(':')[0],
+                downloaded_provider="embedded",
+                score=score_out_of,
+                forced=lang.endswith(':forced'),
+                subtitle_id=None,
+                reversed_subtitles_path=None,
+                hearing_impaired=lang.endswith(':hi'))
+            history_log_movie(action=7, radarr_id=radarr_id, result=result,
+                              fake_provider="embedded", fake_score=score_out_of)
+    except Exception:
+        logging.exception("BAZARR error writing embedded subtitle history for movie %s", radarr_id)
 
 
 def list_missing_subtitles_movies(no=None):

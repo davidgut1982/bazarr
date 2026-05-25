@@ -180,29 +180,36 @@ def _log_embedded_history(series_id, episode_id, embedded_languages, reversed_pa
     Test: Index an episode with an embedded track twice; assert exactly one
     action=7 row exists for that episode+language with score == score_out_of.
     """
-    _, score_out_of, _ = _get_scores('series')
+    try:
+        _, score_out_of, _ = _get_scores('series')
 
-    for lang in embedded_languages:
-        existing = database.execute(
-            select(TableHistory.id)
-            .where(TableHistory.sonarrEpisodeId == episode_id)
-            .where(TableHistory.language == lang)
-            .where(TableHistory.action == 7)).first()
-        if existing:
-            continue
+        for lang in embedded_languages:
+            # Dedup: skip if we already logged action=7 for this episode+language.
+            # Not atomic under AUTOCOMMIT — concurrent indexing of the same episode
+            # could produce duplicates, but this is rare in practice and consistent
+            # with how other parts of Bazarr dedup history entries.
+            existing = database.execute(
+                select(TableHistory.id)
+                .where(TableHistory.sonarrEpisodeId == episode_id)
+                .where(TableHistory.language == lang)
+                .where(TableHistory.action == 7)).first()
+            if existing:
+                continue
 
-        result = ProcessSubtitlesResult(
-            message=f"{lang} embedded subtitles detected.",
-            reversed_path=reversed_path,
-            downloaded_language_code2=lang.split(':')[0],
-            downloaded_provider="embedded",
-            score=score_out_of,
-            forced=lang.endswith(':forced'),
-            subtitle_id=None,
-            reversed_subtitles_path=None,
-            hearing_impaired=lang.endswith(':hi'))
-        history_log(action=7, sonarr_series_id=series_id, sonarr_episode_id=episode_id,
-                    result=result, fake_provider="embedded", fake_score=score_out_of)
+            result = ProcessSubtitlesResult(
+                message=f"{lang} embedded subtitles detected.",
+                reversed_path=reversed_path,
+                downloaded_language_code2=lang.split(':')[0],
+                downloaded_provider="embedded",
+                score=score_out_of,
+                forced=lang.endswith(':forced'),
+                subtitle_id=None,
+                reversed_subtitles_path=None,
+                hearing_impaired=lang.endswith(':hi'))
+            history_log(action=7, sonarr_series_id=series_id, sonarr_episode_id=episode_id,
+                        result=result, fake_provider="embedded", fake_score=score_out_of)
+    except Exception:
+        logging.exception("BAZARR error writing embedded subtitle history for episode %s", episode_id)
 
 
 def list_missing_subtitles(no=None, epno=None):
