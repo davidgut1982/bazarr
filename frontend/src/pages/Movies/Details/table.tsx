@@ -174,6 +174,7 @@ const Table: FunctionComponent<Props> = ({ movie, profile, history }) => {
     return (
       <SubtitleToolsMenu
         selections={selections}
+        embeddedTrack={isSubtitleTrack(path)}
         onAction={async (action) => {
           if (action === "view") {
             navigate(
