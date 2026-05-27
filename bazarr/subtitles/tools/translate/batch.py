@@ -404,15 +404,22 @@ def extract_embedded_subtitle(video_path, language_code2, media_type):
     # Build output path in Bazarr's config dir so Jellyfin won't pick it up
     import hashlib
 
-    extract_dir = os.path.join("/config", "extracted_subs")
+    from app.get_args import args as bazarr_args
+
+    extract_dir = os.path.join(bazarr_args.config_dir, "extracted_subs")
     os.makedirs(extract_dir, exist_ok=True)
     video_hash = hashlib.md5(video_path.encode()).hexdigest()
+    # TODO: include hi/forced flags in cache key once extract_embedded_subtitle
+    # accepts those parameters — currently callers don't pass them so two requests
+    # for the same video/language but different hi/forced may return the wrong track.
     output_path = os.path.join(extract_dir, f"{video_hash}.{language_code2}.srt")
 
-    # Skip extraction if already done
-    if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
-        logger.debug(f"Using previously extracted subtitle: {output_path}")  # noqa: G004
-        return output_path
+    # NOTE: Cache removed until hi/forced flags are threaded through the function
+    # signature. Re-extracting every time is slightly slower but always correct.
+    # A stale cache hit would silently return the wrong track when a second request
+    # arrives for the same video/language but different hi/forced flags.
+    # TODO: Re-enable cache once extract_embedded_subtitle(video_path, lang,
+    #       media_type, hi=False, forced=False) is implemented.
 
     # Extract using ffmpeg
     try:

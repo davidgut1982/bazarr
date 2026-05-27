@@ -68,12 +68,10 @@ const Table: FunctionComponent<Props> = ({ movie, profile, history }) => {
 
   const { download, remove } = useMovieSubtitleModification();
 
-  // Available subtitles with actual files (for translate-from source)
+  // Available subtitles for translate-from source — include embedded tracks
+  // (backend handles bitmap exclusion at extraction time)
   const availableSources = useMemo(
-    () =>
-      (movie?.subtitles ?? []).filter(
-        (s) => s.path && !isSubtitleTrack(s.path),
-      ),
+    () => movie?.subtitles ?? [],
     [movie?.subtitles],
   );
 
@@ -119,14 +117,18 @@ const Table: FunctionComponent<Props> = ({ movie, profile, history }) => {
     const selections = useMemo(() => {
       const list: FormType.ModifySubtitle[] = [];
 
-      if (path && !isSubtitleMissing(path) && movie !== null) {
+      if (!isSubtitleMissing(path) && movie !== null) {
         list.push({
           type: "movie",
-          path,
+          // Embedded track: path is null/empty — pass empty string so backend
+          // treats it as an embedded extraction request (translate only).
+          path: isSubtitleTrack(path) ? "" : path!,
           id: movie.radarrId,
           language: code2,
           forced: toPython(forced),
           hi: toPython(hi),
+          // Carry the source language so backend can extract the right track
+          from_language: isSubtitleTrack(path) ? code2 : undefined,
         });
       }
 
@@ -196,7 +198,6 @@ const Table: FunctionComponent<Props> = ({ movie, profile, history }) => {
       >
         <Action
           label="Subtitle Actions"
-          disabled={isSubtitleTrack(path)}
           icon={faEllipsis}
         ></Action>
       </SubtitleToolsMenu>

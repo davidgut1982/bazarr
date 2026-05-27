@@ -1,6 +1,6 @@
 import { FunctionComponent, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { Badge, MantineColor, Tooltip, UnstyledButton } from "@mantine/core";
+import { Badge, MantineColor } from "@mantine/core";
 import { useEpisodeSubtitleModification } from "@/apis/hooks";
 import Language from "@/components/bazarr/Language";
 import SubtitleToolsMenu from "@/components/SubtitleToolsMenu";
@@ -33,44 +33,42 @@ export const Subtitle: FunctionComponent<Props> = ({
 
   const [opened, setOpen] = useState(false);
 
-  const disabled = subtitle.path === null;
+  // falsy path (null, undefined, "") means this is an embedded (in-container) subtitle track
+  const isEmbedded = !subtitle.path;
 
   const variant: MantineColor | undefined = useMemo(() => {
-    if (opened && (missing || !disabled)) {
+    if (opened && (missing || !isEmbedded)) {
       return "highlight";
     } else if (missing) {
       return "missing";
-    } else if (disabled) {
+    } else if (isEmbedded) {
       return "disabled";
     }
-  }, [disabled, missing, opened]);
-
-  const badgeTooltip = useMemo(() => {
-    if (missing) return "Missing subtitle";
-    if (disabled) return "Embedded subtitle";
-    return "Available subtitle";
-  }, [missing, disabled]);
+  }, [isEmbedded, missing, opened]);
 
   const selections = useMemo<FormType.ModifySubtitle[]>(() => {
-    const list: FormType.ModifySubtitle[] = [];
+    if (missing) return [];
 
-    if (subtitle.path) {
-      list.push({
+    return [
+      {
         id: episodeId,
         type: "episode",
+        // Embedded track: empty path signals extraction on the backend
+        path: subtitle.path ?? "",
         language: subtitle.code2,
-        path: subtitle.path,
         forced: toPython(subtitle.forced),
         hi: toPython(subtitle.hi),
-      });
-    }
+        // Required by backend to identify which embedded track to extract
+        from_language: isEmbedded ? subtitle.code2 : undefined,
+      },
+    ];
+  }, [episodeId, subtitle.code2, subtitle.path, subtitle.forced, subtitle.hi, isEmbedded, missing]);
 
-    return list;
-  }, [episodeId, subtitle.code2, subtitle.path, subtitle.forced, subtitle.hi]);
-
-  // For missing subs: translation sources from available subtitles
+  // Translation sources: all available subtitles (embedded + external).
+  // For missing subs the menu shows "Translate from X" items.
+  // Backend handles bitmap codec exclusion at extraction time.
   const translationSources = useMemo(
-    () => (availableSubtitles ?? []).filter((s) => s.path),
+    () => availableSubtitles ?? [],
     [availableSubtitles],
   );
 
@@ -80,20 +78,8 @@ export const Subtitle: FunctionComponent<Props> = ({
     </Badge>
   );
 
-  if (disabled && !missing) {
-    return (
-      <Tooltip.Floating label={badgeTooltip}>
-        <UnstyledButton
-          aria-label={`${subtitle.name || subtitle.code2} (embedded)`}
-          tabIndex={-1}
-        >
-          {badgeEl}
-        </UnstyledButton>
-      </Tooltip.Floating>
-    );
-  }
-
-  // Interactive badges: no Tooltip wrapper, as it breaks Menu.Target click handling
+  // Interactive badges: no Tooltip wrapper around the menu target
+  // (Tooltip.Floating breaks Menu.Target click handling)
   const ctx = badgeEl;
 
   return (
@@ -104,6 +90,7 @@ export const Subtitle: FunctionComponent<Props> = ({
         onClose: () => setOpen(false),
       }}
       selections={selections}
+      embeddedTrack={isEmbedded}
       missingLanguage={missing ? subtitle : undefined}
       translationSources={missing ? translationSources : undefined}
       mediaId={episodeId}

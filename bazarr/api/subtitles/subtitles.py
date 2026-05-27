@@ -11,6 +11,7 @@ from utilities.path_mappings import path_mappings
 from utilities.video_analyzer import subtitles_sync_references
 from subtitles.tools.subsyncer import SubSyncer  # noqa: F401
 from subtitles.tools.translate.main import translate_subtitles_file
+from subtitles.tools.translate.batch import extract_embedded_subtitle
 from subtitles.tools.mods import subtitles_apply_mods
 from subtitles.indexer.series import store_subtitles
 from subtitles.indexer.movies import store_subtitles_movie
@@ -112,7 +113,16 @@ class Subtitles(Resource):
         "language", type=str, required=True, help="Language code2"
     )
     patch_request_parser.add_argument(
-        "path", type=str, required=True, help="Subtitles file path"
+        "path",
+        type=str,
+        required=False,
+        help="Subtitles file path (empty for embedded tracks)",
+    )
+    patch_request_parser.add_argument(
+        "from_language",
+        type=str,
+        required=False,
+        help="Source language code2 (required when path is empty, i.e. embedded track)",
     )
     patch_request_parser.add_argument(
         "type", type=str, required=True, help='Media type from ["episode", "movie"]'
@@ -174,13 +184,59 @@ class Subtitles(Resource):
         action = args.get("action")
 
         language = args.get("language")
-        subtitles_path = args.get("path")
+        subtitles_path = args.get("path") or ""
         media_type = args.get("type")
         id = args.get("id")
         forced = True if args.get("forced") == "True" else False
         hi = True if args.get("hi") == "True" else False
 
-        if not os.path.exists(subtitles_path):
+        # Embedded track: path is absent/empty — extract to a temp SRT first.
+        # Only translate is supported for embedded tracks (no file to sync/mod).
+        extracted_temp = False  # default — only True when we own the temp file
+        if not subtitles_path and action == "translate":
+            from_language_arg = args.get("from_language")
+            if not from_language_arg:
+                return (
+                    "from_language is required when path is empty (embedded track)",
+                    400,
+                )
+            if len(from_language_arg) != 2:
+                return (
+                    "from_language must be an alpha2 language code (2 characters)",
+                    400,
+                )
+
+            # Resolve the video path from the DB using the media ID
+            if media_type == "episode":
+                ep_meta = database.execute(
+                    select(TableEpisodes.path).where(
+                        TableEpisodes.sonarrEpisodeId == id
+                    )
+                ).first()
+                if not ep_meta:
+                    return "Episode not found", 404
+                embedded_video_path = path_mappings.path_replace(ep_meta.path)
+            else:
+                mv_meta = database.execute(
+                    select(TableMovies.path).where(TableMovies.radarrId == id)
+                ).first()
+                if not mv_meta:
+                    return "Movie not found", 404
+                embedded_video_path = path_mappings.path_replace_movie(mv_meta.path)
+
+            extracted = extract_embedded_subtitle(
+                embedded_video_path, from_language_arg, media_type
+            )
+            if not extracted:
+                return (
+                    "Could not extract embedded subtitle — codec may be bitmap (PGS/VobSub) "
+                    "or the language track was not found",
+                    400,
+                )
+            subtitles_path = extracted
+            extracted_temp = True  # mark as temp file owned by this request
+
+        if not subtitles_path or not os.path.exists(subtitles_path):
             return "Subtitles file not found. Path mapping issue?", 500
 
         if media_type == "episode":
@@ -249,9 +305,16 @@ class Subtitles(Resource):
                 return "Unable to edit subtitles file. Check logs.", 409
         elif action == "translate":
             dest_language = language
-            from_language = None
+            # from_language may be pre-set by the embedded track extraction branch above
+            from_language = args.get("from_language") or None
 
-            if metadata.subtitles:
+            if from_language and len(from_language) != 2:
+                return (
+                    "from_language must be an alpha2 language code (2 characters)",
+                    400,
+                )
+
+            if not from_language and metadata.subtitles:
                 subtitles_list = get_array_from(metadata.subtitles)
                 subtitles_filename = os.path.basename(subtitles_path)
 
@@ -263,30 +326,36 @@ class Subtitles(Resource):
                             from_language = subtitle_entry[0].split(":")[0]
                             break
 
-                if not from_language or not alpha3_from_alpha2(from_language):
-                    from_language = subtitles_lang_from_filename(subtitles_path)
-                if not from_language or not alpha3_from_alpha2(from_language):
-                    return "Invalid source language code", 400
+            if not from_language or not alpha3_from_alpha2(from_language):
+                from_language = subtitles_lang_from_filename(subtitles_path)
+            if not from_language or not alpha3_from_alpha2(from_language):
+                return "Invalid source language code", 400
 
-                try:
-                    translate_subtitles_file(
-                        video_path=video_path,
-                        source_srt_file=subtitles_path,
-                        from_lang=from_language,
-                        to_lang=dest_language,
-                        forced=forced,
-                        hi=hi,
-                        media_type=media_type,
-                        sonarr_series_id=metadata.sonarrSeriesId
-                        if media_type == "episode"
-                        else None,
-                        sonarr_episode_id=id,
-                        radarr_id=id,
-                        metadata=metadata,
-                    )
-
-                except OSError:
-                    return "Unable to edit subtitles file. Check logs.", 409
+            try:
+                translate_subtitles_file(
+                    video_path=video_path,
+                    source_srt_file=subtitles_path,
+                    from_lang=from_language,
+                    to_lang=dest_language,
+                    forced=forced,
+                    hi=hi,
+                    media_type=media_type,
+                    sonarr_series_id=metadata.sonarrSeriesId
+                    if media_type == "episode"
+                    else None,
+                    sonarr_episode_id=id if media_type == "episode" else None,
+                    radarr_id=id if media_type == "movie" else None,
+                    metadata=metadata,
+                )
+            except OSError:
+                return "Unable to edit subtitles file. Check logs.", 409
+            finally:
+                # Clean up the extracted temp file — it was only needed as translation source
+                if extracted_temp and subtitles_path:
+                    try:
+                        os.unlink(subtitles_path)
+                    except OSError:
+                        pass
         else:
             try:
                 subtitles_apply_mods(
