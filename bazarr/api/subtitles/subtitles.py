@@ -204,9 +204,12 @@ class Subtitles(Resource):
         forced = True if args.get("forced") == "True" else False
         hi = True if args.get("hi") == "True" else False
 
-        # Embedded track: path is absent/empty — extract to a temp SRT first.
+        # Embedded track: path is absent/empty — extract the subtitle from the
+        # video container into {config_dir}/extracted_subs/ first.
         # Only translate is supported for embedded tracks (no file to sync/mod).
-        extracted_temp = False  # default — only True when we own the temp file
+        # NOTE: do NOT delete the extracted file here — translate_subtitles_file()
+        # dispatches an async background job that reads the file after this request
+        # returns. The extracted_subs/ directory is intentionally persistent.
         if not subtitles_path and action == "translate":
             from_language_arg = args.get("from_language")
             if not from_language_arg:
@@ -248,7 +251,6 @@ class Subtitles(Resource):
                     400,
                 )
             subtitles_path = extracted
-            extracted_temp = True  # mark as temp file owned by this request
 
         if not subtitles_path or not os.path.exists(subtitles_path):
             return "Subtitles file not found. Path mapping issue?", 500
@@ -375,13 +377,6 @@ class Subtitles(Resource):
                 )
             except OSError:
                 return "Unable to edit subtitles file. Check logs.", 409
-            finally:
-                # Clean up the extracted temp file — it was only needed as translation source
-                if extracted_temp and subtitles_path:
-                    try:
-                        os.unlink(subtitles_path)
-                    except OSError:
-                        pass
         else:
             try:
                 subtitles_apply_mods(
