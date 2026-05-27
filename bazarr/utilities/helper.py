@@ -1,6 +1,7 @@
 # coding=utf-8
 
 import os
+import hmac
 import logging
 import hashlib
 
@@ -10,31 +11,98 @@ from bs4 import UnicodeDammit
 from app.config import settings
 
 
+PBKDF2_ITERATIONS = 600_000
+
+
+def hash_password(pw):
+    salt = os.urandom(16)
+    hashed = hashlib.pbkdf2_hmac(
+        "sha256", f"{pw}".encode("utf-8"), salt, PBKDF2_ITERATIONS
+    )
+    return "pbkdf2:" + salt.hex() + ":" + hashed.hex()
+
+
+def _is_legacy_md5(stored_hash):
+    return not stored_hash.startswith("pbkdf2:")
+
+
+def _verify_password(pw, stored_hash):
+    if stored_hash.startswith("pbkdf2:"):
+        try:
+            _, salt_hex, hash_hex = stored_hash.split(":", 2)
+            salt = bytes.fromhex(salt_hex)
+            expected = bytes.fromhex(hash_hex)
+        except (ValueError, TypeError):
+            logging.error(
+                "Corrupted PBKDF2 password hash in config. Re-set your password in settings."
+            )
+            return False
+        actual = hashlib.pbkdf2_hmac(
+            "sha256", f"{pw}".encode("utf-8"), salt, PBKDF2_ITERATIONS
+        )
+        return hmac.compare_digest(actual, expected)
+    else:
+        return hmac.compare_digest(
+            hashlib.md5(f"{pw}".encode("utf-8")).hexdigest(), stored_hash
+        )
+
+
+def upgrade_password_hash(pw):
+    new_hash = hash_password(pw)
+    old_hash = settings.auth.password
+    settings.auth.password = new_hash
+    try:
+        from app.config import write_config
+
+        write_config()
+        logging.info("Upgraded password hash from MD5 to PBKDF2-SHA256")
+    except Exception:
+        settings.auth.password = old_hash
+        logging.exception(
+            "Failed to persist password hash upgrade, reverted to previous hash"
+        )
+        raise
+
+
 def check_credentials(user, pw, request, log_success=True):
-    forwarded_for_ip_addr = request.environ.get('HTTP_X_FORWARDED_FOR')
-    real_ip_addr = request.environ.get('HTTP_X_REAL_IP')
+    forwarded_for_ip_addr = request.environ.get("HTTP_X_FORWARDED_FOR")
+    real_ip_addr = request.environ.get("HTTP_X_REAL_IP")
     ip_addr = forwarded_for_ip_addr or real_ip_addr or request.remote_addr
     username = settings.auth.username
     password = settings.auth.password
-    if hashlib.md5(f"{pw}".encode('utf-8')).hexdigest() == password and user == username:
+    if user == username and _verify_password(pw, password):
         if log_success:
-            logging.info(f'Successful authentication from {ip_addr} for user {user}')
+            logging.info(f"Successful authentication from {ip_addr} for user {user}")  # noqa: G004
         return True
     else:
-        logging.info(f'Failed authentication from {ip_addr} for user {user}')
+        logging.info(f"Failed authentication from {ip_addr} for user {user}")  # noqa: G004
         return False
 
 
+def needs_password_upgrade():
+    password = settings.auth.password
+    return bool(password) and _is_legacy_md5(password)
+
+
 def get_subtitle_destination_folder():
-    fld_custom = str(settings.general.subfolder_custom).strip() if (settings.general.subfolder_custom and
-                                                                    settings.general.subfolder != 'current') else None
+    fld_custom = (
+        str(settings.general.subfolder_custom).strip()
+        if (
+            settings.general.subfolder_custom
+            and settings.general.subfolder != "current"
+        )
+        else None
+    )
     return fld_custom
 
 
 def get_target_folder(file_path):
     subfolder = settings.general.subfolder
-    fld_custom = str(settings.general.subfolder_custom).strip() \
-        if settings.general.subfolder_custom else None
+    fld_custom = (
+        str(settings.general.subfolder_custom).strip()
+        if settings.general.subfolder_custom
+        else None
+    )
 
     if subfolder != "current" and fld_custom:
         # specific subFolder requested, create it if it doesn't exist
@@ -54,7 +122,9 @@ def get_target_folder(file_path):
             try:
                 os.makedirs(fld)
             except Exception:
-                logging.error(f'BAZARR is unable to create directory to save subtitles: {fld}')
+                logging.error(
+                    f"BAZARR is unable to create directory to save subtitles: {fld}"  # noqa: G004
+                )
                 fld = None
     else:
         fld = None
@@ -73,7 +143,7 @@ def force_unicode(s):
         try:
             s = s.decode("utf-8")
         except UnicodeDecodeError:
-            t = detect(s)['encoding']
+            t = detect(s)["encoding"]
             try:
                 s = s.decode(t)
             except UnicodeDecodeError:

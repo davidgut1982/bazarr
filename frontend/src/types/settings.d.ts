@@ -1,11 +1,9 @@
-/* eslint-disable @typescript-eslint/no-empty-interface */
 interface Settings {
   general: Settings.General;
   log: Settings.Log;
   proxy: Settings.Proxy;
   auth: Settings.Auth;
   subsync: Settings.Subsync;
-  analytics: Settings.Analytic;
   sonarr: Settings.Sonarr;
   radarr: Settings.Radarr;
   backup: Settings.Backup;
@@ -32,6 +30,7 @@ declare namespace Settings {
     adaptive_searching: boolean;
     adaptive_searching_delay: string;
     adaptive_searching_delta: string;
+    adaptive_searching_max_age: string;
     anti_captcha_provider?: string;
     auto_update: boolean;
     base_url?: string;
@@ -81,6 +80,7 @@ declare namespace Settings {
     use_scenename: boolean;
     use_sonarr: boolean;
     utf8_encode: boolean;
+    provider_priorities?: string;
     wanted_search_frequency: number;
     wanted_search_frequency_movie: number;
     use_external_webhook?: boolean;
@@ -133,10 +133,6 @@ declare namespace Settings {
     gss: boolean;
   }
 
-  interface Analytic {
-    enabled: boolean;
-  }
-
   interface Notifications {
     providers: NotificationInfo[];
   }
@@ -181,12 +177,18 @@ declare namespace Settings {
 
   interface Translator {
     default_score: number;
-    gemini_key: string;
+    gemini_keys: string[];
     gemini_model: string;
+    gemini_batch_size: number;
     lingarr_url: string;
     lingarr_token: string;
     translator_info: boolean;
     translator_type: string;
+    openrouter_url?: string;
+    openrouter_api_key?: string;
+    openrouter_model?: string;
+    openrouter_temperature?: number;
+    openrouter_max_concurrent?: number;
   }
 
   interface Plex {

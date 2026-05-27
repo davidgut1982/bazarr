@@ -1,11 +1,11 @@
-import { FunctionComponent, useMemo } from "react";
+import { FunctionComponent } from "react";
+import Markdown from "react-markdown";
 import {
   Badge,
   Card,
   Container,
   Divider,
   Group,
-  List,
   Stack,
   Text,
 } from "@mantine/core";
@@ -14,6 +14,7 @@ import { useSystemReleases } from "@/apis/hooks";
 import { useInstanceName } from "@/apis/hooks/site";
 import { QueryOverlay } from "@/components/async";
 import { BuildKey } from "@/utilities";
+import classes from "./index.module.css";
 
 const SystemReleasesView: FunctionComponent = () => {
   const releases = useSystemReleases();
@@ -40,14 +41,14 @@ const ReleaseCard: FunctionComponent<ReleaseInfo> = ({
   date,
   prerelease,
   current,
+  repo,
 }) => {
-  const infos = useMemo(
-    () => body.map((v) => v.replace(/(\s\[.*?\])\(.*?\)/, "")),
-    [body],
-  );
+  const normalized = Array.isArray(body) ? body.join("\n\n") : body;
+
   return (
-    <Card shadow="md" p="lg">
+    <Card p="lg">
       <Group>
+        {repo && <Badge color="grape">{repo}</Badge>}
         <Text fw="bold">{name}</Text>
         <Badge color="blue">{date}</Badge>
         <Badge color={prerelease ? "yellow" : "green"}>
@@ -56,12 +57,9 @@ const ReleaseCard: FunctionComponent<ReleaseInfo> = ({
         {current && <Badge color="indigo">Installed</Badge>}
       </Group>
       <Divider my="sm"></Divider>
-      <Text>From newest to oldest:</Text>
-      <List>
-        {infos.map((v, idx) => (
-          <List.Item key={idx}>{v}</List.Item>
-        ))}
-      </List>
+      <div className={classes.markdown}>
+        <Markdown>{normalized}</Markdown>
+      </div>
     </Card>
   );
 };

@@ -4,9 +4,9 @@ declare namespace FormType {
     profileid: (number | null)[];
   }
 
-  type SeriesAction = OneSeriesAction | SearchWantedAction;
+  type SeriesAction = OneSeriesAction | SearchWantedAction | ScanWantedAction;
 
-  type MoviesAction = OneMovieAction | SearchWantedAction;
+  type MoviesAction = OneMovieAction | SearchWantedAction | ScanWantedAction;
 
   interface OneMovieAction {
     action: "search-missing" | "scan-disk" | "sync";
@@ -20,6 +20,10 @@ declare namespace FormType {
 
   interface SearchWantedAction {
     action: "search-wanted";
+  }
+
+  interface ScanWantedAction {
+    action: "scan-wanted";
   }
 
   interface Subtitle {
@@ -40,6 +44,7 @@ declare namespace FormType {
     id: number;
     type: "episode" | "movie";
     language: string;
+    /** File path. Empty string signals an embedded track — backend extracts it. */
     path: string;
     forced?: PythonBoolean;
     hi?: PythonBoolean;
@@ -48,6 +53,8 @@ declare namespace FormType {
     max_offset_seconds?: string;
     no_fix_framerate?: PythonBoolean;
     gss?: PythonBoolean;
+    /** Source language code2; required when path is empty (embedded track). */
+    from_language?: string;
   }
 
   interface DownloadSeries {

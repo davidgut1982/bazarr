@@ -26,7 +26,7 @@ class StringProcessor(Processor):
 class MultipleLineProcessor(Processor):
     """
     replaces stuff in whole lines
-    
+
     takes a search/replace dict as first argument
     Expects a dictionary in the form of:
     dict = {

@@ -1550,7 +1550,7 @@
     <LinePart from="hoćeš da kažeš" to="želiš reći" />
     <LinePart from="hoće da kaže" to="želi reći" />
     <LinePart from="hoću da živim" to="želim živjeti" />
-    <LinePart from="Izvini se" to="Ispričaj se" />    
+    <LinePart from="Izvini se" to="Ispričaj se" />
     <LinePart from="izvini se" to="ispričaj se" />
     <LinePart from="Izvinite me" to="Ispričajte me" />
     <LinePart from="Izvinite nas" to="Ispričajte nas" />
@@ -2517,7 +2517,7 @@
     <RegEx find="Ĺˇ" replaceWith="š" />
     <RegEx find="Å¡" replaceWith="š" />
     <RegEx find="ÄŚ" replaceWith="Č" />
-    <RegEx find="ÄŒ" replaceWith="Č" /> 
+    <RegEx find="ÄŒ" replaceWith="Č" />
     <RegEx find="Ä†" replaceWith="Ć" />
     <RegEx find="Ä" replaceWith="Đ" />
     <RegEx find="Ĺ " replaceWith="Š" />

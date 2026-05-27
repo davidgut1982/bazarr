@@ -217,7 +217,7 @@ class SubtitrarinoiProvider(Provider, ProviderSubtitleArchiveMixin):
             subtitles.append(subtitle)
 
         ordered_subs = self.order(subtitles)
-        
+
         return ordered_subs
 
     @staticmethod
@@ -253,12 +253,12 @@ class SubtitrarinoiProvider(Provider, ProviderSubtitleArchiveMixin):
             'tip': '2',
             'an': 'Toti anii',
             'gen': 'Toate',
-        }   
+        }
         if imdb_id is not None:
             queryParams["cautare"] = imdb_id
         elif title is not None:
             queryParams["cautare"] = title
-        
+
         queryParams["query_q"] = queryParams["cautare"]
 
         return queryParams

@@ -12,9 +12,13 @@ type Input<T, N> = {
   validation?: {
     rule: (value: string) => string | null;
   };
+  condition?: {
+    key: string;
+    value: boolean;
+  };
 };
 
-type AvailableInput =
+export type AvailableInput =
   | Input<Text, "text">
   | Input<string, "password">
   | Input<boolean, "switch">
@@ -28,6 +32,11 @@ export interface ProviderInfo {
   description?: string;
   message?: string;
   inputs?: AvailableInput[];
+  priority?: number;
+  source?: "plugin" | "shipped";
+  // For plugin providers, the manifest's declared language codes (alpha3).
+  // Shipped providers leave this undefined and rely on provider-languages.json.
+  languages?: string[];
 }
 
 export const logLevelOptions: SelectorOption<string>[] = [
@@ -52,7 +61,7 @@ export const ProviderList: Readonly<ProviderInfo[]> = [
         key: "password",
       },
       {
-        type: "text",
+        type: "password",
         key: "cookies",
         name: "Cookies, e.g., PHPSESSID=abc; wikisubtitlesuser=xyz; wikisubtitlespass=efg",
       },
@@ -100,7 +109,7 @@ export const ProviderList: Readonly<ProviderInfo[]> = [
       "avistaz.to - AvistaZ is an Asian torrent tracker for HD movies, TV shows and music",
     inputs: [
       {
-        type: "text",
+        type: "password",
         key: "cookies",
         name: "Cookies, e.g., PHPSESSID=abc; wikisubtitlesuser=xyz; wikisubtitlespass=efg",
       },
@@ -116,7 +125,7 @@ export const ProviderList: Readonly<ProviderInfo[]> = [
     description: "Chinese Subtitles Provider",
     inputs: [
       {
-        type: "text",
+        type: "password",
         key: "token",
       },
     ],
@@ -127,7 +136,7 @@ export const ProviderList: Readonly<ProviderInfo[]> = [
     description: "French / English Provider for TV Shows Only",
     inputs: [
       {
-        type: "text",
+        type: "password",
         key: "token",
         name: "API KEY",
       },
@@ -146,7 +155,7 @@ export const ProviderList: Readonly<ProviderInfo[]> = [
       "cinemaz.to - CinemaZ is a private torrent tracker which is dedicated to little-known\nand cult films that you will not find on other popular torrent resources.",
     inputs: [
       {
-        type: "text",
+        type: "password",
         key: "cookies",
         name: "Cookies, e.g., PHPSESSID=abc; wikisubtitlesuser=xyz; wikisubtitlespass=efg",
       },
@@ -293,9 +302,27 @@ export const ProviderList: Readonly<ProviderInfo[]> = [
         key: "email",
       },
       {
-        type: "text",
+        type: "password",
         key: "hashed_password",
         name: "Hashed Password",
+      },
+    ],
+  },
+  {
+    key: "pipocas",
+    name: "Pipocas.tv",
+    description:
+      "Portuguese / Brazilian / English / Spanish Subtitles Provider",
+    inputs: [
+      {
+        type: "text",
+        key: "username",
+        name: "Username",
+      },
+      {
+        type: "password",
+        key: "password",
+        name: "Password",
       },
     ],
   },
@@ -364,6 +391,27 @@ export const ProviderList: Readonly<ProviderInfo[]> = [
   },
   { key: "nekur", description: "Latvian Subtitles Provider" },
   {
+    key: "opensubtitles",
+    name: "OpenSubtitles.org",
+    description:
+      "Uses web scraper (OpenSubtitles.org login is no longer available). Get it at https://github.com/LavX/opensubtitles-scraper",
+    inputs: [
+      {
+        type: "text",
+        key: "scraper_service_url",
+        name: "Scraper Service URL",
+        defaultValue: "http://localhost:8000",
+        description: "URL of the OpenSubtitles scraper service",
+      },
+      {
+        type: "switch",
+        key: "skip_wrong_fps",
+        name: "Skip Wrong FPS",
+        description: "Skip subtitles with mismatched frame rates",
+      },
+    ],
+  },
+  {
     key: "opensubtitlescom",
     name: "OpenSubtitles.com",
     inputs: [
@@ -411,6 +459,11 @@ export const ProviderList: Readonly<ProviderInfo[]> = [
     ],
   },
   {
+    key: "prijevodionline",
+    name: "Prijevodi Online",
+    description: "Prijevodi Online website. No need for login or cookies.",
+  },
+  {
     key: "regielive",
     name: "RegieLive",
     description: "Romanian Subtitles Provider",
@@ -421,11 +474,21 @@ export const ProviderList: Readonly<ProviderInfo[]> = [
     description: "Mostly French Subtitles Provider",
   },
   {
+    key: "subclub",
+    name: "SubClub.eu",
+    description: "Estonian Subtitles Provider",
+  },
+  {
     key: "subdl",
     inputs: [
       {
-        type: "text",
+        type: "password",
         key: "api_key",
+      },
+      {
+        type: "switch",
+        key: "anime_mode",
+        name: "Anime mode (extra searches for absolute episode numbers and subtitle packs, uses more API calls)",
       },
     ],
   },
@@ -461,6 +524,19 @@ export const ProviderList: Readonly<ProviderInfo[]> = [
     ],
   },
   {
+    key: "subsarr",
+    name: "Subsarr",
+    description:
+      "Self-hosted Subscene subtitle provider. (requires slimcdk/subsarr https://github.com/slimcdk/subsarr)",
+    inputs: [
+      {
+        type: "text",
+        key: "base_url",
+        name: "Base URL",
+      },
+    ],
+  },
+  {
     key: "subssabbz",
     name: "Subs.sab.bz",
     description: "Bulgarian Subtitles Provider",
@@ -479,8 +555,17 @@ export const ProviderList: Readonly<ProviderInfo[]> = [
   { key: "subscenter", description: "Hebrew Subtitles Provider" },
   {
     key: "subsro",
-    name: "subs.ro",
+    name: "Subs.ro",
     description: "Romanian Subtitles Provider",
+    message:
+      "API key required. Get your key from Subs.ro website: https://subs.ro/api",
+    inputs: [
+      {
+        type: "password",
+        key: "api_key",
+        name: "API Key",
+      },
+    ],
   },
   {
     key: "subsunacs",
@@ -518,7 +603,7 @@ export const ProviderList: Readonly<ProviderInfo[]> = [
       "API key required. Get your key from SubX website: https://subx-api.duckdns.org/",
     inputs: [
       {
-        type: "text",
+        type: "password",
         key: "api_key",
         name: "API Key",
       },
@@ -576,7 +661,7 @@ export const ProviderList: Readonly<ProviderInfo[]> = [
       "For requests coming from outside of Turkey, cookies and user agent are required. Especially cf_clearance cookie.",
     inputs: [
       {
-        type: "text",
+        type: "password",
         key: "cookies",
         name: "Cookies, e.g., PHPSESSID=abc; wikisubtitlesuser=xyz; wikisubtitlespass=efg",
       },

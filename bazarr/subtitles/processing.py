@@ -9,10 +9,10 @@ from utilities.post_processing import pp_replace, set_chmod
 from utilities.autopulse_webhook import call_external_webhook
 from languages.get_languages import alpha2_from_alpha3, alpha2_from_language, alpha3_from_language, language_from_alpha3
 from app.database import TableShows, TableEpisodes, TableMovies, database, select
-from utilities.analytics import event_tracker
 from radarr.notify import notify_radarr
 from sonarr.notify import notify_sonarr
-from plex.operations import plex_set_movie_added_date_now, plex_update_library, plex_set_episode_added_date_now, plex_refresh_item
+from plex.operations import plex_set_movie_added_date_now, plex_update_library, plex_set_episode_added_date_now, plex_refresh_item  # noqa: F401
+from jellyfin.operations import jellyfin_refresh_item
 from app.event_handler import event_stream
 
 from .utils import _get_download_code3
@@ -40,6 +40,114 @@ class ProcessSubtitlesResult:
             self.language_code = downloaded_language_code2
 
 
+def _trigger_auto_translation(downloaded_lang, subtitle_path, video_path, media_type,
+                              series_id=None, episode_id=None, radarr_id=None,
+                              source_score_percent=None, forced=False):
+    """
+    After a subtitle is downloaded, check if any profile language is configured to
+    auto-translate from the just-downloaded language. If so, queue translation.
+
+    source_score_percent: 0-100 score of the just-downloaded source subtitle. If
+    provided and below settings.translator.min_source_score, translation is
+    skipped (poorly-matched sources shouldn't seed translations).
+
+    forced: True when the just-downloaded subtitle is a forced track. Forced
+    subtitles cover only foreign-language inserts and are not a valid
+    translation seed, so we skip auto-translate for them.
+    """
+    try:
+        from app.database import get_profile_id, get_profiles_list
+        from subtitles.tools.translate.main import translate_subtitles_file
+        from subtitles.download import check_missing_languages
+
+        if not subtitle_path or not downloaded_lang:
+            return
+
+        if forced:
+            return
+
+        min_score = settings.translator.min_source_score
+        if source_score_percent is not None and source_score_percent < min_score:
+            logging.info(
+                'BAZARR auto-translate skipped: source score %.1f%% '
+                'below threshold %.1f%% for %s',
+                source_score_percent, min_score, video_path,
+            )
+            return
+
+        if media_type == 'series' and episode_id:
+            profile_id = get_profile_id(episode_id=episode_id)
+        elif media_type == 'series' and series_id:
+            profile_id = get_profile_id(series_id=series_id)
+        else:
+            profile_id = get_profile_id(movie_id=radarr_id)
+
+        if not profile_id:
+            return
+
+        profile = get_profiles_list(profile_id=profile_id)
+        if not profile:
+            return
+
+        # Hoisted out of the loop: check_missing_languages is independent of the
+        # profile item being considered, so calling it once per profile item
+        # (potentially N database/indexer queries) is wasteful. Compute the
+        # missing-codes set once and reuse for every item.
+        missing = check_missing_languages(path=video_path, media_type=media_type)
+        missing_codes = set()
+        for lang_obj in missing or []:
+            try:
+                code2 = alpha2_from_alpha3(lang_obj.alpha3)
+            except Exception:
+                code2 = None
+            if not code2:
+                continue
+            if getattr(lang_obj, 'hi', False):
+                missing_codes.add(f'{code2}:hi')
+            elif getattr(lang_obj, 'forced', False):
+                missing_codes.add(f'{code2}:forced')
+            else:
+                missing_codes.add(code2)
+
+        for item in profile.get('items', []):
+            target_lang = item.get('language')
+            translate_from = item.get('translate_from')
+
+            if not translate_from or translate_from != downloaded_lang:
+                continue
+            if target_lang == downloaded_lang:
+                continue
+
+            target_codes = {target_lang, f'{target_lang}:hi', f'{target_lang}:forced'}
+            if not (missing_codes & target_codes):
+                logging.debug(
+                    'BAZARR auto-translate skipped: %s already satisfied for %s',
+                    target_lang, video_path,
+                )
+                continue
+
+            logging.info(
+                'BAZARR auto-translate queuing %s -> %s for %s',
+                downloaded_lang, target_lang, video_path,
+            )
+            translate_media_type = 'series' if media_type == 'series' else 'movies'
+            translate_subtitles_file(
+                video_path=video_path,
+                source_srt_file=subtitle_path,
+                from_lang=downloaded_lang,
+                to_lang=target_lang,
+                forced=item.get('forced') == 'True',
+                hi=item.get('hi') == 'True',
+                media_type=translate_media_type,
+                sonarr_series_id=series_id,
+                sonarr_episode_id=episode_id,
+                radarr_id=radarr_id,
+                metadata=None,
+            )
+    except Exception:
+        logging.exception('BAZARR error in _trigger_auto_translation')
+
+
 def process_subtitle(subtitle, media_type, audio_language, path, max_score, is_upgrade=False, is_manual=False,
                      job_id=None):
     use_postprocessing = settings.general.use_postprocessing
@@ -62,7 +170,7 @@ def process_subtitle(subtitle, media_type, audio_language, path, max_score, is_u
         modifier_string = " forced"
     else:
         modifier_string = ""
-    logging.debug(f'BAZARR Subtitles file saved to disk: {downloaded_path}')
+    logging.debug(f'BAZARR Subtitles file saved to disk: {downloaded_path}')  # noqa: G004
     if is_upgrade:
         action = "upgraded"
     elif is_manual:
@@ -79,8 +187,8 @@ def process_subtitle(subtitle, media_type, audio_language, path, max_score, is_u
 
     if media_type == 'series':
         episode_metadata = database.execute(
-            select(TableShows.imdbId, TableEpisodes.sonarrSeriesId, TableEpisodes.sonarrEpisodeId,
-                   TableEpisodes.season, TableEpisodes.episode)
+            select(TableShows.imdbId, TableShows.tvdbId, TableEpisodes.sonarrSeriesId,
+                   TableEpisodes.sonarrEpisodeId, TableEpisodes.season, TableEpisodes.episode)
                 .join(TableShows)\
                 .where(TableEpisodes.path == path_mappings.path_replace_reverse(path)))\
             .first()
@@ -101,7 +209,7 @@ def process_subtitle(subtitle, media_type, audio_language, path, max_score, is_u
                            job_id=job_id)
     else:
         movie_metadata = database.execute(
-            select(TableMovies.radarrId, TableMovies.imdbId)
+            select(TableMovies.radarrId, TableMovies.imdbId, TableMovies.tmdbId)
                 .where(TableMovies.path == path_mappings.path_replace_reverse_movie(path)))\
             .first()
         if not movie_metadata:
@@ -133,11 +241,11 @@ def process_subtitle(subtitle, media_type, audio_language, path, max_score, is_u
             pp_threshold = int(settings.general.postprocessing_threshold_movie)
 
         if not use_pp_threshold or (use_pp_threshold and percent_score < pp_threshold):
-            logging.debug(f"BAZARR Using post-processing command: {command}")
+            logging.debug(f"BAZARR Using post-processing command: {command}")  # noqa: G004
             postprocessing(command, path)
             set_chmod(subtitles_path=downloaded_path)
         else:
-            logging.debug(f"BAZARR post-processing skipped because subtitles score isn't below this "
+            logging.debug(f"BAZARR post-processing skipped because subtitles score isn't below this "  # noqa: G004
                           f"threshold value: {pp_threshold}%")
 
     if media_type == 'series':
@@ -150,10 +258,15 @@ def process_subtitle(subtitle, media_type, audio_language, path, max_score, is_u
         if settings.general.use_plex is True:
             if settings.plex.update_series_library is True:
                 # Use specific item refresh instead of full library scan
-                plex_refresh_item(episode_metadata.imdbId, is_movie=False, 
+                plex_refresh_item(episode_metadata.imdbId, is_movie=False,
                                 season=episode_metadata.season, episode=episode_metadata.episode)
             if settings.plex.set_episode_added is True:
                 plex_set_episode_added_date_now(episode_metadata)
+        if settings.general.use_jellyfin is True:
+            if settings.jellyfin.update_series_library is True:
+                jellyfin_refresh_item(episode_metadata.imdbId, is_movie=False,
+                                      season=episode_metadata.season, episode=episode_metadata.episode,
+                                      tvdb_id=episode_metadata.tvdbId)
 
     else:
         reversed_path = path_mappings.path_replace_reverse_movie(path)
@@ -166,6 +279,10 @@ def process_subtitle(subtitle, media_type, audio_language, path, max_score, is_u
             if settings.plex.update_movie_library is True:
                 # Use specific item refresh instead of full library scan
                 plex_refresh_item(movie_metadata.imdbId, is_movie=True)
+        if settings.general.use_jellyfin is True:
+            if settings.jellyfin.update_movie_library is True:
+                jellyfin_refresh_item(movie_metadata.imdbId, is_movie=True,
+                                      tmdb_id=movie_metadata.tmdbId)
 
     # Call external webhook after all processing is complete if enabled
     call_external_webhook(
@@ -175,7 +292,18 @@ def process_subtitle(subtitle, media_type, audio_language, path, max_score, is_u
         media_type=media_type
     )
 
-    event_tracker.track_subtitles(provider=downloaded_provider, action=action, language=downloaded_language)
+    # Auto-translate: trigger translation to any profile language configured with translate_from
+    _trigger_auto_translation(
+        downloaded_lang=downloaded_language_code2,
+        subtitle_path=downloaded_path,
+        video_path=path,
+        media_type=media_type,
+        series_id=series_id if media_type == 'series' else None,
+        episode_id=episode_id if media_type == 'series' else None,
+        radarr_id=movie_metadata.radarrId if media_type != 'series' else None,
+        source_score_percent=percent_score,
+        forced=subtitle.language.forced,
+    )
 
     return ProcessSubtitlesResult(message=message,
                                   reversed_path=reversed_path,

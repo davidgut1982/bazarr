@@ -58,7 +58,7 @@ class AnimeKalesiSubtitle(Subtitle):
     provider_name = 'animekalesi'
     hearing_impaired_verifiable = False
 
-    def __init__(self, language: Language, page_link: str, series: str, season: int, episode: int, 
+    def __init__(self, language: Language, page_link: str, series: str, season: int, episode: int,
                  version: str, download_link: str, uploader: str = None, release_group: str = None):
         super().__init__(language)
         self.page_link = page_link
@@ -350,4 +350,3 @@ class AnimeKalesiProvider(Provider, ProviderSubtitleArchiveMixin):
 
         except Exception as e:
             logger.error('Error downloading subtitle: %s', e)
-

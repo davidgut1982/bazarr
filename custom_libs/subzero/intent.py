@@ -99,4 +99,3 @@ class TempIntent(object):
             self.store.clear()
 
         self.store.save()
-

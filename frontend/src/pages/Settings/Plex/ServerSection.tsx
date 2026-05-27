@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActionIcon,
   Alert,
@@ -52,14 +52,16 @@ const ServerSection = () => {
   );
 
   // Reset state when authentication changes from false to true (re-authentication)
-  if (isAuthenticated && !wasAuthenticated) {
-    setSelectedServer(null);
-    setIsSelecting(false);
-    setIsSaved(false);
-    setWasAuthenticated(true);
-  } else if (!isAuthenticated && wasAuthenticated) {
-    setWasAuthenticated(false);
-  }
+  useEffect(() => {
+    if (isAuthenticated && !wasAuthenticated) {
+      setSelectedServer(null);
+      setIsSelecting(false);
+      setIsSaved(false);
+      setWasAuthenticated(true);
+    } else if (!isAuthenticated && wasAuthenticated) {
+      setWasAuthenticated(false);
+    }
+  }, [isAuthenticated, wasAuthenticated]);
 
   // Consolidated server selection and saving logic
   const selectAndSaveServer = async (server: Plex.Server) => {
@@ -80,7 +82,7 @@ const ServerSection = () => {
       // Save to Bazarr settings
       setValue(server.bestConnection.uri, "plex_server");
       setValue(server.name, "plex_server_name");
-    } catch (error) {
+    } catch {
       // Error is handled by the mutation hook
     } finally {
       setIsSelecting(false);
@@ -124,15 +126,24 @@ const ServerSection = () => {
   };
 
   // Run initialization when data is available
-  if (isAuthenticated && (savedSelectedServer || servers.length > 0)) {
-    handleInitialization();
-  }
+  useEffect(() => {
+    if (isAuthenticated && (savedSelectedServer || servers.length > 0)) {
+      handleInitialization();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    isAuthenticated,
+    savedSelectedServer,
+    servers.length,
+    selectedServer,
+    isSaved,
+  ]);
   if (!isAuthenticated) {
     return null;
   }
 
   return (
-    <Paper withBorder radius="md" p="lg" className={styles.serverSection}>
+    <Paper withBorder p="lg" className={styles.serverSection}>
       <Stack gap="lg">
         <Title order={4}>Plex Servers</Title>
 

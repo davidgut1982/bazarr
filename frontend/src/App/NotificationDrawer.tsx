@@ -19,6 +19,7 @@ import {
   faChevronUp,
   faEllipsis,
   faPlay,
+  faStop,
   faTowerBroadcast,
   faTurnDown,
   faTurnUp,
@@ -139,7 +140,7 @@ const NotificationDrawer: FunctionComponent<NotificationDrawerProps> = ({
       )}
 
       {!jobsLoading && jobsError && (
-        <Card withBorder padding="md" radius="sm">
+        <Card withBorder padding="md" radius="md">
           <Text c="red.6" size="sm">
             Failed to load jobs.
           </Text>
@@ -227,13 +228,13 @@ const NotificationDrawer: FunctionComponent<NotificationDrawerProps> = ({
                             </Menu>
                           )}
                         </Group>
-                        <Text size="xs" c="dimmed">
+                        <Text size="xs" c="var(--bz-text-tertiary)">
                           {grouped[status as string].length} job
                           {grouped[status as string].length > 1 ? "s" : ""}
                         </Text>
                       </Group>
 
-                      <Collapse in={!collapsedSections[status]}>
+                      <Collapse expanded={!collapsedSections[status]}>
                         <Stack>
                           {grouped[status as string]
                             .slice()
@@ -254,7 +255,7 @@ const NotificationDrawer: FunctionComponent<NotificationDrawerProps> = ({
                               <Card
                                 key={`job-${job?.job_id}-${job?.status}`}
                                 withBorder
-                                radius="md"
+                                radius="lg"
                                 padding="xs"
                               >
                                 <Group
@@ -268,7 +269,7 @@ const NotificationDrawer: FunctionComponent<NotificationDrawerProps> = ({
                                       position="right"
                                     >
                                       <RingProgress
-                                        size={status === "running" ? 60 : 42}
+                                        size={status === "running" ? 76 : 58}
                                         thickness={status === "running" ? 6 : 4}
                                         sections={[
                                           {
@@ -282,18 +283,28 @@ const NotificationDrawer: FunctionComponent<NotificationDrawerProps> = ({
                                                       job.progress_max) *
                                                     100
                                                   : 0,
-                                            color: "brand",
+                                            color:
+                                              status === "completed"
+                                                ? "green"
+                                                : status === "failed"
+                                                  ? "red"
+                                                  : "brand",
                                           },
                                         ]}
                                         label={
                                           <Text
                                             ta="center"
                                             size={
-                                              status === "running"
-                                                ? "xs"
-                                                : "9px"
+                                              status === "running" ? "sm" : "xs"
                                             }
                                             fw={700}
+                                            c={
+                                              status === "completed"
+                                                ? "green"
+                                                : status === "failed"
+                                                  ? "red"
+                                                  : undefined
+                                            }
                                           >
                                             {status === "completed" &&
                                             job.progress_max == 0 &&
@@ -339,7 +350,36 @@ const NotificationDrawer: FunctionComponent<NotificationDrawerProps> = ({
                                         </Tooltip>
                                       )}
                                       <Group gap={4} style={{ flexShrink: 0 }}>
-                                        {status === "pending" ? (
+                                        {status === "running" ? (
+                                          <Group gap={4} wrap="nowrap">
+                                            <TimeAgo
+                                              key={`job-timestamp-${job?.job_id}`}
+                                              date={
+                                                job?.last_run_time || new Date()
+                                              }
+                                              minPeriod={5}
+                                            />
+                                            <Tooltip label="Stop job">
+                                              <ActionIcon
+                                                variant="subtle"
+                                                color="red"
+                                                size="sm"
+                                                onClick={() =>
+                                                  job?.job_id &&
+                                                  debouncedActionOnJobs({
+                                                    id: job.job_id,
+                                                    action: "cancel",
+                                                  })
+                                                }
+                                              >
+                                                <FontAwesomeIcon
+                                                  icon={faStop}
+                                                  size="xs"
+                                                />
+                                              </ActionIcon>
+                                            </Tooltip>
+                                          </Group>
+                                        ) : status === "pending" ? (
                                           <Menu
                                             position="bottom-end"
                                             withArrow
@@ -467,7 +507,10 @@ const NotificationDrawer: FunctionComponent<NotificationDrawerProps> = ({
                                       </Group>
                                     </Group>
                                     {job?.progress_message && (
-                                      <Text size="xs" c="dimmed">
+                                      <Text
+                                        size="xs"
+                                        c="var(--bz-text-tertiary)"
+                                      >
                                         {job.progress_message}
                                       </Text>
                                     )}
@@ -481,14 +524,14 @@ const NotificationDrawer: FunctionComponent<NotificationDrawerProps> = ({
                   ));
               })()
             ) : (
-              <Text c="dimmed" ta="center" py="xl">
+              <Text c="var(--bz-text-tertiary)" ta="center" py="xl">
                 No jobs to display
               </Text>
             )}
           </>
         ) : (
-          <Card withBorder padding="md" radius="sm">
-            <Text size="sm" c="dimmed" mb="xs">
+          <Card withBorder padding="md" radius="md">
+            <Text size="sm" c="var(--bz-text-tertiary)" mb="xs">
               Jobs
             </Text>
             <Text

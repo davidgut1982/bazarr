@@ -1,4 +1,5 @@
 import React, { FunctionComponent } from "react";
+import { Link } from "react-router";
 import { Code, Space, Table, Text as MantineText } from "@mantine/core";
 import {
   Check,
@@ -18,13 +19,13 @@ import {
 import {
   adaptiveSearchingDelayOption,
   adaptiveSearchingDeltaOption,
+  adaptiveSearchingMaxAgeOption,
   colorOptions,
   embeddedSubtitlesParserOption,
   folderOptions,
   hiExtensionOptions,
   providerOptions,
   syncMaxOffsetSecondsOptions,
-  translatorOption,
 } from "./options";
 
 interface CommandOption {
@@ -118,12 +119,12 @@ const commandOptions: CommandOption[] = [
 
 const commandOptionElements: React.JSX.Element[] = commandOptions.map(
   (op, idx) => (
-    <tr key={idx}>
-      <td>
+    <Table.Tr key={idx}>
+      <Table.Td>
         <Code>{op.option}</Code>
-      </td>
-      <td>{op.description}</td>
-    </tr>
+      </Table.Td>
+      <Table.Td>{op.description}</Table.Td>
+    </Table.Tr>
   ),
 );
 
@@ -152,6 +153,7 @@ const SettingsSubtitlesView: FunctionComponent = () => {
           label="Hearing-impaired subtitles extension"
           options={hiExtensionOptions}
           settingKey="settings-general-hi_extension"
+          allowDeselect={false}
         ></Selector>
         <Message>
           What file extension to use when saving hearing-impaired subtitles to
@@ -225,6 +227,39 @@ const SettingsSubtitlesView: FunctionComponent = () => {
           </Message>
         </CollapseBox>
       </Section>
+      <Section header="Whisper As Fallback">
+        <Check
+          label="Use Whisper as Fallback for Automated Searches"
+          settingKey="settings-general-use_whisper_fallback"
+        ></Check>
+        <CollapseBox settingKey={"settings-general-use_whisper_fallback"}>
+          <Message>
+            When enabled, Bazarr will ignore the Radarr/Sonarr minimum score and
+            fall back to a Whisper generated subtitle when no provider reaches
+            that minimum score. To avoid overloading Whisper, this fallback is
+            used only during automated tasks like Search for Missing Movie
+            Subtitles and Search for Missing Series Subtitles, or by invoking
+            Search from the Wanted menu. You are responsible for ensuring that
+            only one Whisper transcription or translation runs at a time, unless
+            your hardware can handle more.
+          </Message>
+        </CollapseBox>
+        <CollapseBox settingKey={"settings-general-use_whisper_fallback"}>
+          <Check
+            label="Use Whisper as Fallback for Single Series Searches"
+            settingKey="settings-general-use_whisper_fallback_series"
+          ></Check>
+          <CollapseBox
+            settingKey={"settings-general-use_whisper_fallback_series"}
+          >
+            <Message>
+              When enabled, Bazarr will also use Whisper fallback for single
+              series subtitle searches. All of the warnings about overloading
+              Whisper from the previous setting also apply to this one.
+            </Message>
+          </CollapseBox>
+        </CollapseBox>
+      </Section>
       <Section header="Upgrading Subtitles">
         <Check
           label="Upgrade Previously Downloaded Subtitles"
@@ -281,6 +316,19 @@ const SettingsSubtitlesView: FunctionComponent = () => {
             The delay between Bazarr searching for subtitles in adaptive search
             mode. If the media has been searched for more recently than this
             value, Bazarr will skip searching for subtitles.
+          </Message>
+          <Selector
+            settingKey="settings-general-adaptive_searching_max_age"
+            settingOptions={{ onSaved: (v) => (v === undefined ? "" : v) }}
+            options={adaptiveSearchingMaxAgeOption}
+          ></Selector>
+          <Message>
+            When the timespan between the first and last failed search attempt
+            for a subtitle language reaches this threshold, Bazarr will
+            permanently stop searching for it and remove it from the missing
+            subtitles list. Requires at least two recorded attempts. Set to
+            Disabled to always keep searching. Changing this will trigger a
+            missing subtitles re-scan for all episodes and movies.
           </Message>
         </CollapseBox>
         <Check
@@ -380,60 +428,24 @@ const SettingsSubtitlesView: FunctionComponent = () => {
           playback devices.
         </Message>
       </Section>
-      <Section header="Audio Synchronization / Alignment">
+      <Section header="Audio Synchronization">
         <Check
-          label="Always use Audio Track as Reference for Syncing"
-          settingKey="settings-subsync-force_audio"
-        ></Check>
-        <Message>
-          Use the audio track as reference for syncing, instead of the embedded
-          subtitle.
-        </Message>
-        <Check
-          label="Do Not Fix Framerate Mismatch"
-          settingKey="settings-subsync-no_fix_framerate"
-        ></Check>
-        <Message>
-          If specified, subsync will not attempt to correct a framerate mismatch
-          between reference and subtitles.
-        </Message>
-        <Check
-          label="Golden-Section Search"
-          settingKey="settings-subsync-gss"
-        ></Check>
-        <Message>
-          If specified, use golden-section search to try to find the optimal
-          framerate ratio between video and subtitles.
-        </Message>
-        <Selector
-          label="Max Offset Seconds"
-          options={syncMaxOffsetSecondsOptions}
-          settingKey="settings-subsync-max_offset_seconds"
-          defaultValue={60}
-        ></Selector>
-        <Message>
-          The max allowed offset seconds for any subtitle segment.
-        </Message>
-        <Check
-          label="Automatic Subtitles Audio Synchronization"
+          label="Enable Automatic Subtitles Audio Synchronization"
           settingKey="settings-subsync-use_subsync"
         ></Check>
         <Message>
-          Enable automatic audio synchronization after downloading subtitles.
+          Enable automatic audio synchronization after downloading subtitles for
+          series and movies based on selections below.
         </Message>
-        <CollapseBox indent settingKey="settings-subsync-use_subsync">
-          <MultiSelector
-            placeholder="Select providers..."
-            label="Do not sync subtitles downloaded from those providers"
-            clearable
-            options={providerOptions}
-            settingKey="settings-subsync-checker-blacklisted_providers"
-          ></MultiSelector>
-          <Check label="Debug" settingKey="settings-subsync-debug"></Check>
+        <CollapseBox settingKey="settings-subsync-use_subsync">
           <Message>
-            Do not actually sync the subtitles but generate a .tar.gz file to be
-            able to open an issue for ffsubsync. This file will reside alongside
-            the media file.
+            This feature uses ffsubsync, which can provide better
+            synchronization results than traditional methods, especially for
+            subtitles that are significantly out of sync. However, it may also
+            increase the time it takes to process subtitles. If you have a lot
+            of subtitles that need synchronization or if you are on a
+            low-powered device, you may want to leave this option disabled and
+            synchronize subtitles manually when needed.
           </Message>
           <Check
             label="Series Score Threshold For Audio Sync"
@@ -471,6 +483,97 @@ const SettingsSubtitlesView: FunctionComponent = () => {
               this value will be automatically synchronized.
             </Message>
           </CollapseBox>
+          <MultiSelector
+            placeholder="Select providers..."
+            label="Providers to Exclude from Automatic Synchronization"
+            clearable
+            options={providerOptions}
+            settingKey="settings-subsync-checker-blacklisted_providers"
+          ></MultiSelector>
+          <Message>
+            Subtitles downloaded from the providers listed above will not be
+            automatically synchronized.
+          </Message>
+          <Section header="Advanced FFsubsync Options">
+            <Check
+              label="Use Audio Track as Synchronization Reference"
+              settingKey="settings-subsync-force_audio"
+            ></Check>
+            <Message>
+              Use the audio track as the reference for synchronization instead
+              of the embedded subtitle. This can provide better results when the
+              embedded subtitles are not properly synced or have a different
+              framerate than the video, but it can increase processing time.
+            </Message>
+            <CollapseBox
+              indent
+              settingKey="settings-subsync-force_audio"
+              on={(v) => v === true || v === "true"}
+            >
+              <Check
+                label="Prefer Original Language Audio Track"
+                settingKey="settings-subsync-use_original_language"
+              ></Check>
+              <Message>
+                When enabled, subsync overrides the default audio track with the
+                one matching the show or movie's original language (from
+                Sonarr/Radarr metadata). Falls back to the default audio track
+                if the original language is not present in the file (e.g.
+                dubbed-only release).
+              </Message>
+            </CollapseBox>
+            <CollapseBox
+              indent
+              settingKey="settings-subsync-force_audio"
+              on={(v) => v === false || v === "false"}
+            >
+              <Check
+                label="Prefer Original Language Audio Track"
+                settingKey="settings-subsync-auto_use_original_language"
+              ></Check>
+              <Message>
+                When enabled, automatic synchronization aligns to the audio
+                track matching the show or movie's original language (from
+                Sonarr/Radarr metadata) instead of using the embedded subtitle
+                as reference. Falls back to ffsubsync's default reference if the
+                original language is not present in the file.
+              </Message>
+            </CollapseBox>
+            <Check
+              label="Do Not Fix Framerate Mismatch"
+              settingKey="settings-subsync-no_fix_framerate"
+            ></Check>
+            <Message>
+              If specified, subsync will not attempt to correct a framerate
+              mismatch between reference and subtitles.
+            </Message>
+            <Check
+              label="Golden-Section Search"
+              settingKey="settings-subsync-gss"
+            ></Check>
+            <Message>
+              If specified, use golden-section search to try to find the optimal
+              framerate ratio between video and subtitles.
+            </Message>
+            <Selector
+              label="Max Offset Seconds"
+              options={syncMaxOffsetSecondsOptions}
+              settingKey="settings-subsync-max_offset_seconds"
+              defaultValue={60}
+            ></Selector>
+            <Message>
+              The max allowed offset seconds for any subtitle segment.
+            </Message>
+            <Check
+              label="Generate Debug File Instead of Synchronizing"
+              settingKey="settings-subsync-debug"
+            ></Check>
+            <Message>
+              Do not actually synchronize the subtitles but generate a .tar.gz
+              file to be able to open an issue for ffsubsync. This file will
+              reside alongside the media file.
+            </Message>
+          </Section>
         </CollapseBox>
       </Section>
       <Section header="Custom Post-Processing">
@@ -524,60 +627,15 @@ const SettingsSubtitlesView: FunctionComponent = () => {
             settingKey="settings-general-postprocessing_cmd"
           ></Text>
           <Table highlightOnHover fs="sm">
-            <tbody>{commandOptionElements}</tbody>
+            <Table.Tbody>{commandOptionElements}</Table.Tbody>
           </Table>
         </CollapseBox>
       </Section>
       <Section header="Translating">
-        <Slider
-          label="Score for Translated Episode and Movie Subtitles"
-          settingKey="settings-translator-default_score"
-        ></Slider>
-        <Selector
-          label="Translator"
-          clearable
-          options={translatorOption}
-          placeholder="Default translator"
-          settingKey="settings-translator-translator_type"
-        ></Selector>
-        <CollapseBox
-          settingKey="settings-translator-translator_type"
-          on={(val) => val === "gemini"}
-        >
-          <Text
-            label="Gemini model"
-            settingKey="settings-translator-gemini_model"
-          />
-          <Text
-            label="Gemini API key"
-            settingKey="settings-translator-gemini_key"
-          ></Text>
-          <Message>
-            You can generate it here: https://aistudio.google.com/apikey
-          </Message>
-        </CollapseBox>
-        <CollapseBox
-          settingKey="settings-translator-translator_type"
-          on={(val) => val === "lingarr"}
-        >
-          <Text
-            label="Lingarr endpoint"
-            settingKey="settings-translator-lingarr_url"
-          />
-          <Message>Base URL of Lingarr (e.g., http://localhost:9876)</Message>
-          <Text
-            label="Lingarr API Key (optional)"
-            settingKey="settings-translator-lingarr_token"
-          />
-          <Message>
-            Optional API key for authentication. Leave empty if your Lingarr
-            instance doesn't require authentication.
-          </Message>
-        </CollapseBox>
-        <Check
-          label="Add translation info at the beginning"
-          settingKey="settings-translator-translator_info"
-        ></Check>
+        <Message>
+          Translator configuration has moved to its own page.{" "}
+          <Link to="/settings/translator">Go to AI Translator →</Link>
+        </Message>
       </Section>
     </Layout>
   );

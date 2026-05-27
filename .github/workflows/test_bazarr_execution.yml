@@ -1,9 +1,14 @@
 name: test_bazarr_execution
 on: workflow_dispatch
 
+permissions:
+  contents: read
+
 jobs:
   Test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       ROOT_DIRECTORY: .
       UI_DIRECTORY: ./frontend
@@ -13,21 +18,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [ '3.8', '3.9', '3.10', '3.11', '3.12', '3.13' ]
+        python-version: [ '3.12', '3.13', '3.14' ]
     name: Python ${{ matrix.python-version }} test
 
     steps:
-      - name: Validate branch
-        if: ${{ github.ref != 'refs/heads/development' }}
-        run: |
-          echo This action can only be run on development branch, not ${{ github.ref }}
-          exit 1
-
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: ${{ env.FETCH_DEPTH }}
-          ref: development
+          submodules: recursive
 
       - name: Setup NodeJS
         uses: actions/setup-node@v6

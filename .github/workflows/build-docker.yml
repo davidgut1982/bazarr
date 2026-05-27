@@ -1,0 +1,217 @@
+name: Build Docker Image
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - 'v*'
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+      - 'site/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - 'CHANGELOG.md'
+      - 'LICENSE*'
+      - '.editorconfig'
+      - '.gitattributes'
+      - '.gitignore'
+  workflow_dispatch:
+    inputs:
+      version_tag:
+        description: 'Version tag for the image (e.g., v2.0.0)'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+  UI_DIRECTORY: ./frontend
+
+jobs:
+  # ==========================================================================
+  # Build Frontend (cached via GitHub Actions cache)
+  # ==========================================================================
+  build-frontend:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup NodeJS
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: "${{ env.UI_DIRECTORY }}/.nvmrc"
+          cache: 'npm'
+          cache-dependency-path: "${{ env.UI_DIRECTORY }}/package-lock.json"
+
+      - name: Install Dependencies
+        run: npm ci
+        working-directory: ${{ env.UI_DIRECTORY }}
+
+      - name: Build Frontend
+        run: npm run build
+        working-directory: ${{ env.UI_DIRECTORY }}
+
+      - name: Upload Frontend Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-build
+          path: ${{ env.UI_DIRECTORY }}/build
+          retention-days: 1
+
+  # ==========================================================================
+  # Build and Push Bazarr Image
+  # ==========================================================================
+  build-and-push:
+    needs: [build-frontend]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+
+    steps:
+      - name: Set lowercase image name
+        run: |
+          echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Download Frontend Build
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-build
+          path: ${{ env.UI_DIRECTORY }}/build
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine Version
+        id: version
+        run: |
+          # Priority: workflow input > git tag on HEAD > git ref > git describe
+          if [ -n "${{ inputs.version_tag }}" ]; then
+            VERSION="${{ inputs.version_tag }}"
+          elif [ -n "${{ github.ref_name }}" ] && [[ "${{ github.ref_name }}" == v* ]]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            # Check if current commit has a version tag
+            TAG_ON_HEAD=$(git tag --points-at HEAD | grep '^v' | sort -V | tail -1)
+            if [ -n "$TAG_ON_HEAD" ]; then
+              VERSION="$TAG_ON_HEAD"
+            else
+              VERSION=$(git describe --tags --always 2>/dev/null || echo "dev")
+            fi
+          fi
+
+          # Remove 'v' prefix for semver
+          SEMVER="${VERSION#v}"
+
+          # Bazarr+ version is the semver tag directly
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          FORK_VERSION="${SEMVER}"
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "semver=$SEMVER" >> $GITHUB_OUTPUT
+          echo "fork_version=$FORK_VERSION" >> $GITHUB_OUTPUT
+          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+
+          echo "## Version Info" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** $FORK_VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "- **Short SHA:** $SHORT_SHA" >> $GITHUB_STEP_SUMMARY
+
+      - name: Extract Docker Metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # `latest` only ever points at a versioned release, never a
+          # bare master commit. A docs-only push to master used to
+          # quietly overwrite `latest` with whatever was on HEAD; we
+          # require a real `v*` tag (or a manual workflow_dispatch with
+          # version_tag) for the moving pointer to advance.
+          tags: |
+            # Latest only on tag push or workflow_dispatch
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.version_tag != '') }}
+            # Version tag (e.g., v2.0.0) - emitted always so master
+            # pushes still get the computed semver from git describe.
+            type=raw,value=${{ steps.version.outputs.fork_version }}
+            # Short SHA tag - stable pointer for any commit.
+            type=raw,value=sha-${{ steps.version.outputs.short_sha }}
+            # Branch name (e.g. `master`) - only on branch pushes.
+            type=ref,event=branch
+          labels: |
+            org.opencontainers.image.title=Bazarr+
+            org.opencontainers.image.description=Bazarr+ - enhanced subtitle management
+            org.opencontainers.image.vendor=LavX
+            org.opencontainers.image.version=${{ steps.version.outputs.fork_version }}
+
+      - name: Build and Push Docker Image
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Use GHA cache with separate scopes for different layers
+          cache-from: |
+            type=gha,scope=bazarr-deps
+            type=gha,scope=bazarr-main
+          cache-to: type=gha,mode=max,scope=bazarr-main
+          build-args: |
+            BAZARR_VERSION=${{ steps.version.outputs.fork_version }}
+            BUILD_DATE=${{ github.event.repository.updated_at }}
+            VCS_REF=${{ github.sha }}
+
+      - name: Generate Artifact Attestation
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      - name: Create Release Summary
+        run: |
+          echo "## 🐳 Docker Images Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Bazarr+" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.fork_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Image Details" >> $GITHUB_STEP_SUMMARY
+          echo "- **Digest:** \`${{ steps.push.outputs.digest }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Platforms:** linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
+          echo "- **Cache Status:** GHA cache enabled" >> $GITHUB_STEP_SUMMARY
+
+  # Release-body management is intentionally NOT done from this workflow.
+  # Releases for the Bazarr+ fork are drafted by hand with a pandoc GFM
+  # pre-publish render check; an earlier softprops/action-gh-release step
+  # here ran on every refs/tags/v* push and clobbered the hand-authored
+  # body of the existing release (notably v2.2.0 Synapse on 2026-05-13).
+  # If post-tag automation is ever needed again, gate it so it only fills
+  # release bodies that are currently empty.

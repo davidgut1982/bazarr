@@ -23,21 +23,19 @@ export default defineConfig(({ mode, command }) => {
   const ws = env.VITE_ALLOW_WEBSOCKET === "true";
   const secure = env.VITE_PROXY_SECURE === "true";
 
-  const imagesFolder = mode === "development" ? "public/images" : "images";
+  const imagesFolder = command === "serve" ? "public/images" : "images";
 
   return {
     plugins: [
       react(),
       checker({
         typescript: true,
-        eslint: {
-          lintCommand: "eslint --ext .ts,.tsx src",
-        },
         enableBuild: false,
       }),
       VitePWA({
         workbox: {
           globIgnores: ["index.html"],
+          navigateFallback: null,
         },
         registerType: "autoUpdate",
         includeAssets: [
@@ -49,7 +47,7 @@ export default defineConfig(({ mode, command }) => {
           short_name: "Bazarr",
           description:
             "Bazarr is a companion application to Sonarr and Radarr. It manages and downloads subtitles based on your requirements.",
-          theme_color: "#be4bdb",
+          theme_color: "#b36b00",
           icons: [
             {
               src: `${imagesFolder}/pwa-64x64.png`,
@@ -129,12 +127,25 @@ export default defineConfig(({ mode, command }) => {
         output: {
           manualChunks: chunks,
         },
+        external: [
+          "fsevents",
+          "path",
+          "process",
+          "perf_hooks",
+          "fs/promises",
+          "node:path",
+          "node:process",
+          "node:perf_hooks",
+          "node:fs/promises",
+        ],
       },
     },
     test: {
       globals: true,
       environment: "jsdom",
       setupFiles: "./src/tests/setup.tsx",
+      testTimeout: 20000,
+      pool: "forks",
     },
     server: {
       proxy: {

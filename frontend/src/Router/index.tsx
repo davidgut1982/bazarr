@@ -5,7 +5,7 @@ import {
   useContext,
   useMemo,
 } from "react";
-import { createBrowserRouter, RouterProvider } from "react-router";
+import { createBrowserRouter, Navigate, RouterProvider } from "react-router";
 import {
   faClock,
   faCogs,
@@ -14,6 +14,7 @@ import {
   faFilm,
   faLaptop,
   faPlay,
+  faStore,
 } from "@fortawesome/free-solid-svg-icons";
 import { useBadges } from "@/apis/hooks";
 import { useEnabledStatus } from "@/apis/hooks/site";
@@ -28,10 +29,10 @@ import MoviesHistoryView from "@/pages/History/Movies";
 import SeriesHistoryView from "@/pages/History/Series";
 import MovieView from "@/pages/Movies";
 import MovieDetailView from "@/pages/Movies/Details";
-import MovieMassEditor from "@/pages/Movies/Editor";
 import SeriesView from "@/pages/Series";
-import SeriesMassEditor from "@/pages/Series/Editor";
+import SettingsExternalView from "@/pages/Settings/External";
 import SettingsGeneralView from "@/pages/Settings/General";
+import SettingsJellyfinView from "@/pages/Settings/Jellyfin";
 import SettingsLanguagesView from "@/pages/Settings/Languages";
 import SettingsNotificationsView from "@/pages/Settings/Notifications";
 import SettingsPlexView from "@/pages/Settings/Plex";
@@ -40,6 +41,7 @@ import SettingsRadarrView from "@/pages/Settings/Radarr";
 import SettingsSchedulerView from "@/pages/Settings/Scheduler";
 import SettingsSonarrView from "@/pages/Settings/Sonarr";
 import SettingsSubtitlesView from "@/pages/Settings/Subtitles";
+import SettingsTranslatorView from "@/pages/Settings/Translator";
 import SettingsUIView from "@/pages/Settings/UI";
 import SystemAnnouncementsView from "@/pages/System/Announcements";
 import SystemBackupsView from "@/pages/System/Backups";
@@ -58,6 +60,10 @@ const HistoryStats = lazy(
   () => import("@/pages/History/Statistics/HistoryStats"),
 );
 const SystemStatusView = lazy(() => import("@/pages/System/Status"));
+const SubtitleEditor = lazy(() => import("@/pages/SubtitleEditor"));
+const SubtitleEditorPage = lazy(
+  () => import("@/pages/SubtitleEditor/EditorPage"),
+);
 
 function useRoutes(): CustomRouteObject[] {
   const { data } = useBadges();
@@ -85,11 +91,6 @@ function useRoutes(): CustomRouteObject[] {
                 element: <SeriesView></SeriesView>,
               },
               {
-                path: "edit",
-                hidden: true,
-                element: <SeriesMassEditor></SeriesMassEditor>,
-              },
-              {
                 path: ":id",
                 element: <Episodes></Episodes>,
               },
@@ -105,11 +106,6 @@ function useRoutes(): CustomRouteObject[] {
               {
                 index: true,
                 element: <MovieView></MovieView>,
-              },
-              {
-                path: "edit",
-                hidden: true,
-                element: <MovieMassEditor></MovieMassEditor>,
               },
               {
                 path: ":id",
@@ -148,7 +144,7 @@ function useRoutes(): CustomRouteObject[] {
           },
           {
             icon: faExclamationTriangle,
-            name: "Wanted",
+            name: "Missing",
             path: "wanted",
             hidden: !sonarr && !radarr,
             children: [
@@ -170,7 +166,7 @@ function useRoutes(): CustomRouteObject[] {
           },
           {
             icon: faFileExcel,
-            name: "Blacklist",
+            name: "Excluded",
             path: "blacklist",
             hidden: !sonarr && !radarr,
             children: [
@@ -189,31 +185,18 @@ function useRoutes(): CustomRouteObject[] {
             ],
           },
           {
+            icon: faStore,
+            name: "Subtitle Hub",
+            path: "subtitle-hub",
+            element: <SettingsProvidersView></SettingsProvidersView>,
+          },
+          {
             icon: faCogs,
             name: "Settings",
             path: "settings",
             children: [
               {
-                path: "general",
-                name: "General",
-                element: <SettingsGeneralView></SettingsGeneralView>,
-              },
-              {
-                path: "languages",
-                name: "Languages",
-                element: <SettingsLanguagesView></SettingsLanguagesView>,
-              },
-              {
-                path: "providers",
-                name: "Providers",
-                element: <SettingsProvidersView></SettingsProvidersView>,
-              },
-              {
-                path: "subtitles",
-                name: "Subtitles",
-                element: <SettingsSubtitlesView></SettingsSubtitlesView>,
-              },
-              {
+                divider: "Connections",
                 path: "sonarr",
                 name: "Sonarr",
                 element: <SettingsSonarrView></SettingsSonarrView>,
@@ -227,6 +210,38 @@ function useRoutes(): CustomRouteObject[] {
                 path: "plex",
                 name: "Plex",
                 element: <SettingsPlexView></SettingsPlexView>,
+              },
+              {
+                path: "jellyfin",
+                name: "Jellyfin",
+                element: <SettingsJellyfinView></SettingsJellyfinView>,
+              },
+              {
+                divider: "Subtitles",
+                path: "languages",
+                name: "Languages",
+                element: <SettingsLanguagesView></SettingsLanguagesView>,
+              },
+              {
+                path: "subtitles",
+                name: "Subtitles",
+                element: <SettingsSubtitlesView></SettingsSubtitlesView>,
+              },
+              {
+                path: "translator",
+                name: "AI Translator",
+                element: <SettingsTranslatorView></SettingsTranslatorView>,
+              },
+              {
+                path: "external",
+                name: "External Integration",
+                element: <SettingsExternalView></SettingsExternalView>,
+              },
+              {
+                divider: "Application",
+                path: "general",
+                name: "General",
+                element: <SettingsGeneralView></SettingsGeneralView>,
               },
               {
                 path: "notifications",
@@ -244,6 +259,11 @@ function useRoutes(): CustomRouteObject[] {
                 path: "ui",
                 name: "UI",
                 element: <SettingsUIView></SettingsUIView>,
+              },
+              {
+                path: "providers",
+                hidden: true,
+                element: <Navigate to="/subtitle-hub" replace />,
               },
             ],
           },
@@ -264,7 +284,7 @@ function useRoutes(): CustomRouteObject[] {
               },
               {
                 path: "providers",
-                name: "Providers",
+                name: "Provider Status",
                 badge: data?.providers,
                 element: <SystemProvidersView></SystemProvidersView>,
               },
@@ -295,6 +315,24 @@ function useRoutes(): CustomRouteObject[] {
                 element: <SystemAnnouncementsView></SystemAnnouncementsView>,
               },
             ],
+          },
+          {
+            path: "subtitles/preview/:mediaType/:mediaId/:language",
+            hidden: true,
+            element: (
+              <Lazy>
+                <SubtitleEditor></SubtitleEditor>
+              </Lazy>
+            ),
+          },
+          {
+            path: "subtitles/edit/:mediaType/:mediaId/:language",
+            hidden: true,
+            element: (
+              <Lazy>
+                <SubtitleEditorPage></SubtitleEditorPage>
+              </Lazy>
+            ),
           },
           {
             path: "*",

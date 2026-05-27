@@ -8,11 +8,11 @@ import json
 from subzero.language import Language
 from subzero.video import parse_video
 from guessit.jsonutils import GuessitEncoder
+from subliminal_patch.score import MAX_SCORES, DEFAULT_SCORES
 
 from app.config import settings
 from languages.custom_lang import CustomLanguage
 from app.database import get_profiles_list
-from subtitles.tools.score import movie_score, series_score
 
 from .refiners import registered as registered_refiners
 
@@ -30,13 +30,13 @@ def get_video(path, title, sceneName, providers=None, media_type="movie"):
     hints = {"title": title, "type": "movie" if media_type == "movie" else "episode"}
 
     try:
-        logging.debug(f'BAZARR guessing video object using video file path: {path}')
+        logging.debug(f'BAZARR guessing video object using video file path: {path}')  # noqa: G004
         skip_hashing = settings.general.skip_hashing
         video = parse_video(path, hints=hints, skip_hashing=skip_hashing, dry_run=False, providers=providers)
         if sceneName != "None":
             # refine the video object using the sceneName and update the video object accordingly
             scenename_with_extension = sceneName + os.path.splitext(path)[1]
-            logging.debug(f'BAZARR guessing video object using scene name: {scenename_with_extension}')
+            logging.debug(f'BAZARR guessing video object using scene name: {scenename_with_extension}')  # noqa: G004
             scenename_video = parse_video(scenename_with_extension, hints=hints, dry_run=True)
             refine_video_with_scenename(initial_video=video, scenename_video=scenename_video)
             logging.debug('BAZARR resulting video object once refined using scene name: %s',
@@ -72,11 +72,19 @@ def _get_lang_obj(alpha3):
 
 def _get_scores(media_type, min_movie=None, min_ep=None):
     series = "series" == media_type
-    handler = series_score if series else movie_score
-    min_movie = min_movie or (60 * 100 / handler.max_score)
-    min_ep = min_ep or (240 * 100 / handler.max_score)
-    min_score_ = int(min_ep if series else min_movie)
-    return handler.get_scores(min_score_)
+    handler = DEFAULT_SCORES['episode'] if series else DEFAULT_SCORES['movie']
+
+    max_score = MAX_SCORES['episode' if series else 'movie']
+
+    min_movie = min_movie or (max_score / 2)
+    min_ep = min_ep or (2/3 * max_score)
+    min_score = int(min_ep if series else min_movie)
+
+    return (
+        max_score * min_score / 100,
+        max_score,
+        handler.keys(),
+    )
 
 
 def get_ban_list(profile_id):

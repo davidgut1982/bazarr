@@ -7,6 +7,7 @@ from subliminal_patch.core import Episode
 from subliminal_patch.providers.animetosho import AnimeToshoProvider
 from subzero.language import Language
 
+
 @pytest.fixture(scope="session")
 def anime_episodes():
     return {
@@ -45,13 +46,19 @@ def test_list_subtitles(anime_episodes, requests_mock, data):
     language = Language("eng")
     item = anime_episodes["solo_leveling_s01e10"]
 
-    with open(os.path.join(data, 'animetosho_episode_response.json'), "rb") as f:
-        requests_mock.get(' https://feed.animetosho.org/json?eid=277518', content=f.read())
+    with open(os.path.join(data, "animetosho_episode_response.json"), "rb") as f:
+        requests_mock.get(
+            " https://feed.animetosho.org/json?eid=277518", content=f.read()
+        )
 
-    with open(os.path.join(data, 'animetosho_series_response.json'), "rb") as f:
+    with open(os.path.join(data, "animetosho_series_response.json"), "rb") as f:
         response = f.read()
-        requests_mock.get('https://feed.animetosho.org/json?show=torrent&id=608516', content=response)
-        requests_mock.get('https://feed.animetosho.org/json?show=torrent&id=608526', content=response)
+        requests_mock.get(
+            "https://feed.animetosho.org/json?show=torrent&id=608516", content=response
+        )
+        requests_mock.get(
+            "https://feed.animetosho.org/json?show=torrent&id=608526", content=response
+        )
 
     with AnimeToshoProvider(2) as provider:
         subtitles = provider.list_subtitles(item, languages={language})

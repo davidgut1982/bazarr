@@ -10,9 +10,8 @@ import ast
 from subzero.language import Language
 from subliminal_patch.core import save_subtitles
 from subliminal_patch.core_persistent import download_best_subtitles
-from subliminal_patch.score import ComputeScore
 
-from app.config import settings, get_scores, get_array_from
+from app.config import settings, get_array_from
 from app.database import TableEpisodes, TableMovies, database, select, get_profiles_list
 from utilities.path_mappings import path_mappings
 from utilities.helper import get_target_folder, force_unicode
@@ -26,11 +25,11 @@ from .processing import process_subtitle
 @update_pools
 def generate_subtitles(path, languages, audio_language, sceneName, title, media_type, profile_id,
                        forced_minimum_score=None, is_upgrade=False, check_if_still_required=False,
-                       previous_subtitles_to_delete=None, job_id=None):
+                       previous_subtitles_to_delete=None, job_id=None, fallback_allowed=False):
     if not languages:
         return None
 
-    logging.debug(f'BAZARR Searching subtitles for this file: {path}')
+    logging.debug(f'BAZARR Searching subtitles for this file: {path}')  # noqa: G004
 
     if settings.general.utf8_encode:
         os.environ["SZ_KEEP_ENCODING"] = ""
@@ -51,7 +50,7 @@ def generate_subtitles(path, languages, audio_language, sceneName, title, media_
     try:
         video = get_video(force_unicode(path), title, sceneName, providers=providers, media_type=media_type)
     except ValueError as e:
-        logging.exception(f'BAZARR Unable to get video object for {path}: {e}')
+        logging.exception(f'BAZARR Unable to get video object for {path}: {e}')  # noqa: G004
         return None
 
     if video:
@@ -63,13 +62,28 @@ def generate_subtitles(path, languages, audio_language, sceneName, title, media_
         saved_any = False
 
         if providers:
+            if job_id:
+                from app.jobs_queue import jobs_queue as _jq
+                active_providers = [p for p in providers if p not in pool.discarded_providers]
+                _provider_count = len(active_providers)
+
+                def _on_provider(provider_name):
+                    try:
+                        idx = active_providers.index(provider_name) + 1
+                    except ValueError:
+                        idx = 0
+                    _jq.update_job_progress(job_id=job_id,
+                                            progress_message=f"Searching {provider_name} ({idx}/{_provider_count})")
+
+                pool.provider_progress_callback = _on_provider
+
             if forced_minimum_score:
                 min_score = int(forced_minimum_score) + 1
             for language in language_set:
                 # confirm if language is still missing or if cutoff has been reached
                 if check_if_still_required and language not in check_missing_languages(path, media_type):
                     # cutoff has been reached
-                    logging.debug(f"BAZARR this language ({parse_language_object(language)}) is ignored because cutoff "
+                    logging.debug(f"BAZARR this language ({parse_language_object(language)}) is ignored because cutoff "  # noqa: G004
                                   f"has been reached during this search.")
                     continue
                 else:
@@ -79,10 +93,11 @@ def generate_subtitles(path, languages, audio_language, sceneName, title, media_
                                                                        pool_instance=pool,
                                                                        min_score=int(min_score),
                                                                        hearing_impaired=hi_required,
-                                                                       compute_score=ComputeScore(get_scores()),
-                                                                       use_original_format=original_format in (1, "1", "True", True))
+                                                                       use_original_format=original_format in (1, "1", "True", True),
+                                                                       use_provider_priority=settings.general.use_provider_priority,
+                                                                       fallback_allowed=fallback_allowed)
                     except Exception as e:
-                        logging.exception(f'BAZARR Error downloading Subtitles for this file {path}: {repr(e)}')
+                        logging.exception(f'BAZARR Error downloading Subtitles for this file {path}: {repr(e)}')  # noqa: G004
                         return None
 
                 if downloaded_subtitles:
@@ -116,17 +131,21 @@ def generate_subtitles(path, languages, audio_language, sceneName, title, media_
                                                              )
                         except Exception as e:
                             logging.exception(
-                                f'BAZARR Error saving Subtitles file to disk for this file {path}: {repr(e)}')
+                                f'BAZARR Error saving Subtitles file to disk for this file {path}: {repr(e)}')  # noqa: G004
                             pass
                         else:
                             saved_any = True
                             for subtitle in saved_subtitles:
+                                if "hash" in subtitle.matches:
+                                    # make matches set cleaner for history purpose when hash matches
+                                    subtitle.matches = {match for match in subtitle.matches
+                                                        if match in ("hash", "hearing_impaired")}
                                 processed_subtitle = process_subtitle(subtitle=subtitle, media_type=media_type,
                                                                       audio_language=audio_language,
                                                                       is_upgrade=is_upgrade, is_manual=False,
                                                                       path=path, max_score=max_score, job_id=job_id)
                                 if not processed_subtitle:
-                                    logging.debug(f"BAZARR unable to process this subtitles: {subtitle}")
+                                    logging.debug(f"BAZARR unable to process this subtitles: {subtitle}")  # noqa: G004
                                     continue
                                 yield processed_subtitle
         else:
@@ -134,12 +153,12 @@ def generate_subtitles(path, languages, audio_language, sceneName, title, media_
             return None
 
         if not saved_any:
-            logging.debug(f'BAZARR No Subtitles were found for this file: {path}')
+            logging.debug(f'BAZARR No Subtitles were found for this file: {path}')  # noqa: G004
             return None
 
     subliminal.region.backend.sync()
 
-    logging.debug(f'BAZARR Ended searching Subtitles for file: {path}')
+    logging.debug(f'BAZARR Ended searching Subtitles for file: {path}')  # noqa: G004
 
 
 def _get_language_obj(languages):
@@ -191,7 +210,7 @@ def check_missing_languages(path, media_type):
     if not confirmed_missing_subs:
         reversed_path = path_mappings.path_replace_reverse(path) if media_type == 'series' else \
             path_mappings.path_replace_reverse_movie(path)
-        logging.debug(f"BAZARR no media with this path have been found in database: {reversed_path}")
+        logging.debug(f"BAZARR no media with this path have been found in database: {reversed_path}")  # noqa: G004
         return []
 
     languages = []

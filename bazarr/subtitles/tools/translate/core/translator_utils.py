@@ -9,8 +9,11 @@ from typing import Union
 
 from app.config import settings
 from subzero.language import Language
+from subliminal_patch.score import MAX_SCORES
 from languages.custom_lang import CustomLanguage
-from languages.get_languages import alpha3_from_alpha2, language_from_alpha2, language_from_alpha3
+from languages.get_languages import (
+    alpha3_from_alpha2,
+)
 from subtitles.processing import ProcessSubtitlesResult
 from utilities.path_mappings import path_mappings
 
@@ -42,7 +45,7 @@ def convert_language_codes(to_lang, forced=False, hi=False):
         if custom_lang_obj:
             lang_obj = CustomLanguage.subzero_language(custom_lang_obj)
         else:
-            raise ValueError(f'Unable to translate to {to_lang}')
+            raise ValueError(f"Unable to translate to {to_lang}")
 
     if forced:
         lang_obj = Language.rebuild(lang_obj, forced=True)
@@ -52,14 +55,16 @@ def convert_language_codes(to_lang, forced=False, hi=False):
     return lang_obj, orig_to_lang
 
 
-def create_process_result(message, video_path, orig_to_lang, forced, hi, dest_srt_file, media_type):
+def create_process_result(
+    message, video_path, orig_to_lang, forced, hi, dest_srt_file, media_type
+):
     """Create a ProcessSubtitlesResult object with common parameters."""
-    if media_type == 'series':
+    if media_type == "episode":
         prr = path_mappings.path_replace_reverse
-        score = int((settings.translator.default_score / 100) * 360)
+        score = int((settings.translator.default_score / 100) * MAX_SCORES["episode"])
     else:
         prr = path_mappings.path_replace_reverse_movie
-        score = int((settings.translator.default_score / 100) * 120)
+        score = int((settings.translator.default_score / 100) * MAX_SCORES["movie"])
 
     return ProcessSubtitlesResult(
         message=message,
@@ -70,7 +75,7 @@ def create_process_result(message, video_path, orig_to_lang, forced, hi, dest_sr
         forced=forced,
         subtitle_id=None,
         reversed_subtitles_path=prr(dest_srt_file),
-        hearing_impaired=hi
+        hearing_impaired=hi,
     )
 
 
@@ -84,31 +89,24 @@ def add_translator_info(dest_srt_file, info):
         subtitles = list(srt.parse(srt_content))
 
         if subtitles:
-            first_start = subtitles[0].start
+            # Find the last subtitle's end time and add the info after it
+            last_end = max(sub.end for sub in subtitles)
+            start_time = last_end + datetime.timedelta(milliseconds=100)
+            end_time = start_time + datetime.timedelta(seconds=4)
         else:
-            # If no subtitles exist, set an arbitrary end time for the info subtitle
-            first_start = datetime.timedelta(seconds=5)
+            # If no subtitles exist, add at the end of a typical video
+            start_time = datetime.timedelta(hours=2)
+            end_time = start_time + datetime.timedelta(seconds=4)
 
-        # Determine the end time as the minimum of first_start and 5s
-        end_time = min(first_start, datetime.timedelta(seconds=5))
-
-        # If end time is exactly 5s, start at 1s. Otherwise, start at 0s.
-        if end_time == datetime.timedelta(seconds=5):
-            start_time = datetime.timedelta(seconds=1)
-        else:
-            start_time = datetime.timedelta(seconds=0)
-
-        # Add the info subtitle
+        # Add the info subtitle at the end
         new_sub = srt.Subtitle(
-            index=1,  # temporary, will be reindexed
-            start=start_time,
-            end=end_time,
-            content=info
+            index=len(subtitles) + 1, start=start_time, end=end_time, content=info
         )
-        subtitles.insert(0, new_sub)
+        subtitles.append(new_sub)
 
-        # Re-index and sort
-        subtitles = list(srt.sort_and_reindex(subtitles))
+        # Re-index (no sorting needed since we're adding at the end)
+        for i, sub in enumerate(subtitles, start=1):
+            sub.index = i
 
         with open(dest_srt_file, "w", encoding="utf-8") as f:
             f.write(srt.compose(subtitles))
@@ -116,30 +114,44 @@ def add_translator_info(dest_srt_file, info):
 
 def get_description(media_type, radarr_id, sonarr_series_id):
     try:
-        if media_type == 'movies':
+        if media_type == "movies":
             movie = database.execute(
-                select(TableMovies.title, TableMovies.imdbId, TableMovies.year, TableMovies.overview)
-                .where(TableMovies.radarrId == radarr_id)
+                select(
+                    TableMovies.title,
+                    TableMovies.imdbId,
+                    TableMovies.year,
+                    TableMovies.overview,
+                ).where(TableMovies.radarrId == radarr_id)
             ).first()
 
             if movie:
-                return (f"You will translate movie that is called {movie.title} from {movie.year} "
-                        f"and it has IMDB ID = {movie.imdbId}. Its overview: {movie.overview}")
+                return (
+                    f"You will translate movie that is called {movie.title} from {movie.year} "
+                    f"and it has IMDB ID = {movie.imdbId}. Its overview: {movie.overview}"
+                )
             else:
-                logger.info(f"No movie found for this radarr_id: {radarr_id}")
+                logger.info(f"No movie found for this radarr_id: {radarr_id}")  # noqa: G004
                 return ""
 
         else:
             series = database.execute(
-                select(TableShows.title, TableShows.imdbId, TableShows.year, TableShows.overview)
-                .where(TableShows.sonarrSeriesId == sonarr_series_id)
+                select(
+                    TableShows.title,
+                    TableShows.imdbId,
+                    TableShows.year,
+                    TableShows.overview,
+                ).where(TableShows.sonarrSeriesId == sonarr_series_id)
             ).first()
 
             if series:
-                return (f"You will translate TV show that is called {series.title} from {series.year} "
-                        f"and it has IMDB ID = {series.imdbId}. Its overview: {series.overview}")
+                return (
+                    f"You will translate TV show that is called {series.title} from {series.year} "
+                    f"and it has IMDB ID = {series.imdbId}. Its overview: {series.overview}"
+                )
             else:
-                logger.info(f"No series found for this sonarr_series_id: {sonarr_series_id}")
+                logger.info(
+                    f"No series found for this sonarr_series_id: {sonarr_series_id}"  # noqa: G004
+                )
                 return ""
     except Exception:
         logger.exception("Problem with getting media info")
@@ -147,10 +159,10 @@ def get_description(media_type, radarr_id, sonarr_series_id):
 
 
 def get_title(
-        media_type: str,
-        radarr_id: Union[int, None] = None,
-        sonarr_series_id: Union[int, None] = None,
-        sonarr_episode_id: Union[int, None] = None
+    media_type: str,
+    radarr_id: Union[int, None] = None,
+    sonarr_series_id: Union[int, None] = None,
+    sonarr_episode_id: Union[int, None] = None,
 ) -> str:
     try:
         if media_type == "movies":
@@ -179,7 +191,9 @@ def get_title(
             return ""
 
         series_row = database.execute(
-            select(TableShows.title).where(TableShows.sonarrSeriesId == sonarr_series_id)
+            select(TableShows.title).where(
+                TableShows.sonarrSeriesId == sonarr_series_id
+            )
         ).first()
 
         if series_row is None:
@@ -196,8 +210,9 @@ def get_title(
         # If episode ID is provided, get episode details and format as "Series - S##E## - Episode Title"
         if sonarr_episode_id is not None:
             episode_row = database.execute(
-                select(TableEpisodes.season, TableEpisodes.episode, TableEpisodes.title)
-                .where(TableEpisodes.sonarrEpisodeId == sonarr_episode_id)
+                select(
+                    TableEpisodes.season, TableEpisodes.episode, TableEpisodes.title
+                ).where(TableEpisodes.sonarrEpisodeId == sonarr_episode_id)
             ).first()
 
             if episode_row is not None:

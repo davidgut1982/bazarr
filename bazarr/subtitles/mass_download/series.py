@@ -17,6 +17,7 @@ from app.database import (get_exclusion_clause, get_audio_profile_languages, Tab
                           select, get_profile_id)
 from app.jobs_queue import jobs_queue
 from app.event_handler import event_stream
+from app.config import settings
 
 from ..download import generate_subtitles
 
@@ -50,8 +51,9 @@ def series_download_subtitles(no, job_id=None, job_sub_function=False):
         .join(TableShows)
         .where(reduce(operator.and_, conditions))) \
         .all()
+    throttled = False
     if not episodes_details:
-        logging.debug(f"BAZARR no episode for that sonarrSeriesId have been found in database or they have all been "
+        logging.debug(f"BAZARR no episode for that sonarrSeriesId have been found in database or they have all been "  # noqa: G004
                       f"ignored because of monitored status, series type or series tags: {no}")
     else:
         count_episodes_details = len(episodes_details)
@@ -63,19 +65,23 @@ def series_download_subtitles(no, job_id=None, job_sub_function=False):
                                                             f'{episode.episode:02d} - {episode.episodeTitle}')
 
             providers_list = get_providers()
-
+            fallback_allowed = settings.general.use_whisper_fallback and settings.general.use_whisper_fallback_series
             if providers_list:
                 episode_download_subtitles(no=episode.sonarrEpisodeId, job_id=job_id, job_sub_function=True,
-                                           providers_list=providers_list)
+                                           providers_list=providers_list, fallback_allowed=fallback_allowed)
             else:
                 jobs_queue.update_job_progress(job_id=job_id, progress_value=count_episodes_details)
                 logging.info("BAZARR All providers are throttled")
+                throttled = True
                 break
 
+    outcome_msg = ("All providers throttled" if throttled
+                   else "Search completed")
+    jobs_queue.update_job_progress(job_id=job_id, progress_message=outcome_msg)
     jobs_queue.update_job_name(job_id=job_id, new_job_name=f"Downloaded missing subtitles for {series_row.title}")
 
 
-def episode_download_subtitles(no, job_id=None, job_sub_function=False, providers_list=None):
+def episode_download_subtitles(no, job_id=None, job_sub_function=False, providers_list=None, fallback_allowed=False):
     if not job_sub_function and not job_id:
         jobs_queue.add_job_from_function(f"""Downloading missing subtitles for {database.scalar(
             select(TableShows.title).where(TableShows.sonarrSeriesId == no)) or 'Unknown Series'}""", is_progress=True)
@@ -119,13 +125,14 @@ def episode_download_subtitles(no, job_id=None, job_sub_function=False, provider
     episodePath = path_mappings.path_replace(episode.path)
 
     if not os.path.exists(episodePath):
-        logging.debug(f"BAZARR episode file not found. Path mapping issue?: {episodePath}")
+        logging.debug(f"BAZARR episode file not found. Path mapping issue?: {episodePath}")  # noqa: G004
         jobs_queue.update_job_progress(job_id=job_id, progress_message=f"Episode path doesn't exists: {episodePath}")
         raise OSError
 
     if not providers_list:
         providers_list = get_providers()
 
+    downloaded_count = 0
     if providers_list:
         audio_language_list = get_audio_profile_languages(episode.audio_language)
         if len(audio_language_list) > 0:
@@ -155,24 +162,30 @@ def episode_download_subtitles(no, job_id=None, job_sub_function=False, provider
                                              'series',
                                              episode.profileId,
                                              check_if_still_required=True,
-                                             job_id=job_id):
+                                             job_id=job_id,
+                                             fallback_allowed=fallback_allowed):
                 if result:
                     if isinstance(result, tuple) and len(result):
                         result = result[0]
                     store_subtitles(episode.path, path_mappings.path_replace(episode.path))
                     history_log(1, episode.sonarrSeriesId, episode.sonarrEpisodeId, result)
                     send_notifications(episode.sonarrSeriesId, episode.sonarrEpisodeId, result.message)
+                    downloaded_count += 1
+        outcome_msg = (f"{downloaded_count} subtitle(s) downloaded"
+                       if downloaded_count else "No subtitles found")
     else:
         logging.info("BAZARR All providers are throttled")
+        outcome_msg = "All providers throttled"
 
     if not job_sub_function and job_id:
-        jobs_queue.update_job_progress(job_id=job_id, progress_value='max')
+        jobs_queue.update_job_progress(job_id=job_id, progress_value='max',
+                                       progress_message=outcome_msg)
         jobs_queue.update_job_name(job_id=job_id, new_job_name=f"Downloaded missing subtitles for {episode.title}")
 
 
 def episode_download_specific_subtitles(sonarr_series_id, sonarr_episode_id, language, hi, forced, job_id=None):
     if not job_id:
-        return jobs_queue.add_job_from_function("Searching subtitles", progress_max=1, is_progress=False)
+        return jobs_queue.add_job_from_function("Searching subtitles", is_progress=True)
 
     episodeInfo = database.execute(
         select(TableEpisodes.path,
@@ -210,6 +223,7 @@ def episode_download_specific_subtitles(sonarr_series_id, sonarr_episode_id, lan
 
     jobs_queue.update_job_name(job_id=job_id,
                                new_job_name=f"Searching {language_str.upper()} for {episode_long_title}")
+    jobs_queue.update_job_progress(job_id=job_id, progress_message="Preparing search...")
 
     audio_language_list = get_audio_profile_languages(episodeInfo.audio_language)
     if len(audio_language_list) > 0:
@@ -228,7 +242,11 @@ def episode_download_specific_subtitles(sonarr_series_id, sonarr_episode_id, lan
             history_log(1, sonarr_series_id, sonarr_episode_id, result)
             send_notifications(sonarr_series_id, sonarr_episode_id, result.message)
             store_subtitles(result.path, episodePath)
+            jobs_queue.update_job_progress(job_id=job_id, progress_value='max',
+                                           progress_message="Subtitle downloaded")
         else:
+            jobs_queue.update_job_progress(job_id=job_id, progress_value='max',
+                                           progress_message="No subtitles found")
             event_stream(type='episode', payload=sonarr_episode_id)
             return '', 204
     except OSError:

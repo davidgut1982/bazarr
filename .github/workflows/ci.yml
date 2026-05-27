@@ -2,18 +2,23 @@ name: CI
 
 on:
   push:
-    branches: [development]
+    branches: [master, development]
     paths:
       - frontend/**
       - bazarr/**
-      - libs/**
+      - custom_libs/**
+      - tests/**
+      - docs/**
       - migrations/**
       - bazarr.py
       - requirements.txt
       - dev-requirements.txt
       - .github/workflows/ci.yml
   pull_request:
-    branches: [development]
+    branches: [master, development]
+
+permissions:
+  contents: read
 
 env:
   ROOT_DIRECTORY: .
@@ -24,9 +29,11 @@ env:
 jobs:
   Frontend:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Cache node_modules
         uses: actions/cache@v4
@@ -64,7 +71,7 @@ jobs:
         run: npm run build:ci
         working-directory: ${{ env.UI_DIRECTORY }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ env.UI_ARTIFACT_NAME }}
           path: "${{ env.UI_DIRECTORY }}/build"
@@ -72,16 +79,18 @@ jobs:
   Backend:
     runs-on: ubuntu-latest
     needs: Frontend
+    permissions:
+      contents: read
 
     strategy:
       fail-fast: false
       matrix:
-        python-version: [ '3.8', '3.9', '3.10', '3.11', '3.12', '3.13' ]
+        python-version: [ '3.12', '3.13', '3.14' ]
     name: Python ${{ matrix.python-version }} backend
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v6
@@ -89,13 +98,42 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install UI
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: ${{ env.UI_ARTIFACT_NAME }}
           path: "${{ env.UI_DIRECTORY }}/build"
 
+      - name: Install ffmpeg
+        # test_embeddedsubtitles uses real .mkv fixtures that require ffprobe to
+        # extract stream metadata. Ubuntu runners ship without it.
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg
+
       - name: Install Python dependencies
         run: pip install -r requirements.txt
+
+      - name: Install dev dependencies
+        run: pip install -r dev-requirements.txt
+
+      - name: Lint with ruff
+        run: ruff check .
+
+      - name: pytest compat subpackage
+        run: |
+          pip install pytest pyjwt
+          pytest tests/compat/ -v --tb=short
+
+      - name: pytest dependency and Subliminal rebase guards
+        run: |
+          pytest \
+            tests/bazarr/test_pretty_date.py \
+            tests/bazarr/test_dependency_loading.py \
+            tests/bazarr/test_signalrcore_compat.py \
+            tests/bazarr/test_app_get_providers.py \
+            tests/subliminal_patch/test_subliminal_rebase.py \
+            tests/subliminal_patch/test_embeddedsubtitles.py \
+            tests/subliminal_patch/test_subsunacs.py \
+            tests/subliminal_patch/test_filebot_refiner.py \
+            -v --tb=short
 
       - name: Unit Tests
         run: |

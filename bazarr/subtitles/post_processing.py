@@ -15,7 +15,7 @@ def postprocessing(command, path):
             from ctypes import windll
             code_page = windll.kernel32.GetConsoleOutputCP()
             encoding = f"cp{code_page}"
-            
+
         process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE,
                                    stderr=subprocess.PIPE, encoding=encoding)
         # wait for the process to terminate
@@ -24,13 +24,13 @@ def postprocessing(command, path):
         out = out.replace('\n', ' ').replace('\r', ' ')
 
     except Exception as e:
-        logging.error(f'BAZARR Post-processing failed for file {path}: {repr(e)}')
+        logging.error(f'BAZARR Post-processing failed for file {path}: {repr(e)}')  # noqa: G004
     else:
         if err:
             parsed_err = err.replace('\n', ' ').replace('\r', ' ')
-            logging.error(f'BAZARR Post-processing result for file {path}: {parsed_err}')
+            logging.error(f'BAZARR Post-processing result for file {path}: {parsed_err}')  # noqa: G004
         elif out == "":
             logging.info(
-                f'BAZARR Post-processing result for file {path}: Nothing returned from command execution')
+                f'BAZARR Post-processing result for file {path}: Nothing returned from command execution')  # noqa: G004
         else:
-            logging.info(f'BAZARR Post-processing result for file {path}: {out}')
+            logging.info(f'BAZARR Post-processing result for file {path}: {out}')  # noqa: G004

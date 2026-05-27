@@ -239,7 +239,7 @@ class TitloviProvider(Provider, ProviderSubtitleArchiveMixin):
             resp_json = response.json()
             if resp_json['SubtitleResults']:
                 query_results.extend(resp_json['SubtitleResults'])
-            
+
             # if there are more pages, loop through them. If there is more than 3 pages, stop at 3
             if resp_json['PagesAvailable'] > 1:
                 for page in range(2, min(4, resp_json['PagesAvailable'] + 1)):
@@ -277,7 +277,7 @@ class TitloviProvider(Provider, ProviderSubtitleArchiveMixin):
                 is_pack = False
                 if sub.get('Episode') == 0:
                     is_pack = True
-                    
+
                 subtitle = self.subtitle_class(Language.fromtitlovi(sub.get('Lang')), sub.get('Link'), sub.get('Id'), sub.get('Release'), _title,
                                                alt_title=alt_title, season=sub.get('Season'), episode=episode,
                                                year=sub.get('Year'), rating=sub.get('Rating'),
@@ -356,7 +356,7 @@ class TitloviProvider(Provider, ProviderSubtitleArchiveMixin):
             if format1 in sub_name.lower() or format2 in sub_name.lower():
                 subtitle.content = fix_line_ending(archive.read(sub_name))
                 return
-    
+
     def get_subtitle_from_bundled_archive(self, subtitle, subs_in_archive, archive):
         sr_lat_subs = []
         sr_cyr_subs = []

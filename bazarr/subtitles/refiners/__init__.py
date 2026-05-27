@@ -11,5 +11,5 @@ registered = {
     "ffprobe": refine_from_ffprobe,
     "arr_history": refine_from_arr_history,
     "anidb": refine_from_anidb,
-    "anilist": refine_from_anilist, # Must run AFTER AniDB
+    "anilist": refine_from_anilist,  # Must run AFTER AniDB
 }

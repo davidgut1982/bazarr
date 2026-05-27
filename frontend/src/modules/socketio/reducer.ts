@@ -1,11 +1,11 @@
-import { cleanNotifications, showNotification } from "@mantine/notifications";
+import { showNotification } from "@mantine/notifications";
 import { isArray, isEmpty, isNumber } from "lodash";
 import queryClient from "@/apis/queries";
 import { QueryKeys } from "@/apis/queries/keys";
 import api from "@/apis/raw";
 import { notification } from "@/modules/task";
 import { LOG } from "@/utilities/console";
-import { setCriticalError, setOnlineStatus } from "@/utilities/event";
+import { setOnlineStatus } from "@/utilities/event";
 
 export function createDefaultReducer(): SocketIO.Reducer[] {
   return [
@@ -16,8 +16,7 @@ export function createDefaultReducer(): SocketIO.Reducer[] {
     {
       key: "connect_error",
       any: () => {
-        setCriticalError("Cannot connect to backend");
-        cleanNotifications();
+        setOnlineStatus(false);
       },
     },
     {
@@ -41,6 +40,10 @@ export function createDefaultReducer(): SocketIO.Reducer[] {
             queryKey: [QueryKeys.Series, id],
           });
         });
+        // Invalidate series list so Missing Subtitles column refreshes
+        void queryClient.invalidateQueries({
+          queryKey: [QueryKeys.Series],
+        });
       },
       delete: (ids) => {
         LOG("info", "Invalidating series", ids);
@@ -59,6 +62,10 @@ export function createDefaultReducer(): SocketIO.Reducer[] {
           void queryClient.invalidateQueries({
             queryKey: [QueryKeys.Movies, id],
           });
+        });
+        // Invalidate movies list so Missing Subtitles column refreshes
+        void queryClient.invalidateQueries({
+          queryKey: [QueryKeys.Movies],
         });
       },
       delete: (ids) => {

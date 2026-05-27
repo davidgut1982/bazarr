@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Bazarr+ v2.2.0 Synapse Hero</title>
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #121125; overflow: hidden; }
+  body { font-family: -apple-system, "Segoe UI", system-ui, sans-serif; }
+  /* Strip every default p5.js wraps around the canvas so it bleeds to all
+     four edges with no gap. */
+  main, .p5Canvas, body > * { margin: 0 !important; padding: 0 !important; }
+  canvas {
+    display: block;
+    position: absolute !important;
+    top: 0; left: 0;
+    margin: 0; padding: 0;
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.2/lib/p5.min.js"></script>
+</head>
+<body>
+<script>
+// Bazarr+ v2.2.0 Synapse hero generator
+// Query params:
+//   ?w=1024&h=1024   exact canvas size (defaults to 1024x1024)
+//   ?seed=42          deterministic node placement seed
+//
+// Drawn once, no animation. Use headless chrome --screenshot to capture.
+
+const params = new URLSearchParams(location.search);
+const W = parseInt(params.get('w') || '1920', 10);
+const H = parseInt(params.get('h') || '1080', 10);
+const SEED = parseInt(params.get('seed') || '7', 10);
+// S is the "short edge": used to scale circular/elliptical features so
+// they don't blow out at wide (16:9) aspect ratios.
+const S = Math.min(W, H);
+
+// Bazarr+ palette
+const NAVY_DEEP   = '#06051a';
+const NAVY        = '#121125';
+const NAVY_MID    = '#1d1a3a';
+const AMBER_DARK  = '#b36b00';
+const AMBER       = '#e68a00';
+const AMBER_BRIGHT= '#ffb347';
+const CREAM       = '#fff8e1';
+const CYAN_PULSE  = '#7fe9ff';
+
+function setup() {
+  const c = createCanvas(W, H);
+  // Crisp downsampling later: render with smooth edges, no pixelation.
+  c.canvas.style.imageRendering = 'auto';
+  pixelDensity(1);
+  // Higher-quality canvas drawing.
+  drawingContext.imageSmoothingEnabled = true;
+  drawingContext.imageSmoothingQuality = 'high';
+  randomSeed(SEED);
+  noiseSeed(SEED);
+  noLoop();
+  drawHero();
+}
+
+function drawHero() {
+  drawBackground();
+  drawStarfield();
+  drawOrbitalArcs();
+  drawSynapse();
+  drawText();
+  drawNoise();   // film-grain overlay last, on top of everything
+}
+
+function drawBackground() {
+  // Match Bazarr+ atmospheric dark theme exactly:
+  //   --bz-surface-ground: #121125
+  //   body::after: 3 radial glows (amber TL, teal BR, purple center)
+  const ctx = drawingContext;
+
+  // Base navy fill (#121125)
+  ctx.fillStyle = NAVY;
+  ctx.fillRect(0, 0, W, H);
+
+  // Glow 1: amber at 15%, 10% (matches body::after's first gradient)
+  const g1 = ctx.createRadialGradient(W*0.15, H*0.10, 0, W*0.15, H*0.10, Math.max(W,H) * 0.55);
+  g1.addColorStop(0, 'rgba(230, 138, 0, 0.18)');
+  g1.addColorStop(1, 'rgba(230, 138, 0, 0)');
+  ctx.fillStyle = g1;
+  ctx.fillRect(0, 0, W, H);
+
+  // Glow 2: teal at 85%, 90%
+  const g2 = ctx.createRadialGradient(W*0.85, H*0.90, 0, W*0.85, H*0.90, Math.max(W,H) * 0.55);
+  g2.addColorStop(0, 'rgba(26, 138, 138, 0.14)');
+  g2.addColorStop(1, 'rgba(26, 138, 138, 0)');
+  ctx.fillStyle = g2;
+  ctx.fillRect(0, 0, W, H);
+
+  // Glow 3: purple at 50%, 50%
+  const g3 = ctx.createRadialGradient(W*0.50, H*0.50, 0, W*0.50, H*0.50, Math.max(W,H) * 0.60);
+  g3.addColorStop(0, 'rgba(140, 80, 200, 0.10)');
+  g3.addColorStop(1, 'rgba(140, 80, 200, 0)');
+  ctx.fillStyle = g3;
+  ctx.fillRect(0, 0, W, H);
+
+  // Soft additional warmth toward the synapse focal point so it doesn't
+  // look like the glows fight the soma: subtle, low alpha.
+  const focal = ctx.createRadialGradient(W*0.66, H*0.52, 0, W*0.66, H*0.52, Math.max(W,H) * 0.45);
+  focal.addColorStop(0, 'rgba(255, 179, 71, 0.08)');
+  focal.addColorStop(1, 'rgba(255, 179, 71, 0)');
+  ctx.fillStyle = focal;
+  ctx.fillRect(0, 0, W, H);
+}
+
+// Film-grain noise overlay matching Bazarr+ body::before:
+//   SVG fractalNoise (baseFrequency 0.7, 3 octaves, stitchTiles) at 0.07
+//   opacity, desaturated. Drawn last so it overlays the entire scene.
+let _noisePattern = null;
+function drawNoise() {
+  const ctx = drawingContext;
+  if (!_noisePattern) {
+    const tile = document.createElement('canvas');
+    tile.width = 256; tile.height = 256;
+    const tctx = tile.getContext('2d');
+    const img = tctx.createImageData(256, 256);
+    // Multi-octave noise approximating SVG fractalNoise
+    for (let y = 0; y < 256; y++) {
+      for (let x = 0; x < 256; x++) {
+        let n = 0;
+        n += noise(x * 0.20, y * 0.20) * 0.55;
+        n += noise(x * 0.50, y * 0.50) * 0.30;
+        n += noise(x * 1.20, y * 1.20) * 0.15;
+        const v = Math.max(0, Math.min(255, Math.floor(n * 255)));
+        const i = (y * 256 + x) * 4;
+        img.data[i] = v;
+        img.data[i+1] = v;
+        img.data[i+2] = v;
+        img.data[i+3] = 255;
+      }
+    }
+    tctx.putImageData(img, 0, 0);
+    _noisePattern = ctx.createPattern(tile, 'repeat');
+  }
+  ctx.save();
+  ctx.globalAlpha = 0.07;
+  ctx.fillStyle = _noisePattern;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+}
+
+function drawStarfield() {
+  noStroke();
+  for (let i = 0; i < 220; i++) {
+    const x = random(W);
+    const y = random(H);
+    const r = random() < 0.92 ? random(0.4, 1.1) : random(1.3, 2.0);
+    const a = random(40, 200);
+    fill(255, 248, 225, a);
+    circle(x, y, r);
+  }
+}
+
+function drawOrbitalArcs() {
+  // Echo of the Eclipse hero's concentric arcs, anchored to the synapse center.
+  // Five arcs at varied scales/rotations, including one cool-tone for tonal balance.
+  const cx = W * 0.66;
+  const cy = H * 0.52;
+  const ctx = drawingContext;
+  ctx.save();
+  noFill();
+
+  const arcs = [
+    { rx: S*0.34, ry: S*0.34, rot: -0.22, a: 0.38, w: S*0.0014, color: AMBER         },
+    { rx: S*0.46, ry: S*0.46, rot:  0.10, a: 0.28, w: S*0.0010, color: AMBER_BRIGHT  },
+    { rx: S*0.58, ry: S*0.58, rot: -0.05, a: 0.18, w: S*0.0009, color: AMBER         },
+    { rx: S*0.70, ry: S*0.70, rot:  0.18, a: 0.10, w: S*0.0008, color: '#7fb3d5'     },
+    { rx: S*0.86, ry: S*0.86, rot: -0.30, a: 0.06, w: S*0.0008, color: AMBER         },
+  ];
+
+  for (const a of arcs) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(a.rot);
+    ctx.strokeStyle = hexA(a.color, a.a);
+    ctx.lineWidth = a.w;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, a.rx, a.ry, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function drawSynapse() {
+  const cx = W * 0.66;
+  const cy = H * 0.52;
+  const ctx = drawingContext;
+  const somaR = S * 0.085;
+  const orbDiameter = S * 0.20;
+
+  // ───────────────────────────────────────────────────────────────────
+  // LAYER 1: Background decorative micro-nodes (depth, network density)
+  // ───────────────────────────────────────────────────────────────────
+  for (let i = 0; i < 60; i++) {
+    const ang = random(0, Math.PI * 2);
+    const rad = random(S * 0.18, S * 0.55);
+    const x = cx + Math.cos(ang) * rad;
+    const y = cy + Math.sin(ang) * rad;
+    if (x < W * 0.20 || x > W * 0.98 || y < H * 0.05 || y > H * 0.95) continue;
+    drawGlowDot(x, y, random(S*0.0014, S*0.0028), AMBER, random(0.30, 0.65));
+  }
+
+  // ───────────────────────────────────────────────────────────────────
+  // LAYER 2: Primary satellite nodes (the "constellation" of integrations)
+  // ───────────────────────────────────────────────────────────────────
+  const satellites = [];
+  const nSats = 11;
+  for (let i = 0; i < nSats; i++) {
+    const t = i / (nSats - 1);
+    const ang = lerp(-2.85, 1.35, t) + random(-0.05, 0.05);
+    const rad = random(S * 0.20, S * 0.40);
+    const r = lerp(S * 0.0070, S * 0.0140, random());
+    satellites.push({ x: cx + Math.cos(ang)*rad, y: cy + Math.sin(ang)*rad, r, ang, rad });
+  }
+  // Bottom-left arm: fills the empty quadrant with its own constellation.
+  const nLowerLeft = 4;
+  for (let i = 0; i < nLowerLeft; i++) {
+    const t = i / (nLowerLeft - 1);
+    const ang = lerp(2.05, 2.85, t) + random(-0.06, 0.06);
+    const rad = random(S * 0.20, S * 0.40);
+    const r = lerp(S * 0.0070, S * 0.0140, random());
+    satellites.push({ x: cx + Math.cos(ang)*rad, y: cy + Math.sin(ang)*rad, r, ang, rad });
+  }
+
+  // ───────────────────────────────────────────────────────────────────
+  // LAYER 3: Tertiary dendrites off each satellite (1-3 short branches)
+  // ───────────────────────────────────────────────────────────────────
+  ctx.save();
+  ctx.lineCap = 'round';
+  for (const s of satellites) {
+    const nBranches = floor(random(1, 4));
+    for (let b = 0; b < nBranches; b++) {
+      const branchAng = Math.atan2(s.y - cy, s.x - cx) + random(-1.0, 1.0);
+      const branchLen = random(S * 0.030, S * 0.085);
+      const ex = s.x + Math.cos(branchAng) * branchLen;
+      const ey = s.y + Math.sin(branchAng) * branchLen;
+      const grad = ctx.createLinearGradient(s.x, s.y, ex, ey);
+      grad.addColorStop(0, hexA(AMBER_BRIGHT, 0.55));
+      grad.addColorStop(1, hexA(AMBER, 0.05));
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = S * 0.0009;
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+      drawGlowDot(ex, ey, S * 0.0024, AMBER_BRIGHT, 0.55);
+    }
+  }
+  ctx.restore();
+
+  // ───────────────────────────────────────────────────────────────────
+  // LAYER 4: Main connection curves (3-pass glow). Connections reach all
+  // the way into the soma center.
+  // ───────────────────────────────────────────────────────────────────
+  ctx.save();
+  ctx.lineCap = 'round';
+  for (const s of satellites) {
+    const sx = cx;
+    const sy = cy;
+
+    const dx = s.x - sx, dy = s.y - sy;
+    const sag = random(0.10, 0.25);
+    const mx = sx + dx * 0.5 + (-dy * sag);
+    const my = sy + dy * 0.5 + ( dx * sag);
+    s.start = { sx, sy };
+    s.mid   = { mx, my };
+
+    // Outermost glow
+    ctx.strokeStyle = hexA(AMBER, 0.10);
+    ctx.lineWidth = S * 0.018;
+    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.quadraticCurveTo(mx, my, s.x, s.y); ctx.stroke();
+    // Mid glow
+    ctx.strokeStyle = hexA(AMBER_BRIGHT, 0.22);
+    ctx.lineWidth = S * 0.008;
+    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.quadraticCurveTo(mx, my, s.x, s.y); ctx.stroke();
+    // Sharp inner line
+    ctx.strokeStyle = hexA(CREAM, 0.92);
+    ctx.lineWidth = S * 0.0022;
+    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.quadraticCurveTo(mx, my, s.x, s.y); ctx.stroke();
+  }
+  ctx.restore();
+
+  // ───────────────────────────────────────────────────────────────────
+  // LAYER 5: Synaptic pulses: three cyan beads on different branches
+  // ───────────────────────────────────────────────────────────────────
+  const pulses = [
+    { idx: 3, t: 0.62 },
+    { idx: 5, t: 0.36 },
+    { idx: 8, t: 0.78 },
+  ];
+  for (const p of pulses) {
+    const s = satellites[p.idx];
+    if (!s || !s.mid || !s.start) continue;
+    const t = p.t;
+    const px = (1-t)*(1-t)*s.start.sx + 2*(1-t)*t*s.mid.mx + t*t*s.x;
+    const py = (1-t)*(1-t)*s.start.sy + 2*(1-t)*t*s.mid.my + t*t*s.y;
+    drawGlowDot(px, py, S * 0.040, CYAN_PULSE, 0.20);
+    drawGlowDot(px, py, S * 0.018, CYAN_PULSE, 0.55);
+    drawGlowDot(px, py, S * 0.006, '#ffffff',  1.00);
+  }
+
+  // ───────────────────────────────────────────────────────────────────
+  // LAYER 6: Satellite nodes
+  // ───────────────────────────────────────────────────────────────────
+  for (const s of satellites) {
+    drawGlowDot(s.x, s.y, s.r * 3.4, AMBER,        0.18);
+    drawGlowDot(s.x, s.y, s.r * 1.4, AMBER_BRIGHT, 0.85);
+    drawGlowDot(s.x, s.y, s.r * 0.50, CREAM,       1.00);
+  }
+
+  // ───────────────────────────────────────────────────────────────────
+  // LAYER 7: Volumetric soma rays: fine spokes radiating from soma
+  // ───────────────────────────────────────────────────────────────────
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 28; i++) {
+    const a = (i / 28) * Math.PI * 2 + 0.07;
+    const len = random(somaR * 0.8, somaR * 2.6);
+    const startR = somaR * 0.85;
+    ctx.strokeStyle = hexA(AMBER_BRIGHT, random(0.06, 0.22));
+    ctx.lineWidth = W * 0.0010;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * startR, Math.sin(a) * startR);
+    ctx.lineTo(Math.cos(a) * (startR + len), Math.sin(a) * (startR + len));
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // ───────────────────────────────────────────────────────────────────
+  // LAYER 8: Central soma: multi-layer bloom
+  // ───────────────────────────────────────────────────────────────────
+  drawGlowDot(cx, cy, somaR * 3.0, AMBER_DARK,   0.22);
+  drawGlowDot(cx, cy, somaR * 2.0, AMBER,        0.42);
+  drawGlowDot(cx, cy, somaR * 1.25, AMBER_BRIGHT, 0.78);
+  drawGlowDot(cx, cy, somaR * 0.75, '#fff2cc',   0.90);
+
+  // Internal concentric rings (cell-like organelle texture)
+  ctx.save();
+  for (let i = 0; i < 3; i++) {
+    const r = somaR * (0.65 - i * 0.13);
+    ctx.strokeStyle = hexA(CREAM, 0.32 - i * 0.08);
+    ctx.lineWidth = W * 0.0014;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // White-hot core
+  drawGlowDot(cx, cy, somaR * 0.55, '#ffffff', 1.0);
+  drawGlowDot(cx, cy, somaR * 0.22, '#ffffff', 1.0);
+
+  // ───────────────────────────────────────────────────────────────────
+  // LAYER 9: Lens flare highlight on soma (top-left specular)
+  // ───────────────────────────────────────────────────────────────────
+  drawGlowDot(cx - somaR * 0.30, cy - somaR * 0.30, somaR * 0.20, '#ffffff', 0.85);
+  drawGlowDot(cx - somaR * 0.30, cy - somaR * 0.30, somaR * 0.07, '#ffffff', 1.00);
+
+  // ───────────────────────────────────────────────────────────────────
+  // LAYER 10: Anamorphic lens flare through the soma: hairline core +
+  // soft halo, peaks bright at the soma and tapers into nothing at edges.
+  // ───────────────────────────────────────────────────────────────────
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  const streakW = W * 0.78;
+  ctx.lineCap = 'butt';
+
+  // Soft halo: wider, low-opacity, gives the streak its volume
+  const haloGrad = ctx.createLinearGradient(cx - streakW/2, cy, cx + streakW/2, cy);
+  haloGrad.addColorStop(0.00, 'rgba(180, 220, 255, 0)');
+  haloGrad.addColorStop(0.42, 'rgba(220, 230, 255, 0.18)');
+  haloGrad.addColorStop(0.50, 'rgba(245, 245, 255, 0.30)');
+  haloGrad.addColorStop(0.58, 'rgba(220, 230, 255, 0.18)');
+  haloGrad.addColorStop(1.00, 'rgba(180, 220, 255, 0)');
+  ctx.strokeStyle = haloGrad;
+  ctx.lineWidth = S * 0.0055;
+  ctx.beginPath();
+  ctx.moveTo(cx - streakW/2, cy);
+  ctx.lineTo(cx + streakW/2, cy);
+  ctx.stroke();
+
+  // Hairline core: single-pixel-thin bright streak, the "shine" itself
+  const coreGrad = ctx.createLinearGradient(cx - streakW/2, cy, cx + streakW/2, cy);
+  coreGrad.addColorStop(0.00, 'rgba(255, 220, 160, 0)');
+  coreGrad.addColorStop(0.35, 'rgba(255, 240, 200, 0.55)');
+  coreGrad.addColorStop(0.50, 'rgba(255, 255, 250, 1.0)');
+  coreGrad.addColorStop(0.65, 'rgba(255, 240, 200, 0.55)');
+  coreGrad.addColorStop(1.00, 'rgba(255, 220, 160, 0)');
+  ctx.strokeStyle = coreGrad;
+  ctx.lineWidth = S * 0.0014;
+  ctx.beginPath();
+  ctx.moveTo(cx - streakW/2, cy);
+  ctx.lineTo(cx + streakW/2, cy);
+  ctx.stroke();
+  ctx.restore();
+
+  // ───────────────────────────────────────────────────────────────────
+  // LAYER 11: A few stray short dendrites that don't terminate at a
+  // satellite: adds organic neural texture without clutter.
+  // ───────────────────────────────────────────────────────────────────
+  ctx.save();
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 7; i++) {
+    const ang = random(0, Math.PI * 2);
+    const startR = somaR * random(0.8, 1.05);
+    const endR = somaR * random(1.5, 2.6);
+    const sx = cx + Math.cos(ang) * startR;
+    const sy = cy + Math.sin(ang) * startR;
+    const ex = cx + Math.cos(ang) * endR;
+    const ey = cy + Math.sin(ang) * endR;
+    const grad = ctx.createLinearGradient(sx, sy, ex, ey);
+    grad.addColorStop(0, hexA(AMBER_BRIGHT, 0.55));
+    grad.addColorStop(1, hexA(AMBER, 0.00));
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = W * 0.0012;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawGlowDot(x, y, r, hex, alpha) {
+  const ctx = drawingContext;
+  const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+  const inner = hexA(hex, alpha);
+  const outer = hexA(hex, 0);
+  grad.addColorStop(0, inner);
+  grad.addColorStop(1, outer);
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawText() {
+  const ctx = drawingContext;
+  const padX = W * 0.055;
+  const baseY = H * 0.18;
+
+  // Title: Bazarr+   (the "+" sits superscript-style, above the baseline)
+  ctx.save();
+  ctx.fillStyle = CREAM;
+  ctx.shadowColor = 'rgba(0,0,0,0.6)';
+  ctx.shadowBlur = Math.round(H * 0.012);
+  const titleSize = Math.round(H * 0.085);
+  ctx.font = `700 ${titleSize}px -apple-system, "Segoe UI", system-ui, sans-serif`;
+  ctx.textBaseline = 'top';
+  ctx.fillText('Bazarr', padX, baseY);
+
+  // The "+": bolder amber brand mark, top-aligned with the "Bazarr" caps.
+  const baseW = ctx.measureText('Bazarr').width;
+  const plusSize = Math.round(titleSize * 0.72);
+  ctx.font = `900 ${plusSize}px -apple-system, "Segoe UI", system-ui, sans-serif`;
+  ctx.fillStyle = AMBER;
+  const plusY = baseY;
+  const plusX = padX + baseW + Math.round(titleSize * 0.04);
+  ctx.fillText('+', plusX, plusY);
+  ctx.restore();
+
+  // Subtitle line 1: V2.2.0 Released
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.6)';
+  ctx.shadowBlur = 8;
+  const subSize = Math.round(H * 0.032);
+  ctx.font = `500 ${subSize}px -apple-system, "Segoe UI", system-ui, sans-serif`;
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = 'rgba(255, 248, 225, 0.92)';
+  const subY = baseY + Math.round(H * 0.10);
+  ctx.fillText('V2.2.0 Released', padX, subY);
+
+  // Subtitle line 2: Codename: Synapse  (Synapse in amber)
+  const codeY = subY + Math.round(subSize * 1.45);
+  ctx.fillStyle = 'rgba(255, 248, 225, 0.92)';
+  ctx.fillText('Codename: ', padX, codeY);
+  const cwidth = ctx.measureText('Codename: ').width;
+  ctx.fillStyle = AMBER;
+  ctx.fillText('Synapse', padX + cwidth, codeY);
+  ctx.restore();
+}
+
+// helpers
+function hexA(hex, a) {
+  const h = hex.replace('#','');
+  const r = parseInt(h.substring(0,2), 16);
+  const g = parseInt(h.substring(2,4), 16);
+  const b = parseInt(h.substring(4,6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+</script>
+</body>
+</html>

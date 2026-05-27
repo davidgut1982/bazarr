@@ -3,6 +3,7 @@ import { HttpResponse } from "msw";
 import server from "@/tests/mocks/node";
 import { renderTest, RenderTestCase } from "@/tests/render";
 import SettingsGeneralView from "./General";
+import SettingsJellyfinView from "./Jellyfin";
 import SettingsLanguagesView from "./Languages";
 import SettingsProvidersView from "./Providers";
 import SettingsSchedulerView from "./Scheduler";
@@ -41,8 +42,24 @@ const cases: RenderTestCase[] = [
   {
     name: "providers page",
     ui: SettingsProvidersView,
+    setupEach: () => {
+      server.use(
+        http.get("/api/provider-hub/catalog", () => {
+          return HttpResponse.json({ sources: [], entries: [] });
+        }),
+      );
+      server.use(
+        http.get("/api/provider-hub/providers", () => {
+          return HttpResponse.json({ data: [] });
+        }),
+      );
+    },
   },
   // TODO: Test Radarr Page
+  {
+    name: "jellyfin page",
+    ui: SettingsJellyfinView,
+  },
   {
     name: "scheduler page",
     ui: SettingsSchedulerView,

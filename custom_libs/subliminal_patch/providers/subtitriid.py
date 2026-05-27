@@ -53,7 +53,7 @@ class SubtitriIdSubtitle(Subtitle):
             # imdb id
             if video.imdb_id and self.imdb_id == video.imdb_id:
                 matches.add('imdb_id')
-        
+
         self.matches = matches
         return matches
 
@@ -126,7 +126,7 @@ class SubtitriIdProvider(Provider, ProviderSubtitleArchiveMixin):
         rows = soup.select('.eBlock')
         for row in rows:
             result_anchor_el = row.select_one('.eTitle > a')
-            
+
             # page link
             page_link = result_anchor_el.get('href')
 

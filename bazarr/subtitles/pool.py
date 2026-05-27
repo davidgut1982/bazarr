@@ -8,7 +8,8 @@ from inspect import getfullargspec
 
 from radarr.blacklist import get_blacklist_movie
 from sonarr.blacklist import get_blacklist
-from app.get_providers import get_providers, get_providers_auth, provider_throttle, provider_pool, get_language_equals
+from app.get_providers import get_providers, get_providers_auth, provider_throttle, provider_pool, get_language_equals, \
+    get_providers_sorted  # noqa: F401
 
 from .utils import get_ban_list
 
@@ -17,7 +18,7 @@ from .utils import get_ban_list
 def _init_pool(media_type, profile_id=None, providers=None):
     pool = provider_pool()
     return pool(
-        providers=providers or get_providers(),
+        providers=providers or get_providers_sorted(),
         provider_configs=get_providers_auth(),
         blacklist=get_blacklist() if media_type == "series" else get_blacklist_movie(),
         throttle_callback=provider_throttle,
@@ -32,15 +33,15 @@ _pools = {}
 
 def _get_pool(media_type, profile_id=None):
     try:
-        return _pools[f'{media_type}_{profile_id or ""}']
+        return _pools[f"{media_type}_{profile_id or ''}"]
     except KeyError:
         _update_pool(media_type, profile_id)
 
-        return _pools[f'{media_type}_{profile_id or ""}']
+        return _pools[f"{media_type}_{profile_id or ''}"]
 
 
 def _update_pool(media_type, profile_id=None):
-    pool_key = f'{media_type}_{profile_id or ""}'
+    pool_key = f"{media_type}_{profile_id or ''}"
     logging.debug("BAZARR updating pool: %s", pool_key)
 
     # Init a new pool if not present
@@ -53,7 +54,7 @@ def _update_pool(media_type, profile_id=None):
         return False
 
     return pool.update(
-        get_providers(),
+        get_providers_sorted(),
         get_providers_auth(),
         get_blacklist() if media_type == "series" else get_blacklist_movie(),
         get_ban_list(profile_id),
@@ -63,7 +64,7 @@ def _update_pool(media_type, profile_id=None):
 
 def _pool_update(pool, media_type, profile_id=None):
     return pool.update(
-        get_providers(),
+        get_providers_sorted(),
         get_providers_auth(),
         get_blacklist() if media_type == "series" else get_blacklist_movie(),
         get_ban_list(profile_id),

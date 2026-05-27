@@ -25,7 +25,7 @@ type SelectItemWithPayload<T> = ComboboxItem & {
 function DefaultKeyBuilder<T>(value: T) {
   if (typeof value === "string") {
     return value;
-  } else if (typeof value === "number") {
+  } else if (typeof value === "number" || typeof value === "boolean") {
     return value.toString();
   } else {
     LOG("error", "Unknown value type", value);
@@ -42,7 +42,7 @@ export interface GroupedSelectorOptions<T> {
 
 export type GroupedSelectorProps<T> = Override<
   {
-    options: ComboboxItemGroup[];
+    options: ComboboxItemGroup<string | ComboboxItem>[];
     getkey?: (value: T) => string;
   },
   Omit<SelectProps, "data">

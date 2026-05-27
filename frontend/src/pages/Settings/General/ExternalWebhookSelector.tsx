@@ -22,7 +22,7 @@ const ExternalWebhookSelector: FunctionComponent = () => {
         message: result.data.message,
         color: result.data.success ? "green" : "red",
       });
-    } catch (error) {
+    } catch {
       notifications.show({
         title: "Error",
         message: "Failed to test external webhook connection",
@@ -33,7 +33,11 @@ const ExternalWebhookSelector: FunctionComponent = () => {
 
   return (
     <Stack gap="md" className={styles.externalWebhookSelector}>
-      <Text size="sm" c="dimmed" className={styles.descriptionText}>
+      <Text
+        size="sm"
+        c="var(--bz-text-tertiary)"
+        className={styles.descriptionText}
+      >
         Send webhook notifications to external services when subtitles are
         downloaded.
         <br />
@@ -59,7 +63,11 @@ const ExternalWebhookSelector: FunctionComponent = () => {
             settingKey="settings-general-external_webhook_url"
             placeholder="http://localhost:2875/triggers/bazarr"
           />
-          <Text size="xs" c="dimmed" className={styles.examplesText}>
+          <Text
+            size="xs"
+            c="var(--bz-text-tertiary)"
+            className={styles.examplesText}
+          >
             Examples:
             <br />• Autopulse (local):{" "}
             <Code>http://localhost:2875/triggers/bazarr</Code>

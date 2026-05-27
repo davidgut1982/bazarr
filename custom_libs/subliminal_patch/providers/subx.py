@@ -119,11 +119,11 @@ class SubxSubtitle(Subtitle):
 
         if isinstance(video, Episode):
             self.matches.update({"title", "series", "year"})
-            
+
             # Match season if it aligns
             if self.season == video.season:
                 self.matches.add("season")
-                
+
             # For episode matching:
             # - If subtitle has specific episode, it must match
             # - If subtitle is a season pack (episode=None), consider it a match
@@ -133,7 +133,7 @@ class SubxSubtitle(Subtitle):
             else:
                 # Season pack - add episode match to allow Bazarr to accept it
                 self.matches.add("episode")
-        
+
         elif isinstance(video, Movie):
             self.matches.update({"title", "year"})
 
@@ -142,13 +142,13 @@ class SubxSubtitle(Subtitle):
         if is_season_pack:
             # Temporarily store that this is a season pack
             had_episode_match = "episode" in self.matches
-        
+
         update_matches(self.matches, video, self.release_info)
-        
+
         # Restore episode match for season packs (it might be removed by update_matches)
         if is_season_pack and had_episode_match:
             self.matches.add("episode")
-        
+
         return self.matches
 
 
@@ -172,7 +172,7 @@ class SubxSubtitlesProvider(Provider):
     def __init__(self, api_key=None):
         """
         Initialize SubX provider.
-        
+
         Args:
             api_key: SubX API key (required)
         """
@@ -196,14 +196,14 @@ class SubxSubtitlesProvider(Provider):
     def run_query(self, query, video, video_type, season=None, episode=None):
         """
         Execute a search on SubX API.
-        
+
         Args:
             query: Search term (or None if using imdb_id)
             video: Video object
             video_type: Video type ('episode' or 'movie')
             season: Season number to filter (optional)
             episode: Episode number to filter (optional)
-            
+
         Returns:
             List of found subtitles
         """
@@ -223,7 +223,7 @@ class SubxSubtitlesProvider(Provider):
         else:
             logger.error("No search criteria provided (no imdb_id or query)")
             return []
-        
+
         # Add year if available (helps narrow results)
         if hasattr(video, 'year') and video.year:
             params["year"] = video.year
@@ -233,7 +233,7 @@ class SubxSubtitlesProvider(Provider):
         # Execute request with retry logic
         max_retries = 3
         data = None
-        
+
         for attempt in range(max_retries):
             try:
                 response = self.session.get(
@@ -241,59 +241,86 @@ class SubxSubtitlesProvider(Provider):
                     params=params,
                     timeout=10,  # 10s timeout for search (per API docs)
                 )
-                
+
                 # Handle specific HTTP status codes per API documentation
                 if response.status_code == 400:
                     logger.error("Bad request to SubX API: %s", response.text)
                     return []  # Don't retry on bad requests
-                
+
                 elif response.status_code == 401:
                     logger.error("Invalid SubX API key")
                     raise ConfigurationError("Invalid SubX API key")
-                
+
                 elif response.status_code == 404:
                     logger.debug("No results found (404)")
                     return []
-                
+
                 elif response.status_code == 429:
-                    # Rate limited - exponential backoff
+                    # Rate limited - use Retry-After header if available
                     if attempt < max_retries - 1:
-                        wait_time = 2 ** attempt
-                        logger.warning("Rate limit hit, waiting %ds before retry %d/%d", 
+                        wait_time = int(response.headers.get("Retry-After", 60 * (attempt + 1)))
+                        logger.warning("Rate limit hit, waiting %ds before retry %d/%d",
                                      wait_time, attempt + 1, max_retries)
                         time.sleep(wait_time)
                         continue
                     else:
                         logger.error("Rate limit exceeded after %d retries", max_retries)
                         raise APIThrottled("SubX rate limit exceeded")
-                
+
                 elif response.status_code >= 500:
                     # Server error - retry with backoff
                     if attempt < max_retries - 1:
                         wait_time = 2 ** attempt
-                        logger.warning("Server error %d, retrying in %ds (attempt %d/%d)", 
+                        logger.warning("Server error %d, retrying in %ds (attempt %d/%d)",
                                      response.status_code, wait_time, attempt + 1, max_retries)
                         time.sleep(wait_time)
                         continue
                     else:
                         logger.error("Server error persists after %d retries", max_retries)
                         return []
-                
+
                 # Success
                 response.raise_for_status()
                 data = response.json()
+
+                # Proactively slow down if approaching rate limit
+                remaining = response.headers.get("X-RateLimit-Remaining")
+                limit = response.headers.get("X-RateLimit-Limit")
+                reset = response.headers.get("X-RateLimit-Reset")
+
+                if remaining is not None and limit is not None:
+                    try:
+                        remaining_int = int(remaining)
+                        limit_int = int(limit)
+
+                        # Slow down when below 20% of quota
+                        if remaining_int < limit_int * 0.2:
+                            if reset is not None:
+                                # Wait exactly until the window resets
+                                wait_time = max(0, int(reset) - int(time.time()))
+                            else:
+                                wait_time = 2  # Fallback
+
+                            logger.warning(
+                                "Approaching SubX rate limit (%d/%d remaining), waiting %ds",
+                                remaining_int, limit_int, wait_time
+                            )
+                            time.sleep(wait_time)
+                    except ValueError:
+                        pass
+
                 break  # Exit retry loop
-                
+
             except Exception as e:
                 if attempt < max_retries - 1:
-                    logger.warning("SubX API error (attempt %d/%d): %s", 
+                    logger.warning("SubX API error (attempt %d/%d): %s",
                                  attempt + 1, max_retries, e)
                     time.sleep(2 ** attempt)
                     continue
                 else:
                     logger.error("SubX API error after %d retries: %s", max_retries, e)
                     return []
-        
+
         if data is None:
             logger.error("No data received from SubX API")
             return []
@@ -307,21 +334,21 @@ class SubxSubtitlesProvider(Provider):
         subtitles = []
         filtered_count = 0
         season_packs = []  # Store season packs as fallback
-        
+
         for item in data.get("items", []):
             # Filter by season/episode if searching for TV shows
             item_season = item.get("season")
             item_episode = item.get("episode")
-            
-            logger.debug("Item: season=%s, episode=%s, title=%s", 
+
+            logger.debug("Item: season=%s, episode=%s, title=%s",
                         item_season, item_episode, item.get("title"))
-            
+
             # Skip if season doesn't match
             if season is not None and item_season != season:
                 logger.debug("Skipping - season mismatch (want %s, got %s)", season, item_season)
                 filtered_count += 1
                 continue
-            
+
             # If looking for specific episode
             if episode is not None:
                 # Exact episode match - highest priority
@@ -343,8 +370,8 @@ class SubxSubtitlesProvider(Provider):
             if not page_url and item.get("id"):
                 page_url = f"{_SUBX_BASE_URL}/api/subtitles/{item['id']}"
 
-            # Detect language variant (Spain vs LATAM) from description
-            description = item.get("description", "")
+            # Detect language variant (Spain vs LatAm) from description
+            description = item.get("description") or ""
             spain = _SPANISH_RE.search(description.lower()) is not None
             language = Language.fromalpha2("es") if spain else Language("spa", "MX")
 
@@ -359,7 +386,7 @@ class SubxSubtitlesProvider(Provider):
                 season=item_season,
                 episode=item_episode,
             ))
-        
+
         # If no exact episode matches found, use season packs as fallback
         if episode is not None and not subtitles and season_packs:
             logger.info("No exact episode matches, using %d season pack(s) as fallback", len(season_packs))
@@ -369,7 +396,7 @@ class SubxSubtitlesProvider(Provider):
                     page_url = f"{_SUBX_BASE_URL}/api/subtitles/{item['id']}"
 
                 # Detect language variant from description
-                description = item.get("description", "")
+                description = item.get("description") or ""
                 spain = _SPANISH_RE.search(description.lower()) is not None
                 language = Language.fromalpha2("es") if spain else Language("spa", "MX")
 
@@ -384,7 +411,7 @@ class SubxSubtitlesProvider(Provider):
                     season=item.get("season"),
                     episode=item.get("episode"),
                 ))
-        
+
         logger.debug("After filtering: %d subtitles (filtered out %d)", len(subtitles), filtered_count)
 
         return subtitles
@@ -392,11 +419,11 @@ class SubxSubtitlesProvider(Provider):
     def list_subtitles(self, video, languages):
         """
         List available subtitles for video.
-        
+
         Args:
             video: Video object
             languages: Requested languages
-            
+
         Returns:
             List of found subtitles
         """
@@ -422,11 +449,11 @@ class SubxSubtitlesProvider(Provider):
                     season=video.season,
                     episode=video.episode,
                 )
-                
+
                 if subtitles:
                     logger.debug("Found %d subtitles for exact episode", len(subtitles))
                     break
-                
+
                 # 2. Second try: Season only (e.g., "Breaking Bad S03")
                 logger.debug("No exact match, trying season: %s S%02d", title, video.season)
                 query = f"{title} S{video.season:02d}"
@@ -437,11 +464,11 @@ class SubxSubtitlesProvider(Provider):
                     season=video.season,
                     episode=None,  # Accept any episode from this season
                 )
-                
+
                 if subtitles:
                     logger.debug("Found %d subtitles for season", len(subtitles))
                     break
-                
+
                 # 3. Last try: Series title only (fallback for poorly tagged content)
                 logger.debug("No season match, trying series title only: %s", title)
                 subtitles = self.run_query(
@@ -451,11 +478,11 @@ class SubxSubtitlesProvider(Provider):
                     season=video.season,
                     episode=None,
                 )
-                
+
                 if subtitles:
                     logger.debug("Found %d subtitles from series title search", len(subtitles))
                     break
-                
+
                 time.sleep(1)  # Small delay between different title attempts
 
         # ---------------------------
@@ -468,11 +495,11 @@ class SubxSubtitlesProvider(Provider):
             for title in titles:
                 logger.debug("Searching for movie: %s", title)
                 subtitles = self.run_query(title, video, "movie")
-                
+
                 if subtitles:
                     logger.debug("Found %d subtitles for movie", len(subtitles))
                     break
-                
+
                 time.sleep(1)  # Small delay between searches
 
         return subtitles
@@ -480,7 +507,7 @@ class SubxSubtitlesProvider(Provider):
     def download_subtitle(self, subtitle):
         """
         Download subtitle content.
-        
+
         Args:
             subtitle: Subtitle object to download
         """

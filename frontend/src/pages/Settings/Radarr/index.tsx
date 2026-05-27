@@ -7,6 +7,7 @@ import {
   Layout,
   Message,
   Number,
+  Password,
   PathMappingTable,
   Section,
   Selector,
@@ -42,7 +43,10 @@ const SettingsRadarrView: FunctionComponent = () => {
             options={timeoutOptions}
             settingKey="settings-radarr-http_timeout"
           ></Selector>
-          <Text label="API Key" settingKey="settings-radarr-apikey"></Text>
+          <Password
+            label="API Key"
+            settingKey="settings-radarr-apikey"
+          ></Password>
           <Check label="SSL" settingKey="settings-radarr-ssl"></Check>
           <URLTestButton category="radarr"></URLTestButton>
         </Section>
@@ -92,8 +96,8 @@ const SettingsRadarrView: FunctionComponent = () => {
           <Message>
             Search can be triggered using this command
             <Code>
-              {`curl -H "Content-Type: application/json" -H "X-API-KEY: ###############################" -X POST 
-                -d '{ "eventType": "Download", "movieFile": { "id": "$radarr_moviefile_id" } }' 
+              {`curl -H "Content-Type: application/json" -H "X-API-KEY: ###############################" -X POST
+                -d '{ "eventType": "Download", "movieFile": { "id": "$radarr_moviefile_id" } }'
                 http://localhost:6767/api/webhooks/radarr
               `}
             </Code>

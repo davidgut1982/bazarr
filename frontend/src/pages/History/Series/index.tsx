@@ -73,7 +73,7 @@ const SeriesHistoryView: FunctionComponent = () => {
         }) => {
           if (language) {
             return (
-              <Badge color="secondary">
+              <Badge>
                 <Language.Text value={language} long></Language.Text>
               </Badge>
             );
@@ -158,7 +158,7 @@ const SeriesHistoryView: FunctionComponent = () => {
         },
       },
       {
-        header: "Blacklist",
+        header: "Excluded",
         accessorKey: "blacklisted",
         cell: ({ row }) => {
           const {
@@ -173,7 +173,7 @@ const SeriesHistoryView: FunctionComponent = () => {
           if (subs_id && provider && language) {
             return (
               <MutateAction
-                label="Add to Blacklist"
+                label="Exclude"
                 disabled={blacklisted}
                 icon={faFileExcel}
                 mutation={addToBlacklist}

@@ -1,6 +1,14 @@
 import { FunctionComponent, useCallback, useRef } from "react";
-import { Navigate, useParams } from "react-router";
-import { Container, Group, Menu, Stack } from "@mantine/core";
+import { Link, Navigate, useParams } from "react-router";
+import {
+  Anchor,
+  Breadcrumbs,
+  Container,
+  Group,
+  Menu,
+  Stack,
+  Text,
+} from "@mantine/core";
 import { Dropzone } from "@mantine/dropzone";
 import { useDocumentTitle } from "@mantine/hooks";
 import { showNotification } from "@mantine/notifications";
@@ -9,10 +17,10 @@ import {
   faEllipsis,
   faHardDrive,
   faHistory,
+  faMagnifyingGlass,
   faSearch,
   faSync,
   faToolbox,
-  faUser,
   faWrench,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -25,6 +33,7 @@ import {
 import {
   useMovieAction,
   useMovieById,
+  useMovieHistory,
   useMovieModification,
 } from "@/apis/hooks/movies";
 import { useInstanceName } from "@/apis/hooks/site";
@@ -46,6 +55,7 @@ const MovieDetailView: FunctionComponent = () => {
   const id = Number.parseInt(param.id ?? "");
   const movieQuery = useMovieById(id);
   const { data: movie, isFetched } = movieQuery;
+  const { data: movieHistory } = useMovieHistory(movie?.radarrId);
 
   const profile = useLanguageProfileBy(movie?.profileId);
 
@@ -118,6 +128,16 @@ const MovieDetailView: FunctionComponent = () => {
 
   return (
     <Container fluid px={0}>
+      <nav aria-label="Breadcrumb">
+        <Breadcrumbs mb="md" ml="xs">
+          <Anchor component={Link} to="/movies" size="sm">
+            Movies
+          </Anchor>
+          <Text size="sm" c="var(--bz-text-primary)">
+            {movie?.title ?? "Loading..."}
+          </Text>
+        </Breadcrumbs>
+      </nav>
       <QueryOverlay result={movieQuery}>
         <Dropzone.FullScreen
           openRef={openDropzone}
@@ -172,7 +192,7 @@ const MovieDetailView: FunctionComponent = () => {
               Search
             </Toolbox.Button>
             <Toolbox.Button
-              icon={faUser}
+              icon={faMagnifyingGlass}
               disabled={!isNumber(movie?.profileId) || hasTask}
               onClick={() => {
                 if (movie) {
@@ -184,7 +204,7 @@ const MovieDetailView: FunctionComponent = () => {
                 }
               }}
             >
-              Manual
+              Manual Search
             </Toolbox.Button>
           </Group>
           <Group gap="xs">
@@ -254,6 +274,7 @@ const MovieDetailView: FunctionComponent = () => {
             movie={movie ?? null}
             profile={profile}
             disabled={hasTask}
+            history={movieHistory}
           ></Table>
         </Stack>
       </QueryOverlay>

@@ -556,7 +556,7 @@
 		<Word from="otidji" to="otiđi" />
 		<Word from="otisao" to="otišao" />
 		<Word from="oziljak" to="ožiljak" />
-		<!--p-->		
+		<!--p-->
 		<Word from="palaca" to="palača" />
 		<Word from="palaci" to="palači" />
 		<Word from="palacu" to="palaču" />
@@ -721,7 +721,7 @@
 		<Word from="pusimo" to="pušimo" />
 		<Word from="pusite" to="pušite" />
 		<Word from="pustam" to="puštam" />
-		<!--r-->		
+		<!--r-->
 		<Word from="racunare" to="računala" />
 		<Word from="racunari" to="računala" />
 		<Word from="radis" to="radiš" />
@@ -1123,7 +1123,7 @@
 		<Word from="znas" to="znaš" />
 		<Word from="Znas" to="Znaš" />
 		<Word from="zuris" to="zuriš" />
-		<Word from="zutoj" to="žutoj" /> 
+		<Word from="zutoj" to="žutoj" />
 		<Word from="zvanican" to="služben" />
 		<Word from="ćes" to="ćeš" />
 		<Word from="ćte" to="ćete" />
@@ -1557,7 +1557,7 @@
 		<RegEx find="([sS])veći" replaceWith="$1vijeći" />
 		<RegEx find="takmicenj" replaceWith="natjecanj" />
 		<RegEx find="Takmicenj" replaceWith="Natjecanj" />
-		<RegEx find="\b([tT])ac([an])" replaceWith="$1oč$2" />    
+		<RegEx find="\b([tT])ac([an])" replaceWith="$1oč$2" />
 		<RegEx find="ehnic(?!i)" replaceWith="ehnič" />
 		<RegEx find="\b([tT])ice" replaceWith="$1iče" />
 		<RegEx find="\b([tTSs])rcan" replaceWith="$1rčan" />

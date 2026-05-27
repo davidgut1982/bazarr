@@ -6,27 +6,33 @@ from utilities.filesystem import browse_bazarr_filesystem
 
 from ..utils import authenticate
 
-api_ns_files = Namespace('Files Browser for Bazarr', description='Browse content of file system as seen by Bazarr')
+api_ns_files = Namespace(
+    "Files Browser for Bazarr",
+    description="Browse content of file system as seen by Bazarr",
+)
 
 
-@api_ns_files.route('files')
+@api_ns_files.route("files")
 class BrowseBazarrFS(Resource):
     get_request_parser = reqparse.RequestParser()
-    get_request_parser.add_argument('path', type=str, default='', help='Path to browse')
+    get_request_parser.add_argument("path", type=str, default="", help="Path to browse")
 
-    get_response_model = api_ns_files.model('BazarrFileBrowserGetResponse', {
-        'name': fields.String(),
-        'children': fields.Boolean(),
-        'path': fields.String(),
-    })
+    get_response_model = api_ns_files.model(
+        "BazarrFileBrowserGetResponse",
+        {
+            "name": fields.String(),
+            "children": fields.Boolean(),
+            "path": fields.String(),
+        },
+    )
 
     @authenticate
-    @api_ns_files.response(401, 'Not Authenticated')
+    @api_ns_files.response(401, "Not Authenticated")
     @api_ns_files.doc(parser=get_request_parser)
     def get(self):
         """List Bazarr file system content"""
         args = self.get_request_parser.parse_args()
-        path = args.get('path')
+        path = args.get("path")
         data = []
         try:
             result = browse_bazarr_filesystem(path)
@@ -34,6 +40,6 @@ class BrowseBazarrFS(Resource):
                 raise ValueError
         except Exception:
             return []
-        for item in result['directories']:
-            data.append({'name': item['name'], 'children': True, 'path': item['path']})
+        for item in result["directories"]:
+            data.append({"name": item["name"], "children": True, "path": item["path"]})  # noqa: PERF401
         return marshal(data, self.get_response_model)

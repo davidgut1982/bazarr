@@ -119,4 +119,3 @@ class SubtitleHistory(object):
     def destroy(self):
         self.storage = None
         self.threadkit = None
-

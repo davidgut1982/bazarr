@@ -1,0 +1,145 @@
+import importlib.util
+import json
+from pathlib import Path
+
+import pytest
+from aiohttp import web
+from aiohttp.test_utils import make_mocked_request
+
+
+_SUPERVISOR_PATH = Path(__file__).resolve().parents[2] / "docker" / "supervisor.py"
+_SPEC = importlib.util.spec_from_file_location(
+    "bazarr_docker_supervisor", _SUPERVISOR_PATH
+)
+supervisor = importlib.util.module_from_spec(_SPEC)
+_SPEC.loader.exec_module(supervisor)
+
+
+class _Backend:
+    def __init__(self, state="running"):
+        self.state = state
+
+    def get_status(self):
+        return {"state": self.state, "stage_index": 0}
+
+
+async def _proxy_marker(request):
+    return web.Response(text="proxied")
+
+
+async def _static_marker(request):
+    return None
+
+
+@pytest.mark.asyncio
+async def test_backup_download_path_is_proxied_to_backend(monkeypatch, tmp_path):
+    monkeypatch.setattr(supervisor, "proxy_handler", _proxy_marker)
+    monkeypatch.setattr(
+        supervisor,
+        "create_static_handler",
+        lambda config_dir, backend=None: _static_marker,
+    )
+
+    app = supervisor.create_app(str(tmp_path), _Backend())
+    request = make_mocked_request(
+        "GET",
+        "/system/backup/download/bazarr_backup_vlatest_2026.05.03_03.00.00.zip",
+        app=app,
+    )
+
+    match_info = await app.router.resolve(request)
+
+    assert match_info.handler is _proxy_marker
+
+
+@pytest.mark.asyncio
+async def test_supervisor_routes_honor_base_url(monkeypatch, tmp_path):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "config.yaml").write_text(
+        """
+general:
+  base_url: /bazarr
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(supervisor, "proxy_handler", _proxy_marker)
+
+    app = supervisor.create_app(str(tmp_path), _Backend(state="starting"))
+    request = make_mocked_request("GET", "/bazarr/_supervisor/status", app=app)
+
+    match_info = await app.router.resolve(request)
+    response = await match_info.handler(request)
+
+    assert response.status == 200
+    assert json.loads(response.text) == {"state": "starting", "stage_index": 0}
+
+
+@pytest.mark.asyncio
+async def test_spa_routes_are_proxied_when_backend_is_running(monkeypatch, tmp_path):
+    monkeypatch.setattr(supervisor, "proxy_handler", _proxy_marker)
+
+    app = supervisor.create_app(str(tmp_path), _Backend(state="running"))
+    request = make_mocked_request("GET", "/system/releases", app=app)
+
+    match_info = await app.router.resolve(request)
+    response = await match_info.handler(request)
+
+    assert response.text == "proxied"
+
+
+@pytest.mark.asyncio
+async def test_spa_routes_do_not_boot_app_while_backend_is_starting(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        supervisor,
+        "_get_index_html",
+        lambda config_dir: '<script>window.Bazarr = {"apiKey": ""}</script><script src="/assets/app.js"></script>',
+    )
+
+    handler = supervisor.create_static_handler(
+        str(tmp_path), _Backend(state="starting")
+    )
+    request = make_mocked_request("GET", "/system/releases")
+
+    response = await handler(request)
+
+    assert response.status == 503
+    assert "Bazarr+ is starting up" in response.text
+    assert "window.Bazarr" not in response.text
+    assert "/assets/app.js" not in response.text
+
+
+@pytest.mark.asyncio
+async def test_crashed_backend_serves_app_for_reconnection_flow(monkeypatch, tmp_path):
+    app_shell = '<script>window.Bazarr = {"apiKey": ""}</script><script src="/assets/app.js"></script>'
+    monkeypatch.setattr(supervisor, "_get_index_html", lambda config_dir: app_shell)
+
+    handler = supervisor.create_static_handler(str(tmp_path), _Backend(state="crashed"))
+    request = make_mocked_request("GET", "/system/releases")
+
+    response = await handler(request)
+
+    assert response.status == 200
+    assert response.text == app_shell
+
+
+def test_supervisor_config_does_not_inject_configured_api_key(tmp_path):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "config.yaml").write_text(
+        """
+general:
+  base_url: /bazarr
+  secrets_encryption_key: test-master-key
+auth:
+  apikey: live-supervisor-secret
+""",
+        encoding="utf-8",
+    )
+
+    defaults = supervisor._read_bazarr_config(str(tmp_path))
+
+    assert defaults["baseUrl"] == "/bazarr"
+    assert defaults["apiKey"] == ""

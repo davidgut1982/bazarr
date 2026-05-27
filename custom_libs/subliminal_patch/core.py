@@ -23,13 +23,17 @@ from subliminal import refiner_manager
 from concurrent.futures import as_completed
 
 from .extensions import provider_registry
-from .exceptions import MustGetBlacklisted
-from .score import compute_score as default_compute_score
-from subliminal.utils import hash_napiprojekt, hash_opensubtitles, hash_shooter, hash_thesubdb
+from .exceptions import APIThrottled, MustGetBlacklisted
+from .score import compute_score, MAX_SCORES
 from subliminal.video import VIDEO_EXTENSIONS, Video, Episode, Movie
-from subliminal.core import guessit, ProviderPool, io, is_windows_special_path, \
-    ThreadPoolExecutor, check_video
+from subliminal.core import guessit, ProviderPool, ThreadPoolExecutor, check_video
 
+try:
+    from subliminal.core import is_windows_special_path
+except ImportError:
+    is_windows_special_path = False
+
+from subliminal_patch.hashes import hash_napiprojekt, hash_opensubtitles, hash_shooter, hash_thesubdb
 from subzero.language import Language, ENDSWITH_LANGUAGECODE_RE, FULL_LANGUAGE_LIST
 
 logger = logging.getLogger(__name__)
@@ -212,10 +216,14 @@ class _LanguageEquals(list):
 
 
 class SZProviderPool(ProviderPool):
+    @staticmethod
+    def _dedupe_provider_names(providers):
+        return list(dict.fromkeys(providers or []))
+
     def __init__(self, providers=None, provider_configs=None, blacklist=None, ban_list=None, throttle_callback=None,
                  pre_download_hook=None, post_download_hook=None, language_hook=None, language_equals=None):
         #: Name of providers to use
-        self.providers = set(providers or [])
+        self.providers = self._dedupe_provider_names(providers)
 
         #: Initialized providers
         self.initialized_providers = {}
@@ -238,6 +246,8 @@ class SZProviderPool(ProviderPool):
 
         self._born = time.time()
 
+        self.provider_progress_callback = None
+
         if not self.throttle_callback:
             self.throttle_callback = lambda x, y, ids=None, language=None: x
 
@@ -249,22 +259,22 @@ class SZProviderPool(ProviderPool):
         # Check if the pool was initialized enough hours ago
         self._check_lifetime()
 
-        providers = set(providers or [])
+        providers = self._dedupe_provider_names(providers)
+        provider_names = set(providers)
 
         # Check if any new provider has been added
         updated = providers != self.providers or ban_list != self.ban_list
-        removed_providers = set(sorted(self.providers - providers))
+        removed_providers = set(self.providers) - provider_names
 
         logger.debug("Discarded providers: %s | New providers: %s", self.discarded_providers, providers)
-        self.discarded_providers.difference_update(providers)
+        self.discarded_providers.difference_update(provider_names)
         logger.debug("Updated discarded providers: %s", self.discarded_providers)
 
         removed_providers.update(self.discarded_providers)
 
         logger.debug("Removed providers: %s", removed_providers)
 
-        self.providers.difference_update(removed_providers)
-        self.providers.update(list(providers))
+        self.providers = [provider for provider in providers if provider not in removed_providers]
 
         # Terminate and delete removed providers from instance
         for removed in removed_providers:
@@ -374,31 +384,53 @@ class SZProviderPool(ProviderPool):
 
         logger.info('Listing subtitles with provider %r and languages %r', provider, to_request)
 
+        if self.provider_progress_callback:
+            self.provider_progress_callback(provider)
+
         try:
             results = self[provider].list_subtitles(video, to_request)
             seen = []
             out = []
             for s in results:
-                self.lang_equals.update_subtitle(s)
-
-                if not self.blacklist.is_valid(provider, s):
+                # Validate that we got a proper subtitle object, not a string or other invalid type
+                if not hasattr(s, 'id') or not hasattr(s, 'language'):
+                    logger.warning('Provider %r returned invalid subtitle object (type: %s): %r',
+                                   provider, type(s).__name__, s)
                     continue
 
-                if not self.ban_list.is_valid(s):
+                try:
+                    self.lang_equals.update_subtitle(s)
+
+                    if not self.blacklist.is_valid(provider, s):
+                        continue
+
+                    if not self.ban_list.is_valid(s):
+                        continue
+
+                    if s.id in seen:
+                        continue
+
+                    s.radarrId = video.radarrId if hasattr(video, 'radarrId') else None
+                    s.sonarrSeriesId = video.sonarrSeriesId if hasattr(video, 'sonarrSeriesId') else None
+                    s.sonarrEpisodeId = video.sonarrEpisodeId if hasattr(video, 'sonarrEpisodeId') else None
+
+                    s.plex_media_fps = float(video.fps) if video.fps else None
+                    out.append(s)
+                    seen.append(s.id)
+                except AttributeError as e:
+                    logger.warning('Provider %r returned subtitle with missing attributes: %s', provider, e)
                     continue
-
-                if s.id in seen:
-                    continue
-
-                s.radarrId = video.radarrId if hasattr(video, 'radarrId') else None
-                s.sonarrSeriesId = video.sonarrSeriesId if hasattr(video, 'sonarrSeriesId') else None
-                s.sonarrEpisodeId = video.sonarrEpisodeId if hasattr(video, 'sonarrEpisodeId') else None
-
-                s.plex_media_fps = float(video.fps) if video.fps else None
-                out.append(s)
-                seen.append(s.id)
 
             return out
+
+        except APIThrottled as e:
+            ids = {
+                'radarrId': video.radarrId if hasattr(video, 'radarrId') else None,
+                'sonarrSeriesId': video.sonarrSeriesId if hasattr(video, 'sonarrSeriesId') else None,
+                'sonarrEpisodeId': video.sonarrEpisodeId if hasattr(video, 'sonarrEpisodeId') else None,
+            }
+            logger.warning('Provider %r throttled: %s', provider, e)
+            self.throttle_callback(provider, e, ids=ids, language=list(languages)[0] if len(languages) else None)
 
         except Exception as e:
             ids = {
@@ -447,6 +479,74 @@ class SZProviderPool(ProviderPool):
             subtitles.extend(provider_subtitles)
 
         return subtitles
+
+    def list_subtitles_prioritized(self, video, languages, min_score=0, provider_order=None, compute_score=None,
+                                   exhaustive=False):
+        """List subtitles with priority-based provider search.
+
+        Search providers in priority order. Stop only when every requested
+        language has at least one subtitle meeting min_score, or all providers
+        have been exhausted.
+
+        When ``exhaustive=True`` (manual search), the early-exit on satisfied
+        languages is disabled so every provider is queried and the user sees
+        the full set of candidates regardless of score.
+        """
+        from .score import compute_score as default_compute_score
+        compute_score = compute_score or default_compute_score
+
+        all_subtitles = []
+        providers_to_search = provider_order if provider_order else list(self.providers)
+        required_languages = {lang.alpha3 for lang in languages} if languages else set()
+        satisfied_languages = set()
+
+        for name in providers_to_search:
+            if name in self.discarded_providers:
+                logger.debug('Skipping discarded provider %r', name)
+                continue
+
+            # Search this provider
+            provider_subtitles = SZProviderPool.list_subtitles_provider(self, name, video, languages)
+
+            if provider_subtitles is None:
+                logger.info('Discarding provider %s', name)
+                self.discarded_providers.add(name)
+                continue
+
+            if not provider_subtitles:
+                continue
+
+            # Filter out invalid subtitle objects (strings, None, etc.)
+            valid_subtitles = []
+            for subtitle in provider_subtitles:
+                # Check if this is actually a subtitle object with get_matches method
+                if not hasattr(subtitle, 'get_matches'):
+                    logger.warning('Provider %s returned invalid subtitle object (type: %s): %r',
+                                   name, type(subtitle).__name__, subtitle)
+                    continue
+                valid_subtitles.append(subtitle)
+
+            if not valid_subtitles:
+                continue
+
+            # Check which requested languages are satisfied by this provider's results
+            for subtitle in valid_subtitles:
+                try:
+                    matches = subtitle.get_matches(video)
+                except AttributeError:
+                    logger.error("%r: Match computation failed: %s", subtitle, traceback.format_exc())
+                    continue
+                score, _ = compute_score(matches, subtitle, video, False)
+                if score >= min_score:
+                    satisfied_languages.add(subtitle.language.alpha3)
+
+            all_subtitles.extend(valid_subtitles)
+
+            if not exhaustive and required_languages and satisfied_languages >= required_languages:
+                logger.info('All requested languages satisfied after provider %s, stopping search', name)
+                return all_subtitles
+
+        return all_subtitles
 
     def download_subtitle(self, subtitle):
         """Download `subtitle`'s :attr:`~subliminal.subtitle.Subtitle.content`.
@@ -524,7 +624,7 @@ class SZProviderPool(ProviderPool):
         return True
 
     def download_best_subtitles(self, subtitles, video, languages, min_score=0, hearing_impaired=False, only_one=False,
-                                compute_score=None, use_original_format=False):
+                                use_original_format=False, fallback_allowed=False):
         """Download the best matching subtitles.
 
         patch:
@@ -541,18 +641,15 @@ class SZProviderPool(ProviderPool):
         :param int min_score: minimum score for a subtitle to be downloaded.
         :param bool hearing_impaired: hearing impaired preference.
         :param bool only_one: download only one subtitle, not one per language.
-        :param compute_score: function that takes `subtitle` and `video` as positional arguments,
-            `hearing_impaired` as keyword argument and returns the score.
         :param bool use_original_format: preserve original subtitles format
         :return: downloaded subtitles.
         :rtype: list of :class:`~subliminal.subtitle.Subtitle`
 
         """
-        compute_score = compute_score or default_compute_score
         use_hearing_impaired = hearing_impaired in ("prefer", "force HI")
 
         is_episode = isinstance(video, Episode)
-        max_score = sum(val for key, val in compute_score._scores['episode' if is_episode else 'movie'].items() if key != "hash")
+        max_score = MAX_SCORES['episode' if is_episode else 'movie']
 
         # sort subtitles by score
         unsorted_subtitles = []
@@ -564,7 +661,9 @@ class SZProviderPool(ProviderPool):
                 continue
 
             try:
-                matches = s.get_matches(video)
+                matches = s.matches if hasattr(s, 'matches') and isinstance(s.matches, set) and len(s.matches) \
+                        else s.get_matches(video)
+
             except AttributeError:
                 logger.error("%r: Match computation failed: %s", s, traceback.format_exc())
                 continue
@@ -636,6 +735,24 @@ class SZProviderPool(ProviderPool):
                 logger.debug('Only one subtitle downloaded')
                 break
 
+        # --- WHISPER FALLBACK PRECONDITIONS ---
+        # 1. No regular provider results with at least minimum score
+        # 2. We are in a Bulk Task or Single Series search
+        # 3. User enabled the Whisper fallback setting
+        # 4. Whisper is actually in the active providers list
+        if (not downloaded_subtitles and
+            fallback_allowed and
+            'whisperai' in self.providers):
+
+            for subtitle, score, score_without_hash, matches, orig_matches in scored_subtitles:
+                if subtitle.provider_name == 'whisperai':
+                    logger.info('BAZARR Bulk Task: Falling back to Whisper for %r', video.name)
+                    subtitle.use_original_format = use_original_format
+                    if self.download_subtitle(subtitle):
+                        subtitle.score = score
+                        downloaded_subtitles.append(subtitle)
+                        break
+
         return downloaded_subtitles
 
     def list_supported_languages(self):
@@ -652,11 +769,11 @@ class SZProviderPool(ProviderPool):
             try:
                 provider_languages = self[name].languages
             except AttributeError:
-                logger.exception(f"{name} provider doesn't have a languages attribute")
+                logger.exception("%s provider doesn't have a languages attribute", name)
                 continue
 
             if provider_languages is None:
-                logger.info(f"Skipping provider {name} because it doesn't support any languages.")
+                logger.info("Skipping provider %s because it doesn't support any languages.", name)
                 continue
 
             # add the languages for this provider
@@ -678,11 +795,11 @@ class SZProviderPool(ProviderPool):
             try:
                 provider_video_type = self[name].video_types
             except AttributeError:
-                logger.exception(f"{name} provider doesn't have a video_types method")
+                logger.exception("%s provider doesn't have a video_types method", name)
                 continue
 
             if provider_video_type is None:
-                logger.info(f"Skipping provider {name} because it doesn't support any video type.")
+                logger.info("Skipping provider %s because it doesn't support any video type.", name)
                 continue
 
             # add the video types for this provider
@@ -768,7 +885,7 @@ class SZAsyncProviderPool(SZProviderPool):
             try:
                 provider_languages = {'provider': provider_name, 'languages': self[provider_name].languages}
             except AttributeError:
-                logger.exception(f"{provider_name} provider doesn't have a languages attribute")
+                logger.exception("%s provider doesn't have a languages attribute", provider_name)
 
             return provider_languages
 
@@ -798,7 +915,7 @@ class SZAsyncProviderPool(SZProviderPool):
                 provider_video_types = {'provider': provider_name,
                                         'video_types': self[provider_name].video_types}
             except AttributeError:
-                logger.exception(f"{provider_name} provider doesn't have a video_types attribute")
+                logger.exception("%s provider doesn't have a video_types attribute", provider_name)
 
             return provider_video_types
 
@@ -1085,7 +1202,7 @@ def download_subtitles(subtitles, pool_class=ProviderPool, **kwargs):
             pool.download_subtitle(subtitle)
 
 
-def download_best_subtitles(videos, languages, min_score=0, hearing_impaired=False, only_one=False, compute_score=None,
+def download_best_subtitles(videos, languages, min_score=0, hearing_impaired=False, only_one=False,
                             pool_class=ProviderPool, throttle_time=0, **kwargs):
     r"""List and download the best matching subtitles.
 
@@ -1098,8 +1215,6 @@ def download_best_subtitles(videos, languages, min_score=0, hearing_impaired=Fal
     :param int min_score: minimum score for a subtitle to be downloaded.
     :param bool hearing_impaired: hearing impaired preference.
     :param bool only_one: download only one subtitle, not one per language.
-    :param compute_score: function that takes `subtitle` and `video` as positional arguments,
-        `hearing_impaired` as keyword argument and returns the score.
     :param pool_class: class to use as provider pool.
     :type pool_class: :class:`ProviderPool`, :class:`AsyncProviderPool` or similar
     :param \*\*kwargs: additional parameters for the provided `pool_class` constructor.
@@ -1156,20 +1271,21 @@ def get_subtitle_path(video_path, language=None, extension='.srt', forced_tag=Fa
 
     """
     subtitle_root = os.path.splitext(video_path)[0]
-    tags = tags or []
-    hi_extension = os.environ.get("SZ_HI_EXTENSION", "hi")
-
-    if forced_tag:
-        tags.append("forced")
-
-    elif hi_tag:
-        tags.append(hi_extension)
 
     if language:
         subtitle_root += '.' + str(language.basename)
 
-    if tags:
-        subtitle_root += ".%s" % "-".join(tags)
+        tags = tags or []
+        hi_extension = os.environ.get("SZ_HI_EXTENSION", "hi")
+
+        if forced_tag:
+            tags.append("forced")
+
+        elif hi_tag:
+            tags.append(hi_extension)
+
+        if tags:
+            subtitle_root += ".%s" % "-".join(tags)
 
     return subtitle_root + extension
 
@@ -1287,5 +1403,5 @@ def refine(video, episode_refiners=None, movie_refiners=None, **kwargs):
         logger.info('Refining video with %s', refiner)
         try:
             refiner_manager[refiner].plugin(video, **kwargs)
-        except:
+        except Exception:
             logger.error('Failed to refine video: %s', traceback.format_exc())

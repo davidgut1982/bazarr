@@ -2,8 +2,10 @@ import badges from "./badges";
 import episodes from "./episodes";
 import files from "./files";
 import history from "./history";
+import jellyfin from "./jellyfin";
 import movies from "./movies";
 import plex from "./plex";
+import providerHub from "./providerHub";
 import providers from "./providers";
 import series from "./series";
 import subtitles from "./subtitles";
@@ -14,6 +16,7 @@ const api = {
   badges,
   episodes,
   files,
+  jellyfin,
   movies,
   series,
   providers,
@@ -22,6 +25,7 @@ const api = {
   system,
   utils,
   plex,
+  providerHub,
 };
 
 export default api;

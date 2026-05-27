@@ -10,7 +10,19 @@ class SystemApi extends BaseApi {
   }
 
   async login(username: string, password: string) {
-    await this.post("/account", { username, password }, { action: "login" });
+    const response = await this.post<{
+      upgrade_hash?: boolean;
+      upgrade_token?: string;
+    }>("/account", { username, password }, { action: "login" });
+    return response.data;
+  }
+
+  async upgradePasswordHash(upgradeToken: string) {
+    await this.post(
+      "/account",
+      { password: upgradeToken },
+      { action: "upgrade_hash" },
+    );
   }
 
   async logout() {
@@ -38,6 +50,12 @@ class SystemApi extends BaseApi {
     const response = await this.get<Language.Server[]>("/languages", {
       history,
     });
+    return response;
+  }
+
+  async audioLanguages() {
+    const response =
+      await this.get<{ code2: string; name: string }[]>("/languages/audio");
     return response;
   }
 
@@ -71,6 +89,10 @@ class SystemApi extends BaseApi {
   async health() {
     const response = await this.get<DataWrapper<System.Health[]>>("/health");
     return response.data;
+  }
+
+  async recheckHealth() {
+    await this.post("/health");
   }
 
   async logs() {

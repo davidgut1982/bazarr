@@ -13,36 +13,35 @@ type UrlTestResponse =
     };
 
 class RequestUtils {
-  async urlTest(protocol: string, url: string, params?: LooseObject) {
-    try {
-      const result = await client.axios.get<UrlTestResponse>(
-        `../test/${protocol}/${url}api/system/status`,
-        { params },
-      );
-      const { data } = result;
-      if (data.status && data.version) {
-        return data;
-      } else {
-        throw new Error("Cannot get response, fallback to v3 api");
-      }
-    } catch (e) {
-      const result = await client.axios.get<UrlTestResponse>(
-        `../test/${protocol}/${url}api/v3/system/status`,
-        { params },
-      );
-      return result.data;
-    }
+  // Sonarr / Radarr connection tester. Backend builds the
+  // /api/[v3/]system/status path itself and probes both with one call,
+  // so the frontend only contributes scheme/host/port/base-url and the
+  // service identifier. See LavX/bazarr#92 for why we no longer pass
+  // the request path through the proxy.
+  async urlTest(
+    service: "sonarr" | "radarr",
+    protocol: string,
+    url: string,
+    apikey: string,
+  ) {
+    const trimmed = url.replace(/\/+$/, "");
+    const result = await client.axios.get<UrlTestResponse>(
+      `../test/${service}`,
+      { params: { url: `${protocol}://${trimmed}`, apikey } },
+    );
+    return result.data;
   }
 
-  async providerUrlTest(protocol: string, url: string, params?: LooseObject) {
+  // Provider connection tester. Whisper-ASR runs the same
+  // localhost-on-the-same-box pattern Sonarr/Radarr does (people
+  // self-host transcription on the Bazarr box), so it goes through the
+  // same constrained route. Backend appends /status itself; no apikey.
+  async providerUrlTest(service: string, protocol: string, url: string) {
+    const trimmed = url.replace(/\/+$/, "");
     const result = await client.axios.get<UrlTestResponse>(
-      `../test/${protocol}/${url}status`,
-      { params },
+      `../test/${service}`,
+      { params: { url: `${protocol}://${trimmed}` } },
     );
-    const { data } = result;
-    if (data.status && data.version) {
-      return data;
-    }
     return result.data;
   }
 }

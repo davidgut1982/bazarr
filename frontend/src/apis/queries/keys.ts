@@ -8,6 +8,7 @@ export enum QueryKeys {
   Settings = "settings",
   Subtitles = "subtitles",
   Providers = "providers",
+  ProviderHub = "provider-hub",
   Languages = "languages",
   LanguagesProfiles = "languages-profiles",
   Blacklist = "blacklist",
@@ -24,4 +25,6 @@ export enum QueryKeys {
   Range = "range",
   All = "all",
   Plex = "plex",
+  Jellyfin = "jellyfin",
+  Translator = "translator",
 }

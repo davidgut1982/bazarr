@@ -1,4 +1,4 @@
-import { FunctionComponent } from "react";
+import React, { FunctionComponent } from "react";
 import {
   Center,
   MantineStyleProp,
@@ -12,8 +12,9 @@ import TextPopover from "@/components/TextPopover";
 import styles from "./Card.module.scss";
 
 interface CardProps {
+  ariaLabel?: string;
   description?: string;
-  header?: string;
+  header?: React.ReactNode;
   lineClamp?: number | undefined;
   onClick?: () => void;
   plus?: boolean;
@@ -21,6 +22,7 @@ interface CardProps {
 }
 
 export const Card: FunctionComponent<CardProps> = ({
+  ariaLabel,
   header,
   description,
   plus,
@@ -29,7 +31,12 @@ export const Card: FunctionComponent<CardProps> = ({
   titleStyles,
 }) => {
   return (
-    <UnstyledButton p="lg" onClick={onClick} className={styles.card}>
+    <UnstyledButton
+      p="lg"
+      aria-label={ariaLabel}
+      onClick={onClick}
+      className={styles.card}
+    >
       {plus ? (
         <Center>
           <FontAwesomeIcon size="2x" icon={faPlus}></FontAwesomeIcon>

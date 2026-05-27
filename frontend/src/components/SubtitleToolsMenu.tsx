@@ -1,16 +1,19 @@
 import { FunctionComponent, ReactElement, useCallback, useMemo } from "react";
 import { Divider, List, Menu, MenuProps, ScrollArea } from "@mantine/core";
 import {
+  faAlignJustify,
   faClock,
+  faClosedCaptioning,
   faCode,
-  faDeaf,
   faExchangeAlt,
+  faEye,
   faFaceGrinStars,
   faFilm,
   faImage,
   faLanguage,
   faMagic,
   faPaintBrush,
+  faPencil,
   faPlay,
   faSearch,
   faTextHeight,
@@ -26,7 +29,9 @@ import { TranslationModal } from "@/components/forms/TranslationForm";
 import { useModals } from "@/modules/modals";
 import { ModalComponent } from "@/modules/modals/WithModal";
 import { task } from "@/modules/task";
+import { toPython } from "@/utilities";
 import { SyncSubtitleModal } from "./forms/SyncSubtitleForm";
+import { TwoPointFitModal } from "./forms/TwoPointFit";
 
 export interface ToolOptions {
   key: string;
@@ -37,84 +42,125 @@ export interface ToolOptions {
   }>;
 }
 
-export function useTools() {
-  return useMemo<ToolOptions[]>(
+export interface ToolGroup {
+  label: string;
+  tools: ToolOptions[];
+}
+
+export function useToolGroups() {
+  return useMemo<ToolGroup[]>(
     () => [
       {
-        key: "sync",
-        icon: faPlay,
-        name: "Sync...",
-        modal: SyncSubtitleModal,
+        label: "Sync & Timing",
+        tools: [
+          {
+            key: "sync",
+            icon: faPlay,
+            name: "Sync...",
+            modal: SyncSubtitleModal,
+          },
+          {
+            key: "change_frame_rate",
+            icon: faFilm,
+            name: "Change Frame Rate...",
+            modal: FrameRateModal,
+          },
+          {
+            key: "adjust_time",
+            icon: faClock,
+            name: "Adjust Times...",
+            modal: TimeOffsetModal,
+          },
+          {
+            key: "two_point_fit",
+            icon: faAlignJustify,
+            name: "Two-Point Fit...",
+            modal: TwoPointFitModal,
+          },
+        ],
       },
       {
-        key: "remove_HI",
-        icon: faDeaf,
-        name: "Remove HI Tags",
+        label: "Cleanup",
+        tools: [
+          {
+            key: "remove_HI",
+            icon: faClosedCaptioning,
+            name: "Remove HI Tags",
+          },
+          {
+            key: "remove_tags",
+            icon: faCode,
+            name: "Remove Style Tags",
+          },
+          {
+            key: "emoji",
+            icon: faFaceGrinStars,
+            name: "Remove Emoji",
+          },
+          {
+            key: "OCR_fixes",
+            icon: faImage,
+            name: "OCR Fixes",
+          },
+          {
+            key: "common",
+            icon: faMagic,
+            name: "Common Fixes",
+          },
+          {
+            key: "fix_uppercase",
+            icon: faTextHeight,
+            name: "Fix Uppercase",
+          },
+          {
+            key: "reverse_rtl",
+            icon: faExchangeAlt,
+            name: "Reverse RTL",
+          },
+        ],
       },
       {
-        key: "remove_tags",
-        icon: faCode,
-        name: "Remove Style Tags",
-      },
-      {
-        key: "emoji",
-        icon: faFaceGrinStars,
-        name: "Remove Emoji",
-      },
-      {
-        key: "OCR_fixes",
-        icon: faImage,
-        name: "OCR Fixes",
-      },
-      {
-        key: "common",
-        icon: faMagic,
-        name: "Common Fixes",
-      },
-      {
-        key: "fix_uppercase",
-        icon: faTextHeight,
-        name: "Fix Uppercase",
-      },
-      {
-        key: "reverse_rtl",
-        icon: faExchangeAlt,
-        name: "Reverse RTL",
-      },
-      {
-        key: "add_color",
-        icon: faPaintBrush,
-        name: "Add Color...",
-        modal: ColorToolModal,
-      },
-      {
-        key: "change_frame_rate",
-        icon: faFilm,
-        name: "Change Frame Rate...",
-        modal: FrameRateModal,
-      },
-      {
-        key: "adjust_time",
-        icon: faClock,
-        name: "Adjust Times...",
-        modal: TimeOffsetModal,
-      },
-      {
-        key: "translation",
-        icon: faLanguage,
-        name: "Translate...",
-        modal: TranslationModal,
+        label: "Style & Language",
+        tools: [
+          {
+            key: "add_color",
+            icon: faPaintBrush,
+            name: "Add Color...",
+            modal: ColorToolModal,
+          },
+          {
+            key: "translation",
+            icon: faLanguage,
+            name: "Translate...",
+            modal: TranslationModal,
+          },
+        ],
       },
     ],
     [],
   );
 }
 
+export function useTools() {
+  const groups = useToolGroups();
+  return useMemo<ToolOptions[]>(() => groups.flatMap((g) => g.tools), [groups]);
+}
+
 interface Props {
   selections: FormType.ModifySubtitle[];
   children?: ReactElement;
   menu?: Omit<MenuProps, "children">;
-  onAction?: (action: "delete" | "search") => void;
+  onAction?: (action: "delete" | "search" | "view" | "edit") => void;
+  // For missing subtitle translation
+  missingLanguage?: Subtitle;
+  translationSources?: Subtitle[];
+  mediaId?: number;
+  mediaType?: "episode" | "movie";
+  /**
+   * True when the selection refers to an embedded (in-container) track.
+   * Only translate is meaningful — sync/mods/delete require a file on disk.
+   */
+  embeddedTrack?: boolean;
 }
 
 const SubtitleToolsMenu: FunctionComponent<Props> = ({
@@ -122,6 +168,11 @@ const SubtitleToolsMenu: FunctionComponent<Props> = ({
   children,
   menu,
   onAction,
+  missingLanguage,
+  translationSources,
+  mediaId,
+  mediaType,
+  embeddedTrack = false,
 }) => {
   const { mutateAsync } = useSubtitleAction();
 
@@ -142,36 +193,125 @@ const SubtitleToolsMenu: FunctionComponent<Props> = ({
     [mutateAsync, selections],
   );
 
-  const tools = useTools();
+  const toolGroups = useToolGroups();
   const modals = useModals();
 
   const disabledTools = selections.length === 0;
+  const isMissing = !!missingLanguage;
+  const hasSources = (translationSources ?? []).length > 0;
+  // For embedded tracks only translate is supported — no file on disk for other ops
+  const isTranslateOnlyMode = embeddedTrack && !isMissing;
 
   return (
     <Menu withArrow withinPortal position="left-end" {...menu}>
       <Menu.Target>{children}</Menu.Target>
       <Menu.Dropdown>
-        <Menu.Label>Tools</Menu.Label>
-        {tools.map((tool) => (
-          <Menu.Item
-            key={tool.key}
-            disabled={disabledTools}
-            leftSection={<FontAwesomeIcon icon={tool.icon}></FontAwesomeIcon>}
-            onClick={() => {
-              if (tool.modal) {
-                modals.openContextModal(tool.modal, { selections });
-              } else {
-                process(tool.key, tool.name);
+        {toolGroups.map((group, groupIdx) => (
+          <div key={group.label}>
+            {groupIdx > 0 && <Divider />}
+            <Menu.Label>{group.label}</Menu.Label>
+            {group.tools.map((tool) => {
+              // Hide translate from the tools section when showing missing-sub menu
+              // (it appears instead in the Actions section as "Translate from X")
+              if (tool.key === "translation" && isMissing) {
+                return null;
               }
-            }}
-          >
-            {tool.name}
-          </Menu.Item>
+              // For embedded tracks: only translate is supported
+              const toolDisabled =
+                disabledTools ||
+                (isTranslateOnlyMode && tool.key !== "translation");
+              return (
+                <Menu.Item
+                  key={tool.key}
+                  disabled={toolDisabled}
+                  leftSection={
+                    <FontAwesomeIcon icon={tool.icon}></FontAwesomeIcon>
+                  }
+                  onClick={() => {
+                    if (toolDisabled) return;
+                    if (tool.modal) {
+                      modals.openContextModal(tool.modal, { selections });
+                    } else {
+                      process(tool.key, tool.name);
+                    }
+                  }}
+                >
+                  {tool.name}
+                </Menu.Item>
+              );
+            })}
+          </div>
         ))}
         <Divider></Divider>
         <Menu.Label>Actions</Menu.Label>
+        {/* Translate from source — for missing subtitles */}
+        {isMissing && hasSources && (
+          <>
+            {translationSources!.map((source) => {
+              const sourceIsEmbedded = !source.path;
+              // Use language code as key for embedded tracks (no path)
+              const itemKey = `translate-${sourceIsEmbedded ? `embedded:${source.code2}` : source.path}`;
+              const label = sourceIsEmbedded
+                ? `Translate from ${source.name || source.code2} (embedded)`
+                : `Translate from ${source.name || source.code2}${source.hi ? " (HI)" : ""}`;
+              return (
+                <Menu.Item
+                  key={itemKey}
+                  leftSection={<FontAwesomeIcon icon={faLanguage} />}
+                  onClick={async () => {
+                    await mutateAsync({
+                      action: "translate",
+                      form: {
+                        id: mediaId!,
+                        type: mediaType!,
+                        language: missingLanguage!.code2,
+                        // Empty string tells backend to extract the embedded track
+                        path: source.path ?? "",
+                        forced: toPython(missingLanguage!.forced),
+                        hi: toPython(missingLanguage!.hi),
+                        from_language: sourceIsEmbedded ? source.code2 : undefined,
+                      },
+                    });
+                  }}
+                >
+                  {label}
+                </Menu.Item>
+              );
+            })}
+          </>
+        )}
+        {isMissing && !hasSources && (
+          <Menu.Item
+            disabled
+            leftSection={<FontAwesomeIcon icon={faLanguage} />}
+          >
+            No source subtitles to translate from
+          </Menu.Item>
+        )}
         <Menu.Item
-          disabled={selections.length !== 0 || onAction === undefined}
+          disabled={
+            selections.length === 0 || onAction === undefined || isTranslateOnlyMode
+          }
+          leftSection={<FontAwesomeIcon icon={faEye}></FontAwesomeIcon>}
+          onClick={() => {
+            onAction?.("view");
+          }}
+        >
+          View
+        </Menu.Item>
+        <Menu.Item
+          disabled={onAction === undefined || isTranslateOnlyMode}
+          leftSection={<FontAwesomeIcon icon={faPencil}></FontAwesomeIcon>}
+          onClick={() => {
+            onAction?.("edit");
+          }}
+        >
+          {selections.length === 0 ? "Create / Upload" : "Edit"}
+        </Menu.Item>
+        <Menu.Item
+          disabled={
+            selections.length !== 0 || onAction === undefined || isTranslateOnlyMode
+          }
           leftSection={<FontAwesomeIcon icon={faSearch}></FontAwesomeIcon>}
           onClick={() => {
             onAction?.("search");
@@ -180,7 +320,9 @@ const SubtitleToolsMenu: FunctionComponent<Props> = ({
           Search
         </Menu.Item>
         <Menu.Item
-          disabled={selections.length === 0 || onAction === undefined}
+          disabled={
+            selections.length === 0 || onAction === undefined || isTranslateOnlyMode
+          }
           color="red"
           leftSection={<FontAwesomeIcon icon={faTrash}></FontAwesomeIcon>}
           onClick={() => {

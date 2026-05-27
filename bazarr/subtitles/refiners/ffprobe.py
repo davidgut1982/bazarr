@@ -35,7 +35,7 @@ def refine_from_ffprobe(path, video):
                                     episode_file_id=file_id.episode_file_id)
 
     if not data or ('ffprobe' not in data and 'mediainfo' not in data):
-        logging.debug(f"No cache available for this file: {path}")
+        logging.debug(f"No cache available for this file: {path}")  # noqa: G004
         return video
 
     if data['ffprobe']:
@@ -76,6 +76,11 @@ def refine_from_ffprobe(path, video):
                 video.audio_codec = parser_data['audio'][0]['codec']
         for track in parser_data['audio']:
             if 'language' in track:
+                if isinstance(track['language'], str):
+                    logging.debug(
+                        'BAZARR ffprobe returned a string for audio language,'
+                        ' skipping: %s', track['language'])
+                    continue
                 video.audio_languages.add(track['language'].alpha3)
 
     return video

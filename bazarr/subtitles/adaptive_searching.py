@@ -46,7 +46,7 @@ def is_search_active(desired_language, attempt_string):
             logging.debug("Adaptive searching: there's no attempts matching desired language, search will run.")
             return True
         else:
-            logging.debug(f"Adaptive searching: attempts matching language {desired_language}: {matching_attempts}")
+            logging.debug(f"Adaptive searching: attempts matching language {desired_language}: {matching_attempts}")  # noqa: G004
 
         # try to get the initial and latest search timestamp from matching attempts
         initial_search_attempt = matching_attempts[0]
@@ -60,9 +60,9 @@ def is_search_active(desired_language, attempt_string):
             logging.debug("Adaptive searching: unable to parse initial and latest search timestamps, search will run.")
             return True
         else:
-            logging.debug(f"Adaptive searching: initial search date for {desired_language} is "
+            logging.debug(f"Adaptive searching: initial search date for {desired_language} is "  # noqa: G004
                           f"{initial_search_timestamp}")
-            logging.debug(f"Adaptive searching: latest search date for {desired_language} is {latest_search_timestamp}")
+            logging.debug(f"Adaptive searching: latest search date for {desired_language} is {latest_search_timestamp}")  # noqa: G004
 
         # defining basic calculation variables
         now = datetime.now()
@@ -71,41 +71,96 @@ def is_search_active(desired_language, attempt_string):
         elif settings.general.adaptive_searching_delay.endswith('w'):
             extended_search_delay = timedelta(weeks=int(settings.general.adaptive_searching_delay[:1]))
         else:
-            logging.debug(f"Adaptive searching: cannot parse adaptive_searching_delay from config file: "
+            logging.debug(f"Adaptive searching: cannot parse adaptive_searching_delay from config file: "  # noqa: G004
                           f"{settings.general.adaptive_searching_delay}")
             return True
-        logging.debug(f"Adaptive searching: delay after initial search value: {extended_search_delay}")
+        logging.debug(f"Adaptive searching: delay after initial search value: {extended_search_delay}")  # noqa: G004
 
         if settings.general.adaptive_searching_delta.endswith('d'):
             extended_search_delta = timedelta(days=int(settings.general.adaptive_searching_delta[:1]))
         elif settings.general.adaptive_searching_delta.endswith('w'):
             extended_search_delta = timedelta(weeks=int(settings.general.adaptive_searching_delta[:1]))
         else:
-            logging.debug(f"Adaptive searching: cannot parse adaptive_searching_delta from config file: "
+            logging.debug(f"Adaptive searching: cannot parse adaptive_searching_delta from config file: "  # noqa: G004
                           f"{settings.general.adaptive_searching_delta}")
             return True
-        logging.debug(f"Adaptive searching: delta between latest search and now value: {extended_search_delta}")
+        logging.debug(f"Adaptive searching: delta between latest search and now value: {extended_search_delta}")  # noqa: G004
 
         if initial_search_timestamp + extended_search_delay > now:
-            logging.debug(f"Adaptive searching: it's been less than {settings.general.adaptive_searching_delay} since "
+            logging.debug(f"Adaptive searching: it's been less than {settings.general.adaptive_searching_delay} since "  # noqa: G004
                           f"initial search, search will run.")
             return True
         else:
-            logging.debug(f"Adaptive searching: it's been more than {settings.general.adaptive_searching_delay} since "
+            logging.debug(f"Adaptive searching: it's been more than {settings.general.adaptive_searching_delay} since "  # noqa: G004
                           f"initial search, let's check if it's time to search again.")
             if latest_search_timestamp + extended_search_delta <= now:
                 logging.debug(
-                    f"Adaptive searching: it's been more than {settings.general.adaptive_searching_delta} since "
+                    f"Adaptive searching: it's been more than {settings.general.adaptive_searching_delta} since "  # noqa: G004
                     f"latest search, search will run.")
                 return True
             else:
                 logging.debug(
-                    f"Adaptive searching: it's been less than {settings.general.adaptive_searching_delta} since "
+                    f"Adaptive searching: it's been less than {settings.general.adaptive_searching_delta} since "  # noqa: G004
                     f"latest search, we're not ready to search yet.")
                 return False
 
     logging.debug("adaptive searching is disabled, search will run.")
     return True
+
+
+def is_search_given_up(desired_language, attempt_string):
+    """
+    Returns True if searching should be permanently abandoned for this language.
+    Requires at least two recorded attempts; compares the timespan between the first
+    and last attempt against the configured adaptive_searching_max_age threshold.
+
+    @param desired_language: 2 letter language code to check
+    @type desired_language: str
+    @param attempt_string: string representation of a list of lists from database column failedAttempts
+    @type attempt_string: str
+
+    @return: True if the language should be dropped from missing_subtitles
+    @rtype: bool
+    """
+    max_age = settings.general.adaptive_searching_max_age
+    if not max_age:
+        return False
+
+    try:
+        attempts = ast.literal_eval(attempt_string)
+        if type(attempts) is not list:
+            raise ValueError
+    except ValueError:
+        return False
+
+    matching_attempts = sorted([x for x in attempts if x[0] == desired_language], key=lambda x: x[1])
+
+    if len(matching_attempts) < 2:
+        return False
+
+    try:
+        first_ts = datetime.fromtimestamp(matching_attempts[0][1])
+        last_ts = datetime.fromtimestamp(matching_attempts[-1][1])
+    except (OverflowError, ValueError, OSError):
+        return False
+
+    if max_age.endswith('m'):
+        threshold = timedelta(days=int(max_age[:-1]) * 30)
+    elif max_age.endswith('y'):
+        threshold = timedelta(days=int(max_age[:-1]) * 365)
+    elif max_age.endswith('w'):
+        threshold = timedelta(weeks=int(max_age[:-1]))
+    elif max_age.endswith('d'):
+        threshold = timedelta(days=int(max_age[:-1]))
+    else:
+        logging.debug(f"Adaptive searching: cannot parse adaptive_searching_max_age from config: {max_age}")  # noqa: G004
+        return False
+
+    given_up = (last_ts - first_ts) >= threshold
+    if given_up:
+        logging.debug(f"Adaptive searching: giving up on {desired_language}: span between first and last attempt "  # noqa: G004
+                      f"({last_ts - first_ts}) exceeds threshold ({threshold})")
+    return given_up
 
 
 def updateFailedAttempts(desired_language, attempt_string):
@@ -124,7 +179,7 @@ def updateFailedAttempts(desired_language, attempt_string):
     try:
         # let's try to get a list of lists from the string representation in database
         attempts = ast.literal_eval(attempt_string)
-        logging.debug(f"Adaptive searching: current attempts value is {attempts}")
+        logging.debug(f"Adaptive searching: current attempts value is {attempts}")  # noqa: G004
         if type(attempts) is not list:
             # attempts should be a list if not, it's malformed or None
             raise ValueError
@@ -133,10 +188,10 @@ def updateFailedAttempts(desired_language, attempt_string):
         attempts = []
 
     matching_attempts = sorted([x for x in attempts if x[0] == desired_language], key=lambda x: x[1])
-    logging.debug(f"Adaptive searching: attempts matching language {desired_language}: {matching_attempts}")
+    logging.debug(f"Adaptive searching: attempts matching language {desired_language}: {matching_attempts}")  # noqa: G004
 
     filtered_attempts = sorted([x for x in attempts if x[0] != desired_language], key=lambda x: x[1])
-    logging.debug(f"Adaptive searching: attempts not matching language {desired_language}: {filtered_attempts}")
+    logging.debug(f"Adaptive searching: attempts not matching language {desired_language}: {filtered_attempts}")  # noqa: G004
 
     # get the initial search from attempts if there's one
     if len(matching_attempts):
@@ -146,6 +201,6 @@ def updateFailedAttempts(desired_language, attempt_string):
     filtered_attempts.append([desired_language, datetime.timestamp(datetime.now())])
 
     updated_attempts = sorted(filtered_attempts, key=lambda x: x[0])
-    logging.debug(f"Adaptive searching: updated attempts that will be saved to database is {updated_attempts}")
+    logging.debug(f"Adaptive searching: updated attempts that will be saved to database is {updated_attempts}")  # noqa: G004
 
     return str(updated_attempts)

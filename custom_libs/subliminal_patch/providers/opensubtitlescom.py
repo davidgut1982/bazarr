@@ -348,9 +348,10 @@ class OpenSubtitlesComProvider(ProviderRetryMixin, Provider):
                 params.append(('episode_number', self.video.episode))
             if self.video.season:
                 params.append(('season_number', self.video.season))
+
             if self.video.series_imdb_id:
                 params.append(('parent_imdb_id', self.sanitize_external_ids(self.video.series_imdb_id)))
-            if title_id:
+            elif title_id:
                 params.append(('parent_feature_id', title_id))
         else:
             if not imdb_id and not title_id:
@@ -387,6 +388,19 @@ class OpenSubtitlesComProvider(ProviderRetryMixin, Provider):
         subtitles = []
 
         result = res.json()
+
+        if not result['data'] and file_hash:
+            logger.debug("Hash query returned 0 results, retrying without moviehash")
+            params_no_hash = [(k, v) for k, v in params if k != 'moviehash']
+            res = self.retry(
+                lambda: self.checked(
+                    lambda: self.session.get(self.server_url() + 'subtitles', params=params_no_hash, timeout=30),
+                    validate_json=True,
+                    json_key_name='data'
+                ),
+                amount=retry_amount
+            )
+            result = res.json()
 
         # filter out forced subtitles or not depending on the required languages
         if all([lang.forced for lang in languages]):  # only forced
@@ -448,6 +462,40 @@ class OpenSubtitlesComProvider(ProviderRetryMixin, Provider):
                         hash_matched=moviehash_match,
                         imdb_match=True if imdb_id else False
                     )
+                    # Compat layer exposes these on attributes.download_count /
+                    # attributes.ratings / attributes.ai_translated so the
+                    # Jellyfin plugin sort and display have real data.
+                    attrs = item['attributes']
+                    try:
+                        subtitle.download_count = int(attrs.get('download_count') or 0)
+                    except (TypeError, ValueError):
+                        subtitle.download_count = 0
+                    try:
+                        subtitle.ratings = float(attrs.get('ratings') or 0)
+                    except (TypeError, ValueError):
+                        subtitle.ratings = 0.0
+                    subtitle.ai_translated = bool(attrs.get('ai_translated', False))
+                    subtitle.machine_translated = bool(attrs.get('machine_translated', False))
+                    subtitle.foreign_parts_only = bool(attrs.get('foreign_parts_only', False))
+                    try:
+                        fps_raw = attrs.get('fps')
+                        subtitle.fps = float(fps_raw) if fps_raw else 0.0
+                    except (TypeError, ValueError):
+                        subtitle.fps = 0.0
+                    from_trusted = attrs.get('from_trusted')
+                    if from_trusted is not None:
+                        subtitle.from_trusted = bool(from_trusted)
+                    files0 = attrs['files'][0] if attrs.get('files') else {}
+                    if files0.get('file_name'):
+                        subtitle.filename = files0['file_name']
+                    upload_date = attrs.get('upload_date')
+                    if upload_date:
+                        try:
+                            from datetime import datetime
+                            subtitle.upload_date = datetime.fromisoformat(
+                                str(upload_date).replace('Z', '+00:00'))
+                        except (TypeError, ValueError):
+                            pass
                     subtitle.get_matches(self.video)
                     subtitles.append(subtitle)
 
@@ -459,13 +507,13 @@ class OpenSubtitlesComProvider(ProviderRetryMixin, Provider):
     def download_subtitle(self, subtitle):
         logger.info('Downloading subtitle %r', subtitle)
 
-        headers = {'Accept': 'application/json', 'Content-Type': 'application/json',
-                   'Authorization': 'Bearer ' + self.token}
         res = self.retry(
             lambda: self.checked(
                 lambda: self.session.post(self.server_url() + 'download',
                                           json={'file_id': subtitle.file_id, 'sub_format': 'srt'},
-                                          headers=headers,
+                                          headers={'Accept': 'application/json',
+                                                   'Content-Type': 'application/json',
+                                                   'Authorization': 'Bearer ' + self.token},
                                           timeout=30),
                 validate_json=True,
                 json_key_name='link'
@@ -493,11 +541,11 @@ class OpenSubtitlesComProvider(ProviderRetryMixin, Provider):
             subtitle_content = r.content
             subtitle.content = fix_line_ending(subtitle_content)
 
-    @staticmethod
-    def reset_token():
+    def reset_token(self):
         logger.debug('Authentication failed: clearing cache and attempting to login.')
         region.delete("oscom_token")
         region.delete("oscom_server")
+        self.session.headers.pop('Authorization', None)
         return
 
     def checked(self, fn, raise_api_limit=False, validate_json=False, json_key_name=None, validate_content=False,
@@ -570,7 +618,7 @@ class OpenSubtitlesComProvider(ProviderRetryMixin, Provider):
                                                 f"downloaded. Quota will be reset in {quota_reset_time}.")
             elif status_code == 410:
                 log_request_response(response)
-                raise ProviderError("Download as expired")
+                raise ProviderError("Download link has expired")
             elif status_code == 429:
                 log_request_response(response)
                 raise TooManyRequests()

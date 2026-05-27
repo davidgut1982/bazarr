@@ -7,28 +7,11 @@ import React, {
   useState,
 } from "react";
 import { matchPath, NavLink, RouteObject, useLocation } from "react-router";
-import {
-  Anchor,
-  AppShell,
-  Badge,
-  Collapse,
-  Divider,
-  Group,
-  Stack,
-  Text,
-  useComputedColorScheme,
-  useMantineColorScheme,
-} from "@mantine/core";
+import { AppShell, Badge, Collapse, Stack, Text } from "@mantine/core";
 import { useHover } from "@mantine/hooks";
-import {
-  faHeart,
-  faMoon,
-  faSun,
-  IconDefinition,
-} from "@fortawesome/free-solid-svg-icons";
+import { IconDefinition } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import clsx from "clsx";
-import { Action } from "@/components";
 import { useNavbar } from "@/contexts/Navbar";
 import { useRouteItems } from "@/Router";
 import { CustomRouteObject, Route } from "@/Router/type";
@@ -96,13 +79,44 @@ function useIsActive(parent: string, route: RouteObject) {
   );
 }
 
+// Section grouping configuration.
+// Routes are matched by their path property.
+const sectionGroups = [
+  { label: "Media", paths: ["series", "movies"] },
+  { label: "Management", paths: ["history", "wanted", "blacklist"] },
+  { label: "System", paths: ["subtitle-hub", "settings", "system"] },
+];
+
+function groupRoutes(routes: CustomRouteObject[]) {
+  // Filter to visible nav items (have a path, not hidden, not index-only)
+  const navItems = routes.filter(
+    (r) => r.path !== undefined && !r.hidden && !r.path.includes(":") && r.name,
+  );
+
+  const groups: { label: string; items: CustomRouteObject[] }[] = [];
+
+  for (const section of sectionGroups) {
+    const items = section.paths
+      .map((p) => navItems.find((r) => r.path === p))
+      .filter((r): r is CustomRouteObject => r !== undefined);
+
+    if (items.length > 0) {
+      groups.push({ label: section.label, items });
+    }
+  }
+
+  // Catch any remaining items not in a defined group
+  const groupedPaths = new Set(sectionGroups.flatMap((s) => s.paths));
+  const ungrouped = navItems.filter((r) => !groupedPaths.has(r.path ?? ""));
+  if (ungrouped.length > 0) {
+    groups.push({ label: "Other", items: ungrouped });
+  }
+
+  return groups;
+}
+
 const AppNavbar: FunctionComponent = () => {
   const [selection, select] = useState<string | null>(null);
-
-  const { toggleColorScheme } = useMantineColorScheme();
-  const computedColorScheme = useComputedColorScheme("light");
-
-  const dark = computedColorScheme === "dark";
 
   const routes = useRouteItems();
 
@@ -111,41 +125,46 @@ const AppNavbar: FunctionComponent = () => {
     select(null);
   }, [pathname]);
 
+  // The top-level route (path "/") contains the nav items as children.
+  // useRouteItems returns the full routes array, and the nameless "/" route
+  // renders its children directly. We need to find the app route's children.
+  const navRoutes = useMemo(() => {
+    const appRoute = routes.find((r) => r.path === "/");
+    return appRoute?.children ?? routes;
+  }, [routes]);
+
+  const groups = useMemo(() => groupRoutes(navRoutes), [navRoutes]);
+
   return (
-    <AppShell.Navbar p="xs" className={styles.nav}>
-      <Selection.Provider value={{ selection, select }}>
-        <AppShell.Section
-          grow
-          style={{ overflowY: "auto", scrollbarWidth: "none" }}
-        >
+    <AppShell.Navbar className={styles.nav}>
+      <div className={styles.navInner}>
+        <Selection.Provider value={{ selection, select }}>
           <Stack gap={0}>
-            {routes.map((route, idx) => (
-              <RouteItem
-                key={BuildKey("nav", idx)}
-                parent="/"
-                route={route}
-              ></RouteItem>
-            ))}
+            {groups.map((group) => {
+              const groupId = `nav-group-${group.label.toLowerCase().replace(/\s+/g, "-")}`;
+              return (
+                <div key={group.label} role="group" aria-labelledby={groupId}>
+                  <div
+                    id={groupId}
+                    role="heading"
+                    aria-level={2}
+                    className={styles.groupLabel}
+                  >
+                    {group.label}
+                  </div>
+                  {group.items.map((route, idx) => (
+                    <RouteItem
+                      key={BuildKey("nav", group.label, idx)}
+                      parent="/"
+                      route={route}
+                    />
+                  ))}
+                </div>
+              );
+            })}
           </Stack>
-        </AppShell.Section>
-        <Divider></Divider>
-        <AppShell.Section mt="xs">
-          <Group gap="xs">
-            <Action
-              label="Change Theme"
-              c={dark ? "yellow" : "indigo"}
-              onClick={() => toggleColorScheme()}
-              icon={dark ? faSun : faMoon}
-            ></Action>
-            <Anchor
-              href="https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=XHHRWXT9YB7WE&source=url"
-              target="_blank"
-            >
-              <Action label="Donate" icon={faHeart} c="red"></Action>
-            </Anchor>
-          </Group>
-        </AppShell.Section>
-      </Selection.Provider>
+        </Selection.Provider>
+      </div>
     </AppShell.Navbar>
   );
 };
@@ -154,7 +173,7 @@ const RouteItem: FunctionComponent<{
   route: CustomRouteObject;
   parent: string;
 }> = ({ route, parent }) => {
-  const { children, name, path, icon, hidden, element } = route;
+  const { children, name, path, icon, hidden, element, divider } = route;
 
   const { select } = useSelection();
 
@@ -177,7 +196,7 @@ const RouteItem: FunctionComponent<{
             parent={link}
             key={BuildKey(link, "nav", idx)}
             route={child}
-          ></RouteItem>
+          />
         ))}
       </Stack>
     );
@@ -186,7 +205,6 @@ const RouteItem: FunctionComponent<{
       return (
         <Stack gap={0}>
           <NavbarItem
-            primary
             name={name}
             link={link}
             icon={icon}
@@ -208,8 +226,8 @@ const RouteItem: FunctionComponent<{
                 select(link);
               }
             }}
-          ></NavbarItem>
-          <Collapse hidden={children.length === 0} in={isOpen}>
+          />
+          <Collapse hidden={children.length === 0} expanded={isOpen}>
             {elements}
           </Collapse>
         </Stack>
@@ -219,12 +237,10 @@ const RouteItem: FunctionComponent<{
     }
   } else {
     return (
-      <NavbarItem
-        name={name ?? link}
-        link={link}
-        icon={icon}
-        badge={badge}
-      ></NavbarItem>
+      <>
+        {divider && <div className={styles.subGroupLabel}>{divider}</div>}
+        <NavbarItem name={name ?? link} link={link} icon={icon} badge={badge} />
+      </>
     );
   }
 };
@@ -234,7 +250,6 @@ interface NavbarItemProps {
   link: string;
   icon?: IconDefinition;
   badge?: number | string;
-  primary?: boolean;
   onClick?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
 }
 
@@ -244,7 +259,6 @@ const NavbarItem: FunctionComponent<NavbarItemProps> = ({
   name,
   badge,
   onClick,
-  primary = false,
 }) => {
   const { show } = useNavbar();
 
@@ -259,6 +273,40 @@ const NavbarItem: FunctionComponent<NavbarItemProps> = ({
 
     return true;
   }, [badge]);
+
+  const isSignalRBadge = useMemo(() => {
+    return link === "/series" || link === "/movies";
+  }, [link]);
+
+  // Compute explicit background and text style objects safely
+  const badgeStyle = useMemo(() => {
+    if (!isSignalRBadge) return {};
+
+    if (badge === "LIVE") {
+      return {
+        // Subtle background colours that adapt to light/dark mode
+        backgroundColor:
+          "light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6))",
+
+        // Softened high-contrast text colors
+        color:
+          "light-dark(var(--mantine-color-gray-7), var(--mantine-color-gray-5))",
+
+        border: "none",
+      };
+    }
+
+    if (badge === "DOWN") {
+      return {
+        // more noticeable background colors for "DOWN" status, still adapting to theme
+        backgroundColor:
+          "light-dark(var(--mantine-color-red-6), var(--mantine-color-red-8))",
+        color: "var(--mantine-color-white)",
+      };
+    }
+
+    return {};
+  }, [badge, isSignalRBadge]);
 
   return (
     <NavLink
@@ -278,24 +326,16 @@ const NavbarItem: FunctionComponent<NavbarItemProps> = ({
         )
       }
     >
-      <Text
-        ref={ref}
-        inline
-        p="xs"
-        size="sm"
-        fw={primary ? "bold" : "normal"}
-        className={styles.text}
-        span
-      >
-        {icon && (
-          <FontAwesomeIcon
-            className={styles.icon}
-            icon={icon}
-          ></FontAwesomeIcon>
-        )}
+      <Text ref={ref} inline className={styles.text} span>
+        {icon && <FontAwesomeIcon className={styles.icon} icon={icon} />}
         {name}
         {!shouldHideBadge && (
-          <Badge className={styles.badge} radius="xs">
+          <Badge
+            className={styles.badge}
+            variant="filled"
+            radius="xs"
+            style={badgeStyle}
+          >
             {badge}
           </Badge>
         )}
@@ -303,5 +343,4 @@ const NavbarItem: FunctionComponent<NavbarItemProps> = ({
     </NavLink>
   );
 };
-
 export default AppNavbar;

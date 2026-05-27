@@ -62,7 +62,7 @@ function ManualSearchView<T extends SupportType>(props: Props<T>) {
       );
 
       if (releaseInfo.length === 0) {
-        return <Text c="dimmed">Cannot get release info</Text>;
+        return <Text c="var(--bz-text-tertiary)">Cannot get release info</Text>;
       }
 
       return (
@@ -76,7 +76,7 @@ function ManualSearchView<T extends SupportType>(props: Props<T>) {
               ></FontAwesomeIcon>
             )}
           </Text>
-          <Collapse in={open}>
+          <Collapse expanded={open}>
             <>{items}</>
           </Collapse>
         </Stack>
@@ -230,7 +230,7 @@ function ManualSearchView<T extends SupportType>(props: Props<T>) {
         <Divider hidden={!bSceneNameAvailable} my="xs"></Divider>
         <Code hidden={!bSceneNameAvailable}>{item?.sceneName}</Code>
       </Alert>
-      <Collapse in={haveResult && !results.isFetching}>
+      <Collapse expanded={haveResult && !results.isFetching}>
         <PageTable
           autoScroll={false}
           tableStyles={{ emptyText: "No result", placeholder: 10 }}

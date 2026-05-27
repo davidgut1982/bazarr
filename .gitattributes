@@ -1,3 +1,10 @@
-static/jquery/* linguist-vendored
-static/semantic/* linguist-vendored
-*.tpl linguist-language=Python
+# Auto-detect text files and perform LF normalization
+* text=auto
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.zip binary

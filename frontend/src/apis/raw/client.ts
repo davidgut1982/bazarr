@@ -9,9 +9,12 @@ import { setAuthenticated } from "@/utilities/event";
 function GetErrorMessage(data: unknown, defaultMsg = "Unknown error"): string {
   if (typeof data === "string") {
     return data;
-  } else {
-    return defaultMsg;
+  } else if (typeof data === "object" && data !== null) {
+    const obj = data as Record<string, unknown>;
+    if (typeof obj.error === "string") return obj.error;
+    if (typeof obj.message === "string") return obj.message;
   }
+  return defaultMsg;
 }
 
 class BazarrClient {
@@ -82,14 +85,32 @@ class BazarrClient {
 
   handleError(error: BackendError) {
     const { code, message } = error;
+
+    // Backend not ready yet: suppress everything, don't trigger auth changes
+    if (
+      code === 0 ||
+      code === 502 ||
+      code === 503 ||
+      message === "You have disconnected from the server" ||
+      message === "Network Error" ||
+      message === "Backend is starting up"
+    ) {
+      LOG("warning", "Backend unreachable, suppressing error");
+      return;
+    }
+
     switch (code) {
       case 401:
         this.bIsAuthenticated = false;
         setAuthenticated(false);
         return;
+      case 409:
+      case 412:
+        // Skip notification, let the caller handle via onError / .catch()
+        return;
     }
-    LOG("error", "A error has occurred", code);
 
+    LOG("error", "A error has occurred", code);
     showNotification(notification.error(`Error ${code}`, message));
   }
 }

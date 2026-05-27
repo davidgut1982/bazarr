@@ -71,7 +71,7 @@ class SubtitleModifications(object):
     @classmethod
     def parse_identifier(cls, identifier):
         # simple identifier
-        # ("=" conditional used to avoid unpack exceptions related to bad 
+        # ("=" conditional used to avoid unpack exceptions related to bad
         # identifiers from old configs)
         if identifier in registry.mods or "=" not in identifier:
             return identifier, {}
@@ -215,7 +215,7 @@ class SubtitleModifications(object):
                 uppercase_percentage = uppercase_count * 100 / total_character_count
                 logger.debug(f"Uppercase mod percentage is {uppercase_percentage:.2f}% vs minimum of {MINIMUM_UPPERCASE_PERCENTAGE}%")
                 return uppercase_percentage >= MINIMUM_UPPERCASE_PERCENTAGE
-            
+
             return False
 
     def modify(self, *mods):
@@ -425,7 +425,3 @@ class SubtitleModifications(object):
             new_entries.append(entry)
 
 SubMod = SubtitleModifications
-
-
-
-

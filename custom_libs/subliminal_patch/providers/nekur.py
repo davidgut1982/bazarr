@@ -61,8 +61,8 @@ class NekurSubtitle(Subtitle):
             # fps
             if video.fps and self.fps and not framerate_equal(video.fps, self.fps):
                 logger.warning("nekur: Wrong FPS (expected: %s, got: %s)", video.fps, self.fps)
-            # guess additional info from notes 
-            matches |= guess_matches(video, guessit(self.notes, {'type': 'movie'}), partial=True)          
+            # guess additional info from notes
+            matches |= guess_matches(video, guessit(self.notes, {'type': 'movie'}), partial=True)
 
         self.matches = matches
         return matches
@@ -144,10 +144,10 @@ class NekurProvider(Provider, ProviderSubtitleArchiveMixin):
             title_anchor_el = row.select_one('.title > a')
             title_inner_text = [element for element in title_anchor_el if isinstance(element, NavigableString)]
             title = title_inner_text[0].strip()
-            
+
             # year
             year = row.select_one('.year').text.strip('()')
-            
+
             # download link
             href = title_anchor_el.get('href')
             download_link = self.server_url + href
@@ -165,7 +165,7 @@ class NekurProvider(Provider, ProviderSubtitleArchiveMixin):
 
             # page link = download link (there is no seperate subtitle page link)
             page_link = download_link
-            
+
             # create/add the subitle
             subtitle = self.subtitle_class(Language.fromalpha2('lv'), page_link, download_link, title, year, imdb_id, fps, notes)
             logger.debug('nekur: Found subtitle %r', subtitle)
@@ -189,7 +189,7 @@ class NekurProvider(Provider, ProviderSubtitleArchiveMixin):
 
     def download_subtitle(self, subtitle):
         if isinstance(subtitle, NekurSubtitle):
-            # download the subtitle            
+            # download the subtitle
             r = self.session.get(subtitle.download_link, timeout=10)
             r.raise_for_status()
 

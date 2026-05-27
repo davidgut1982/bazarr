@@ -161,7 +161,7 @@ class YavkaNetProvider(Provider):
                 element = row.find('a', {'class': 'click'})
                 uploader = element.get_text() if element else None
                 logger.info('Found subtitle link %r', link)
-                
+
                 cache_link = 'https://yavka.net' + link + '/'
                 cache_key = sha1(cache_link.encode("utf-8")).digest()
                 request = region.get(cache_key)

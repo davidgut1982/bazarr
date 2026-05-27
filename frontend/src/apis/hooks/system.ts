@@ -1,7 +1,9 @@
 import { useMemo } from "react";
+import { showNotification } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { QueryKeys } from "@/apis/queries/keys";
 import api from "@/apis/raw";
+import { notification } from "@/modules/task";
 import { Environment } from "@/utilities";
 import { setAuthenticated } from "@/utilities/event";
 
@@ -90,6 +92,19 @@ export function useSettingsMutation() {
       void client.invalidateQueries({
         queryKey: [QueryKeys.Plex, "libraries"],
       });
+
+      showNotification(
+        notification.info("Settings saved", "Your changes have been saved"),
+      );
+    },
+
+    onError: () => {
+      showNotification(
+        notification.error(
+          "Save failed",
+          "An error occurred while saving settings",
+        ),
+      );
     },
   });
 }
@@ -256,6 +271,10 @@ export function useSystemReleases() {
   });
 }
 
+export function getPostLoginRedirectTarget(baseUrl = Environment.baseUrl) {
+  return baseUrl || "/";
+}
+
 export function useSystem() {
   const client = useQueryClient();
   const { mutate: logout, isPending: isLoggingOut } = useMutation({
@@ -274,9 +293,18 @@ export function useSystem() {
     mutationFn: (param: { username: string; password: string }) =>
       api.system.login(param.username, param.password),
 
-    onSuccess: () => {
+    onSuccess: (data) => {
+      if (
+        data &&
+        typeof data === "object" &&
+        "upgrade_token" in data &&
+        data.upgrade_token
+      ) {
+        // Store opaque token (not password) for upgrade prompt
+        sessionStorage.setItem("password_upgrade_token", data.upgrade_token);
+      }
       // TODO: Hard-coded value
-      window.location.replace(Environment.baseUrl);
+      window.location.replace(getPostLoginRedirectTarget());
     },
   });
 

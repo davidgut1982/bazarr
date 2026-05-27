@@ -2,12 +2,21 @@
 
 from datetime import datetime
 
+from subliminal_patch.score import MAX_SCORES
+
 from app.database import TableHistory, database, insert
 from app.event_handler import event_stream
 
 
-def history_log(action, sonarr_series_id, sonarr_episode_id, result, fake_provider=None, fake_score=None,
-                upgraded_from_id=None):
+def history_log(
+    action,
+    sonarr_series_id,
+    sonarr_episode_id,
+    result,
+    fake_provider=None,
+    fake_score=None,
+    upgraded_from_id=None,
+):
     description = result.message
     video_path = result.path
     language = result.language_code
@@ -19,8 +28,7 @@ def history_log(action, sonarr_series_id, sonarr_episode_id, result, fake_provid
     not_matched = result.not_matched
 
     database.execute(
-        insert(TableHistory)
-        .values(
+        insert(TableHistory).values(
             action=action,
             sonarrSeriesId=sonarr_series_id,
             sonarrEpisodeId=sonarr_episode_id,
@@ -30,10 +38,12 @@ def history_log(action, sonarr_series_id, sonarr_episode_id, result, fake_provid
             language=language,
             provider=provider,
             score=score,
+            score_out_of=MAX_SCORES["episode"] if score else None,
             subs_id=subs_id,
             subtitles_path=subtitles_path,
             matched=str(matched) if matched else None,
             not_matched=str(not_matched) if not_matched else None,
             upgradedFromId=upgraded_from_id,
-        ))
-    event_stream(type='episode-history')
+        )
+    )
+    event_stream(type="episode-history")

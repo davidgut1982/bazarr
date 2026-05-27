@@ -86,6 +86,33 @@ export const adaptiveSearchingDeltaOption: SelectorOption<string>[] = [
   },
 ];
 
+export const adaptiveSearchingMaxAgeOption: SelectorOption<string>[] = [
+  {
+    label: "Disabled",
+    value: "",
+  },
+  {
+    label: "1 month",
+    value: "1m",
+  },
+  {
+    label: "3 months",
+    value: "3m",
+  },
+  {
+    label: "6 months",
+    value: "6m",
+  },
+  {
+    label: "1 year",
+    value: "1y",
+  },
+  {
+    label: "2 years",
+    value: "2y",
+  },
+];
+
 function buildColor(name: string) {
   return `color(name=${name})`;
 }
@@ -180,20 +207,5 @@ export const syncMaxOffsetSecondsOptions: SelectorOption<number>[] = [
   {
     label: "600",
     value: 600,
-  },
-];
-
-export const translatorOption: SelectorOption<string>[] = [
-  {
-    label: "Google Translate",
-    value: "google_translate",
-  },
-  {
-    label: "Gemini",
-    value: "gemini",
-  },
-  {
-    label: "Lingarr",
-    value: "lingarr",
   },
 ];

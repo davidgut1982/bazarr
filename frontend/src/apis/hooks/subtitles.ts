@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { QueryKeys } from "@/apis/queries/keys";
 import api from "@/apis/raw";
+import { BatchAction, BatchItem, BatchOptions } from "@/apis/raw/subtitles";
 
 export function useSubtitleAction() {
   const client = useQueryClient();
@@ -146,6 +147,14 @@ export function useSubtitleInfos(names: string[]) {
   });
 }
 
+export function useSubtitleContents(subtitlePath: string) {
+  return useQuery({
+    queryKey: [QueryKeys.Subtitles, subtitlePath],
+    queryFn: () => api.subtitles.contents(subtitlePath),
+    staleTime: Infinity,
+  });
+}
+
 export function useRefTracksByEpisodeId(
   subtitlesPath: string,
   sonarrEpisodeId: number,
@@ -179,5 +188,129 @@ export function useRefTracksByMovieId(
     queryFn: () =>
       api.subtitles.getRefTracksByMovieId(subtitlesPath, radarrMovieId),
     enabled: isMovie,
+  });
+}
+
+export function useUpgradableItems() {
+  return useQuery({
+    queryKey: [QueryKeys.Subtitles, "upgradable"],
+    queryFn: () => api.subtitles.upgradable(),
+    refetchInterval: 60000,
+  });
+}
+
+export function useBatchAction() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationKey: [QueryKeys.Subtitles, "batch"],
+    mutationFn: (params: {
+      items: BatchItem[];
+      action: BatchAction;
+      options?: BatchOptions;
+    }) => api.subtitles.batch(params.items, params.action, params.options),
+    onSuccess: () => {
+      void client.invalidateQueries({
+        queryKey: [QueryKeys.Series],
+      });
+      void client.invalidateQueries({
+        queryKey: [QueryKeys.Movies],
+      });
+      void client.invalidateQueries({
+        queryKey: [QueryKeys.History],
+      });
+      void client.invalidateQueries({
+        queryKey: [QueryKeys.Translator],
+      });
+    },
+  });
+}
+
+export function useSubtitleContent(
+  mediaType: string | undefined,
+  mediaId: number | undefined,
+  language: string | undefined,
+) {
+  return useQuery({
+    queryKey: [QueryKeys.Subtitles, "content", mediaType, mediaId, language],
+    queryFn: () => {
+      if (!mediaType || mediaId === undefined || !language) {
+        throw new Error("Missing parameters");
+      }
+      return api.subtitles.getContent(mediaType, mediaId, language);
+    },
+    enabled: !!mediaType && mediaId !== undefined && !!language,
+    staleTime: 5 * 60 * 1000,
+    retry: (failureCount, error) => {
+      // Don't retry 404s (subtitle doesn't exist yet)
+
+      if (
+        "response" in error &&
+        (error as unknown as { response?: { status?: number } }).response
+          ?.status === 404
+      ) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+  });
+}
+
+export function useSubtitleSave() {
+  return useMutation({
+    mutationKey: [QueryKeys.Subtitles, "save"],
+    mutationFn: (params: {
+      mediaType: string;
+      mediaId: number;
+      language: string;
+      content: string;
+      encoding: string;
+      etag?: string;
+    }) =>
+      api.subtitles.saveContent(
+        params.mediaType,
+        params.mediaId,
+        params.language,
+        params.content,
+        params.encoding,
+        params.etag,
+      ),
+    onSuccess: () => {
+      // Do NOT invalidate the content query here. The editor already has
+      // the content (it just saved it) and the PUT response provides the
+      // new ETag. Invalidating would trigger a refetch that races with
+      // the ETag update and causes 412 on the next save.
+    },
+  });
+}
+
+export function useSubtitleCreate() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationKey: [QueryKeys.Subtitles, "create"],
+    mutationFn: (params: {
+      mediaType: string;
+      mediaId: number;
+      content: string;
+      language: string;
+      format: string;
+      forced: boolean;
+      hi: boolean;
+    }) =>
+      api.subtitles.createSubtitle(
+        params.mediaType,
+        params.mediaId,
+        params.content,
+        params.language,
+        params.format,
+        params.forced,
+        params.hi,
+      ),
+    onSuccess: (_, params) => {
+      if (params.mediaType === "episode") {
+        client.invalidateQueries({ queryKey: [QueryKeys.Series] });
+      } else {
+        client.invalidateQueries({ queryKey: [QueryKeys.Movies] });
+      }
+    },
   });
 }

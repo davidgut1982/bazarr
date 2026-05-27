@@ -14,6 +14,10 @@ from .subtitles import api_ns_list_subtitles
 from .system import api_ns_list_system
 from .webhooks import api_ns_list_webhooks
 from .plex import api_ns_list_plex
+from .jellyfin import api_ns_list_jellyfin
+from .translator import api_ns_list_translator
+from .editor import api_ns_list_editor
+from .provider_hub import api_ns_list_provider_hub
 from .swaggerui import swaggerui_api_params
 
 api_ns_list = [
@@ -28,25 +32,29 @@ api_ns_list = [
     api_ns_list_system,
     api_ns_list_webhooks,
     api_ns_list_plex,
+    api_ns_list_jellyfin,
+    api_ns_list_translator,
+    api_ns_list_editor,
+    api_ns_list_provider_hub,
 ]
 
-authorizations = {
-    'apikey': {
-        'type': 'apiKey',
-        'in': 'header',
-        'name': 'X-API-KEY'
-    }
-}
+authorizations = {"apikey": {"type": "apiKey", "in": "header", "name": "X-API-KEY"}}
 
-api_bp = Blueprint('api', __name__, url_prefix='/api')
+api_bp = Blueprint("api", __name__, url_prefix="/api")
 
 
 @apidoc.apidoc.add_app_template_global
 def swagger_static(filename):
-    return url_for('ui.swaggerui_static', filename=filename)
+    return url_for("ui.swaggerui_static", filename=filename)
 
 
-api = Api(api_bp, authorizations=authorizations, security='apikey', validate=True, **swaggerui_api_params)
+api = Api(
+    api_bp,
+    authorizations=authorizations,
+    security="apikey",
+    validate=True,
+    **swaggerui_api_params,
+)
 
 for api_ns in api_ns_list:
     for item in api_ns:
