@@ -160,6 +160,11 @@ interface Props {
   translationSources?: Subtitle[];
   mediaId?: number;
   mediaType?: "episode" | "movie";
+  /**
+   * True when the selection refers to an embedded (in-container) track.
+   * Only translate is meaningful — sync/mods/delete require a file on disk.
+   */
+  embeddedTrack?: boolean;
 }
 
 const SubtitleToolsMenu: FunctionComponent<Props> = ({
@@ -173,6 +178,7 @@ const SubtitleToolsMenu: FunctionComponent<Props> = ({
   translationSources,
   mediaId,
   mediaType,
+  embeddedTrack = false,
 }) => {
   const { mutateAsync } = useSubtitleAction();
 
@@ -199,6 +205,8 @@ const SubtitleToolsMenu: FunctionComponent<Props> = ({
   const disabledTools = selections.length === 0;
   const isMissing = !!missingLanguage;
   const hasSources = (translationSources ?? []).length > 0;
+  // For embedded tracks only translate is supported — no file on disk for other ops
+  const isTranslateOnlyMode = embeddedTrack && !isMissing;
 
   return (
     <Menu withArrow withinPortal position="left-end" {...menu}>
@@ -209,20 +217,27 @@ const SubtitleToolsMenu: FunctionComponent<Props> = ({
             {groupIdx > 0 && <Divider />}
             <Menu.Label>{group.label}</Menu.Label>
             {group.tools.map((tool) => {
+              // Hide translate from the tools section when showing missing-sub menu
+              // (it appears instead in the Actions section as "Translate from X")
               if (tool.key === "translation" && isMissing) {
                 return null;
               }
               if (tool.key === "sync" && !canSync) {
                 return null;
               }
+              // For embedded tracks: only translate is supported
+              const toolDisabled =
+                disabledTools ||
+                (isTranslateOnlyMode && tool.key !== "translation");
               return (
                 <Menu.Item
                   key={tool.key}
-                  disabled={disabledTools}
+                  disabled={toolDisabled}
                   leftSection={
                     <FontAwesomeIcon icon={tool.icon}></FontAwesomeIcon>
                   }
                   onClick={() => {
+                    if (toolDisabled) return;
                     if (tool.modal) {
                       modals.openContextModal(tool.modal, { selections });
                     } else {
@@ -241,28 +256,37 @@ const SubtitleToolsMenu: FunctionComponent<Props> = ({
         {/* Translate from source — for missing subtitles */}
         {isMissing && hasSources && (
           <>
-            {translationSources!.map((source) => (
-              <Menu.Item
-                key={`translate-${source.path}`}
-                leftSection={<FontAwesomeIcon icon={faLanguage} />}
-                onClick={async () => {
-                  await mutateAsync({
-                    action: "translate",
-                    form: {
-                      id: mediaId!,
-                      type: mediaType!,
-                      language: missingLanguage.code2,
-                      path: source.path!,
-                      forced: toPython(missingLanguage.forced),
-                      hi: toPython(missingLanguage.hi),
-                    },
-                  });
-                }}
-              >
-                Translate from {source.name || source.code2}
-                {source.hi ? " (HI)" : ""}
-              </Menu.Item>
-            ))}
+            {translationSources!.map((source) => {
+              const sourceIsEmbedded = !source.path;
+              // Use language code as key for embedded tracks (no path)
+              const itemKey = `translate-${sourceIsEmbedded ? `embedded:${source.code2}` : source.path}`;
+              const label = sourceIsEmbedded
+                ? `Translate from ${source.name || source.code2} (embedded)`
+                : `Translate from ${source.name || source.code2}${source.hi ? " (HI)" : ""}`;
+              return (
+                <Menu.Item
+                  key={itemKey}
+                  leftSection={<FontAwesomeIcon icon={faLanguage} />}
+                  onClick={async () => {
+                    await mutateAsync({
+                      action: "translate",
+                      form: {
+                        id: mediaId!,
+                        type: mediaType!,
+                        language: missingLanguage!.code2,
+                        // Empty string tells backend to extract the embedded track
+                        path: source.path ?? "",
+                        forced: toPython(missingLanguage!.forced),
+                        hi: toPython(missingLanguage!.hi),
+                        from_language: sourceIsEmbedded ? source.code2 : undefined,
+                      },
+                    });
+                  }}
+                >
+                  {label}
+                </Menu.Item>
+              );
+            })}
           </>
         )}
         {isMissing && !hasSources && (
@@ -287,7 +311,9 @@ const SubtitleToolsMenu: FunctionComponent<Props> = ({
           </Menu.Item>
         )}
         <Menu.Item
-          disabled={selections.length === 0 || onAction === undefined}
+          disabled={
+            selections.length === 0 || onAction === undefined || isTranslateOnlyMode
+          }
           leftSection={<FontAwesomeIcon icon={faEye}></FontAwesomeIcon>}
           onClick={() => {
             onAction?.("view");
@@ -296,7 +322,7 @@ const SubtitleToolsMenu: FunctionComponent<Props> = ({
           View
         </Menu.Item>
         <Menu.Item
-          disabled={onAction === undefined}
+          disabled={onAction === undefined || isTranslateOnlyMode}
           leftSection={<FontAwesomeIcon icon={faPencil}></FontAwesomeIcon>}
           onClick={() => {
             onAction?.("edit");
@@ -305,7 +331,9 @@ const SubtitleToolsMenu: FunctionComponent<Props> = ({
           {selections.length === 0 ? "Create / Upload" : "Edit"}
         </Menu.Item>
         <Menu.Item
-          disabled={selections.length !== 0 || onAction === undefined}
+          disabled={
+            selections.length !== 0 || onAction === undefined || isTranslateOnlyMode
+          }
           leftSection={<FontAwesomeIcon icon={faSearch}></FontAwesomeIcon>}
           onClick={() => {
             onAction?.("search");
@@ -314,7 +342,9 @@ const SubtitleToolsMenu: FunctionComponent<Props> = ({
           Search
         </Menu.Item>
         <Menu.Item
-          disabled={selections.length === 0 || onAction === undefined}
+          disabled={
+            selections.length === 0 || onAction === undefined || isTranslateOnlyMode
+          }
           color="red"
           leftSection={<FontAwesomeIcon icon={faTrash}></FontAwesomeIcon>}
           onClick={() => {
