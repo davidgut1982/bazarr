@@ -209,6 +209,17 @@ const SubtitleStatusCell: FunctionComponent<{
   );
 };
 
+function buildLanguageKey(sub: {
+  code2: string;
+  hi?: boolean;
+  forced?: boolean;
+}): string {
+  let key = sub.code2;
+  if (sub.hi) key += ":hi";
+  if (sub.forced) key += ":forced";
+  return key;
+}
+
 const Table: FunctionComponent<Props> = ({ movie, profile, history }) => {
   const onlyDesired = useShowOnlyDesired();
   const [compareSelection, setCompareSelection] = useState<{
@@ -235,6 +246,17 @@ const Table: FunctionComponent<Props> = ({ movie, profile, history }) => {
       if (!h.subtitles_path) return;
       if ([1, 2, 3].includes(h.action)) {
         if (!map.has(h.subtitles_path)) map.set(h.subtitles_path, h);
+      }
+    });
+    return map;
+  }, [history]);
+
+  const embeddedScoreMap = useMemo(() => {
+    const map = new Map<string, History.Movie>();
+    history?.forEach((h) => {
+      if (h.action === 7 && h.language?.code2) {
+        const key = buildLanguageKey(h.language);
+        if (!map.has(key)) map.set(key, h);
       }
     });
     return map;
@@ -403,7 +425,9 @@ const Table: FunctionComponent<Props> = ({ movie, profile, history }) => {
         id: "score",
         header: "Score",
         cell: ({ row: { original } }) => {
-          const record = historyMap.get(original.path ?? "");
+          const record = !isSubtitleTrack(original.path)
+            ? historyMap.get(original.path!)
+            : embeddedScoreMap.get(buildLanguageKey(original));
           return <ScoreBadge score={record?.score} />;
         },
       },
@@ -411,7 +435,9 @@ const Table: FunctionComponent<Props> = ({ movie, profile, history }) => {
         id: "provider",
         header: "Provider",
         cell: ({ row: { original } }) => {
-          const record = historyMap.get(original.path ?? "");
+          const record = !isSubtitleTrack(original.path)
+            ? historyMap.get(original.path!)
+            : embeddedScoreMap.get(buildLanguageKey(original));
           if (!record?.provider)
             return (
               <Text c="dimmed" size="xs">
@@ -425,7 +451,15 @@ const Table: FunctionComponent<Props> = ({ movie, profile, history }) => {
         id: "status",
         header: "Status",
         cell: ({ row: { original } }) => {
-          const actions = statusMap.get(original.path ?? "");
+          const actions = !isSubtitleTrack(original.path)
+            ? statusMap.get(original.path!)
+            : undefined;
+          if (!actions?.size)
+            return (
+              <Text c="dimmed" size="xs">
+                —
+              </Text>
+            );
           return (
             <SubtitleStatusCell
               actions={actions}
@@ -442,7 +476,7 @@ const Table: FunctionComponent<Props> = ({ movie, profile, history }) => {
         },
       },
     ],
-    [CodeCell, historyMap, movie?.radarrId, statusMap],
+    [CodeCell, historyMap, embeddedScoreMap, movie?.radarrId, statusMap],
   );
 
   const data: Subtitle[] = useMemo(() => {
