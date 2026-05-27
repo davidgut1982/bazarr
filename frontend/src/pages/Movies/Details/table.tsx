@@ -347,6 +347,7 @@ const Table: FunctionComponent<Props> = ({ movie, profile, history }) => {
     return (
       <SubtitleToolsMenu
         selections={selections}
+        embeddedTrack={isSubtitleTrack(path)}
         canSync={canSynchronizeSubtitle(item)}
         canCompareSyncOutputs={canCompareSyncOutputs}
         onAction={async (action) => {
