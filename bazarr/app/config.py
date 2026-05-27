@@ -132,6 +132,7 @@ validators = [
               is_in=[25, 50, 100, 250, 500, 1000]),
     Validator('general.theme', must_exist=True, default='auto', is_type_of=str,
               is_in=['auto', 'light', 'dark']),
+    Validator('general.show_live_badge', must_exist=True, default=True, is_type_of=bool),
     Validator('general.minimum_score_movie', must_exist=True, default=70, is_type_of=int, gte=0, lte=100),
     Validator('general.use_embedded_subs', must_exist=True, default=True, is_type_of=bool),
     Validator('general.embedded_subs_show_desired', must_exist=True, default=True, is_type_of=bool),
@@ -482,6 +483,8 @@ validators = [
     Validator('subsync.subsync_movie_threshold', must_exist=True, default=70, is_type_of=int, gte=0, lte=100),
     Validator('subsync.debug', must_exist=True, default=False, is_type_of=bool),
     Validator('subsync.force_audio', must_exist=True, default=False, is_type_of=bool),
+    Validator('subsync.use_original_language', must_exist=True, default=False, is_type_of=bool),
+    Validator('subsync.auto_use_original_language', must_exist=True, default=False, is_type_of=bool),
     Validator('subsync.checker', must_exist=True, default={}, is_type_of=dict),
     Validator('subsync.checker.blacklisted_providers', must_exist=True, default=[], is_type_of=list),
     Validator('subsync.checker.blacklisted_languages', must_exist=True, default=[], is_type_of=list),
@@ -811,6 +814,18 @@ def validate_log_regex():
             raise ValidationError(f"Exclude filter: invalid regular expression: {settings.log.exclude_filter}")
 
 
+def _settings_mapping(parent, key):
+    try:
+        mapping = parent[key]
+    except KeyError:
+        parent[key] = {}
+        mapping = parent[key]
+    if mapping is None:
+        parent[key] = {}
+        mapping = parent[key]
+    return mapping
+
+
 def save_settings(settings_items):
     configure_debug = False
     configure_captcha = False
@@ -1036,9 +1051,10 @@ def save_settings(settings_items):
 
         if settings_keys[0] == 'settings':
             if len(settings_keys) == 3:
-                settings[settings_keys[1]][settings_keys[2]] = value
+                _settings_mapping(settings, settings_keys[1])[settings_keys[2]] = value
             elif len(settings_keys) == 4:
-                settings[settings_keys[1]][settings_keys[2]][settings_keys[3]] = value
+                section = _settings_mapping(settings, settings_keys[1])
+                _settings_mapping(section, settings_keys[2])[settings_keys[3]] = value
 
         if settings_keys[0] == 'subzero':
             mod = settings_keys[1]

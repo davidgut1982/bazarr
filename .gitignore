@@ -28,6 +28,15 @@ VERSION
 .superpowers/
 docs/superpowers/
 .coverage
+.playwright-mcp
+.codex
+.agents
+.pytest_cache
+.ruff_cache
+
+# Vitest run from the repo root (instead of frontend/) writes its cache
+# here. The frontend tree has its own node_modules ignore already.
+/node_modules
 
 # Git worktrees
 .worktrees/

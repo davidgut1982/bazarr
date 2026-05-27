@@ -18,7 +18,7 @@ type Input<T, N> = {
   };
 };
 
-type AvailableInput =
+export type AvailableInput =
   | Input<Text, "text">
   | Input<string, "password">
   | Input<boolean, "switch">
@@ -33,6 +33,10 @@ export interface ProviderInfo {
   message?: string;
   inputs?: AvailableInput[];
   priority?: number;
+  source?: "plugin" | "shipped";
+  // For plugin providers, the manifest's declared language codes (alpha3).
+  // Shipped providers leave this undefined and rely on provider-languages.json.
+  languages?: string[];
 }
 
 export const logLevelOptions: SelectorOption<string>[] = [

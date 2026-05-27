@@ -7,7 +7,7 @@ import React, {
   useState,
 } from "react";
 import { matchPath, NavLink, RouteObject, useLocation } from "react-router";
-import { AppShell, Badge, Collapse, Divider, Stack, Text } from "@mantine/core";
+import { AppShell, Badge, Collapse, Stack, Text } from "@mantine/core";
 import { useHover } from "@mantine/hooks";
 import { IconDefinition } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -84,7 +84,7 @@ function useIsActive(parent: string, route: RouteObject) {
 const sectionGroups = [
   { label: "Media", paths: ["series", "movies"] },
   { label: "Management", paths: ["history", "wanted", "blacklist"] },
-  { label: "System", paths: ["settings", "system"] },
+  { label: "System", paths: ["subtitle-hub", "settings", "system"] },
 ];
 
 function groupRoutes(routes: CustomRouteObject[]) {
@@ -274,6 +274,40 @@ const NavbarItem: FunctionComponent<NavbarItemProps> = ({
     return true;
   }, [badge]);
 
+  const isSignalRBadge = useMemo(() => {
+    return link === "/series" || link === "/movies";
+  }, [link]);
+
+  // Compute explicit background and text style objects safely
+  const badgeStyle = useMemo(() => {
+    if (!isSignalRBadge) return {};
+
+    if (badge === "LIVE") {
+      return {
+        // Subtle background colours that adapt to light/dark mode
+        backgroundColor:
+          "light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6))",
+
+        // Softened high-contrast text colors
+        color:
+          "light-dark(var(--mantine-color-gray-7), var(--mantine-color-gray-5))",
+
+        border: "none",
+      };
+    }
+
+    if (badge === "DOWN") {
+      return {
+        // more noticeable background colors for "DOWN" status, still adapting to theme
+        backgroundColor:
+          "light-dark(var(--mantine-color-red-6), var(--mantine-color-red-8))",
+        color: "var(--mantine-color-white)",
+      };
+    }
+
+    return {};
+  }, [badge, isSignalRBadge]);
+
   return (
     <NavLink
       to={link}
@@ -296,7 +330,12 @@ const NavbarItem: FunctionComponent<NavbarItemProps> = ({
         {icon && <FontAwesomeIcon className={styles.icon} icon={icon} />}
         {name}
         {!shouldHideBadge && (
-          <Badge className={styles.badge} variant="filled" radius="xs">
+          <Badge
+            className={styles.badge}
+            variant="filled"
+            radius="xs"
+            style={badgeStyle}
+          >
             {badge}
           </Badge>
         )}
@@ -304,5 +343,4 @@ const NavbarItem: FunctionComponent<NavbarItemProps> = ({
     </NavLink>
   );
 };
-
 export default AppNavbar;

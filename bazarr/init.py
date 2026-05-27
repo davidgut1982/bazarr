@@ -123,12 +123,44 @@ settings['general'].pop('update_restart', None)
 write_config()
 
 
-# Remove deprecated providers from enabled providers in config
+# Remove deprecated providers from enabled providers in config.
+#
+# CRITICAL: register Provider Hub plugins into the registry BEFORE the strip
+# filter runs. Otherwise any plugin provider in enabled_providers gets
+# silently stripped on every startup (the registry only knows about built-in
+# providers at this point — plugins are registered lazily on the first
+# get_providers() call, which is too late).
+#
+# We must also flip any staged installations to "active" first. On a
+# plugin-update restart the new version is "staged" + pending_restart=True
+# at this point in startup, so active_installations() would exclude it,
+# register_active_provider_classes() would skip it, and the strip filter
+# would drop it from enabled_providers. main.py runs activate_staged_
+# installations() later, but that's already past this filter.
 from subliminal_patch.extensions import provider_registry  # noqa: E402
+provider_hub_registration_ok = True
+try:
+    from provider_hub.service import activate_staged_installations
+    activated = activate_staged_installations()
+    if activated:
+        logging.info("Activated staged Provider Hub installations on startup: %s", activated)
+except Exception:  # pragma: no cover - hub failures must not prevent startup
+    logging.exception("Unable to activate staged Provider Hub installations on startup")
+try:
+    from provider_hub.registry import register_active_provider_classes
+    registered = register_active_provider_classes()
+    if registered:
+        logging.info("Registered Provider Hub plugins into provider registry: %s", registered)
+except Exception:  # pragma: no cover - hub failures must not prevent startup
+    provider_hub_registration_ok = False
+    logging.exception("Unable to register active Provider Hub providers on startup")
 existing_providers = provider_registry.names()
 enabled_providers = settings.general.enabled_providers
-settings.general.enabled_providers = [x for x in enabled_providers if x in existing_providers]
-write_config()
+if provider_hub_registration_ok:
+    settings.general.enabled_providers = [x for x in enabled_providers if x in existing_providers]
+    write_config()
+else:
+    logging.warning("Skipping enabled_providers cleanup because Provider Hub registration failed")
 
 
 # Initialize provider_priorities if not exists

@@ -34,10 +34,11 @@ import { usePrompt } from "@/utilities/routers";
 interface Props {
   name: string;
   children: ReactNode;
+  fluid?: boolean;
 }
 
 const Layout: FunctionComponent<Props> = (props) => {
-  const { children, name } = props;
+  const { children, fluid = false, name } = props;
 
   const { data: settings, isLoading, isRefetching } = useSystemSettings();
   const { mutate, mutateAsync, isPending: isMutating } = useSettingsMutation();
@@ -111,11 +112,25 @@ const Layout: FunctionComponent<Props> = (props) => {
         <form onSubmit={form.onSubmit(submit)} style={{ position: "relative" }}>
           <LoadingOverlay visible={settings === undefined} />
           <FormContext.Provider value={form}>
-            <Container size="xl" mx={0} pb={80}>
+            <Container
+              data-testid="settings-layout-content"
+              fluid={fluid}
+              size="xl"
+              mx={0}
+              pb={80}
+              style={
+                fluid
+                  ? {
+                      maxWidth: "none",
+                      width: "100%",
+                    }
+                  : undefined
+              }
+            >
               {children}
             </Container>
           </FormContext.Provider>
-          {/* Floating save — sticky bottom, after form fields in DOM for correct tab order */}
+          {/* Floating save, sticky bottom, after form fields in DOM for correct tab order */}
           <Transition
             transition={reducedMotion ? "fade" : "slide-up"}
             mounted={totalStagedCount > 0}
@@ -163,14 +178,19 @@ const Layout: FunctionComponent<Props> = (props) => {
                     Save
                     <Badge
                       size="sm"
-                      circle
+                      radius="xl"
                       ml={8}
-                      aria-hidden="true"
-                      variant="outline"
+                      aria-label={`${totalStagedCount} unsaved change${totalStagedCount !== 1 ? "s" : ""}`}
+                      variant="filled"
                       style={{
-                        color: "inherit",
-                        borderColor: "currentColor",
-                        opacity: 0.7,
+                        minWidth: 22,
+                        height: 22,
+                        paddingInline: 7,
+                        background: "var(--mantine-color-white)",
+                        color: "var(--mantine-color-brand-7)",
+                        fontWeight: 800,
+                        lineHeight: "22px",
+                        boxShadow: "0 0 0 1px rgba(255, 255, 255, 0.42)",
                       }}
                     >
                       {totalStagedCount}

@@ -5,8 +5,7 @@ import time
 import threading
 
 from requests.exceptions import ConnectionError
-from app.signalrcore_compat import patch_signalrcore_stop
-from signalrcore.hub_connection_builder import HubConnectionBuilder
+from app.signalrcore_compat import build_signalr_connection, patch_signalrcore_stop
 from collections import deque
 from time import sleep
 
@@ -33,6 +32,29 @@ last_series_event_data = None
 last_episode_event_data = None
 last_movie_event_data = None
 
+SIGNALR_ACTIVE_STATES = {0, 1, 2}
+UNKNOWN_SONARR_VERSION_VALUES = {"", "unknown", None}
+
+
+def _signalr_transport_state_value(connection):
+    transport = getattr(connection, "transport", None)
+    if transport is None:
+        return None
+
+    state = getattr(transport, "state", None)
+    return getattr(state, "value", state)
+
+
+def _signalr_connection_active(connection):
+    return _signalr_transport_state_value(connection) in SIGNALR_ACTIVE_STATES
+
+
+def _sonarr_signalr_core_support_state():
+    version = get_sonarr_info.version()
+    if version in UNKNOWN_SONARR_VERSION_VALUES:
+        return None, version
+    return get_sonarr_info.supports_signalr_core(), version
+
 
 class SonarrSignalrClient:
     def __init__(self):
@@ -42,11 +64,21 @@ class SonarrSignalrClient:
         self.connected = False
 
     def start(self):
-        if not get_sonarr_info.supports_signalr_core():
+        supports_signalr, sonarr_version = _sonarr_signalr_core_support_state()
+        if supports_signalr is None:
+            logging.warning(
+                'BAZARR cannot confirm Sonarr version yet. '
+                'Retrying before starting the Sonarr SignalR feed.'
+            )
+        while supports_signalr is None:
+            time.sleep(5)
+            supports_signalr, sonarr_version = _sonarr_signalr_core_support_state()
+
+        if not supports_signalr:
             logging.warning(
                 'BAZARR requires Sonarr v4 or newer for the SignalR feed. '
                 'Current Sonarr version is %s, Sonarr live updates are disabled.',
-                get_sonarr_info.version(),
+                sonarr_version,
             )
             self.connected = False
             event_stream(type='badges')
@@ -54,10 +86,13 @@ class SonarrSignalrClient:
 
         self.configure()
         logging.info('BAZARR trying to connect to Sonarr SignalR feed...')
-        while self.connection.transport.state.value not in [0, 1, 2]:
+        while not _signalr_connection_active(self.connection):
             try:
-                self.connection.start()
+                started = self.connection.start()
             except ConnectionError:
+                time.sleep(5)
+                continue
+            if not started and not _signalr_connection_active(self.connection):
                 time.sleep(5)
 
     def stop(self):
@@ -66,7 +101,7 @@ class SonarrSignalrClient:
 
     def restart(self):
         if self.connection:
-            if self.connection.transport.state.value in [0, 1, 2]:
+            if _signalr_connection_active(self.connection):
                 self.stop()
         if settings.general.use_sonarr:
             self.start()
@@ -92,18 +127,10 @@ class SonarrSignalrClient:
 
     def configure(self):
         self.apikey_sonarr = settings.sonarr.apikey
-        self.connection = HubConnectionBuilder() \
-            .with_url(f"{url_sonarr()}/signalr/messages?access_token={self.apikey_sonarr}",
-                      options={
-                          "verify_ssl": False,
-                          "headers": HEADERS
-                      }) \
-            .with_automatic_reconnect({
-                "type": "raw",
-                "keep_alive_interval": 5,
-                "reconnect_interval": 180,
-                "max_attempts": None
-            }).build()
+        self.connection = build_signalr_connection(
+            f"{url_sonarr()}/signalr/messages?access_token={self.apikey_sonarr}",
+            HEADERS,
+        )
         self.connection.on_open(self.on_connect_handler)
         self.connection.on_reconnect(self.on_reconnect_handler)
         self.connection.on_close(lambda: logging.debug('BAZARR SignalR client for Sonarr is disconnected.'))
@@ -121,10 +148,13 @@ class RadarrSignalrClient:
     def start(self):
         self.configure()
         logging.info('BAZARR trying to connect to Radarr SignalR feed...')
-        while self.connection.transport.state.value not in [0, 1, 2]:
+        while not _signalr_connection_active(self.connection):
             try:
-                self.connection.start()
+                started = self.connection.start()
             except ConnectionError:
+                time.sleep(5)
+                continue
+            if not started and not _signalr_connection_active(self.connection):
                 time.sleep(5)
 
     def stop(self):
@@ -133,7 +163,7 @@ class RadarrSignalrClient:
 
     def restart(self):
         if self.connection:
-            if self.connection.transport.state.value in [0, 1, 2]:
+            if _signalr_connection_active(self.connection):
                 self.stop()
         if settings.general.use_radarr:
             self.start()
@@ -159,18 +189,10 @@ class RadarrSignalrClient:
 
     def configure(self):
         self.apikey_radarr = settings.radarr.apikey
-        self.connection = HubConnectionBuilder() \
-            .with_url(f"{url_radarr()}/signalr/messages?access_token={self.apikey_radarr}",
-                      options={
-                          "verify_ssl": False,
-                          "headers": HEADERS
-                      }) \
-            .with_automatic_reconnect({
-                "type": "raw",
-                "keep_alive_interval": 5,
-                "reconnect_interval": 180,
-                "max_attempts": None
-            }).build()
+        self.connection = build_signalr_connection(
+            f"{url_radarr()}/signalr/messages?access_token={self.apikey_radarr}",
+            HEADERS,
+        )
         self.connection.on_open(self.on_connect_handler)
         self.connection.on_reconnect(self.on_reconnect_handler)
         self.connection.on_close(lambda: logging.debug('BAZARR SignalR client for Radarr is disconnected.'))
