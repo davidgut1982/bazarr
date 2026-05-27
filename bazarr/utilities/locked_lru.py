@@ -11,6 +11,7 @@ structure itself.
 The lock is a single threading.Lock rather than per-key because the LRU
 mutation is global to the structure (eviction can rewire any node).
 """
+
 from __future__ import annotations
 
 import threading
@@ -22,7 +23,7 @@ from cachetools import LRUCache
 class LockedLRU(MutableMapping):
     """Thread-safe MutableMapping wrapper around cachetools.LRUCache."""
 
-    __slots__ = ('_cache', '_lock')
+    __slots__ = ("_cache", "_lock")
 
     def __init__(self, maxsize):
         self._cache = LRUCache(maxsize=maxsize)

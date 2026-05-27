@@ -76,9 +76,16 @@ class TestAuthHeadersInProxy:
         """Verify translator.py imports the shared auth function (source inspection)."""
         import ast
         import os
+
         # Read the source directly to avoid triggering api.__init__ side effects
         translator_path = os.path.join(
-            os.path.dirname(__file__), "..", "..", "bazarr", "api", "translator", "translator.py"
+            os.path.dirname(__file__),
+            "..",
+            "..",
+            "bazarr",
+            "api",
+            "translator",
+            "translator.py",
         )
         with open(translator_path) as f:
             tree = ast.parse(f.read())
@@ -86,14 +93,22 @@ class TestAuthHeadersInProxy:
         found = False
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom):
-                if (node.module == "subtitles.tools.translate.services.auth"
-                        and any(alias.name == "get_translator_auth_headers" for alias in node.names)):
+                if node.module == "subtitles.tools.translate.services.auth" and any(
+                    alias.name == "get_translator_auth_headers" for alias in node.names
+                ):
                     found = True
                     break
-        assert found, "translator.py should import get_translator_auth_headers from shared auth module"
+        assert found, (
+            "translator.py should import get_translator_auth_headers from shared auth module"
+        )
 
     def test_translator_service_imports_shared_auth(self):
         """Verify openrouter_translator.py uses the shared auth function."""
-        from subtitles.tools.translate.services.openrouter_translator import get_translator_auth_headers as svc_fn
-        from subtitles.tools.translate.services.auth import get_translator_auth_headers as shared_fn
+        from subtitles.tools.translate.services.openrouter_translator import (
+            get_translator_auth_headers as svc_fn,
+        )
+        from subtitles.tools.translate.services.auth import (
+            get_translator_auth_headers as shared_fn,
+        )
+
         assert svc_fn is shared_fn

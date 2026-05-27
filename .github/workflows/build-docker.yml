@@ -123,10 +123,10 @@ jobs:
               VERSION=$(git describe --tags --always 2>/dev/null || echo "dev")
             fi
           fi
-          
+
           # Remove 'v' prefix for semver
           SEMVER="${VERSION#v}"
-          
+
           # Bazarr+ version is the semver tag directly
           SHORT_SHA=$(git rev-parse --short HEAD)
           FORK_VERSION="${SEMVER}"

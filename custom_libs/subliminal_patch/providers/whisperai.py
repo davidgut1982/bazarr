@@ -150,36 +150,36 @@ class LanguageManager:
         """Initialize with language data as list of tuples (alpha2, alpha3, name)"""
         self.language_data = language_data
         self._build_indices()
-    
+
     def _build_indices(self):
         """Build lookup dictionaries for quick access"""
         # Create indices for lookup by each code type
         self.by_alpha2 = {item[0]: item for item in self.language_data}
         self.by_alpha3 = {item[1]: item for item in self.language_data}
         self.by_name = {item[2]: item for item in self.language_data}
-    
+
     def get_by_alpha2(self, code):
         """Get language tuple by alpha2 code"""
         return self.by_alpha2.get(code)
-    
+
     def get_by_alpha3(self, code):
         """Get language tuple by alpha3 code"""
         return self.by_alpha3.get(code)
-    
+
     def get_by_name(self, name):
         """Get language tuple by name"""
         return self.by_name.get(name.lower())
-    
+
     def alpha2_to_alpha3(self, code):
         """Convert alpha2 to alpha3"""
         lang_tuple = self.get_by_alpha2(code)
         return lang_tuple[1] if lang_tuple else None
-    
+
     def alpha3_to_alpha2(self, code):
         """Convert alpha3 to alpha2"""
         lang_tuple = self.get_by_alpha3(code)
         return lang_tuple[0] if lang_tuple else None
-    
+
     def get_name(self, code, code_type="alpha3"):
         """Get language name from code"""
         if code_type == "alpha2":
@@ -187,13 +187,13 @@ class LanguageManager:
         else:  # alpha3
             lang_tuple = self.get_by_alpha3(code)
         return lang_tuple[2] if lang_tuple else None
-    
+
     def add_language_data(self, language_data):
         """Add a number of new language tuples to the data structure"""
         self.language_data.extend(language_data)
         # Update indices
         self._build_indices()
-    
+
     def add_language(self, alpha2, alpha3, name):
         """Add a new language to the data structure"""
         new_lang = (alpha2, alpha3, name.lower())
@@ -201,15 +201,15 @@ class LanguageManager:
         # Update indices
         self._build_indices()
         return new_lang
-    
+
     def get_all_language_names(self):
         """Return list of all language names"""
         return [item[2] for item in self.language_data]
-    
+
     def get_all_alpha2(self):
         """Return list of all alpha2 codes"""
         return [item[0] for item in self.language_data]
-    
+
     def get_all_alpha3(self):
         """Return list of all alpha3 codes"""
         return [item[1] for item in self.language_data]
@@ -233,7 +233,7 @@ class WhisperLanguageManager(LanguageManager):
             except LanguageReverseError:
                 logger.error(f"Could not convert Whisper language: {code} ({name})")
                 return None
-    
+
     def get_all_language_objects(self):
         """Return set of all Language objects"""
         # populate set of Language objects that are supoorted by Whisper
@@ -282,7 +282,7 @@ class WhisperAISubtitle(Subtitle):
 
     @property
     def id(self):
-        # Construct unique id otherwise provider pool will think 
+        # Construct unique id otherwise provider pool will think
         # subtitles are all the same and drop all except the first one
         # This is important for language profiles with more than one language
         return f"{self.video.original_name}_{self.task}_{str(self.language)}"
@@ -316,7 +316,7 @@ class WhisperAIProvider(Provider):
 
         if not ffmpeg_path:
             raise ConfigurationError("ffmpeg path must be provided")
-        
+
         if pass_video_name is None:
             raise ConfigurationError('Whisper Web Service Pass Video Name option must be provided')
 
@@ -340,7 +340,7 @@ class WhisperAIProvider(Provider):
 
     def get_audio_delay(self, path, audio_stream_language=None):
         """
-        Detects audio delay for the specific language track by inspecting the 
+        Detects audio delay for the specific language track by inspecting the
         first packet's Presentation Timestamp (PTS).
         """
         try:
@@ -348,13 +348,13 @@ class WhisperAIProvider(Provider):
             cmd = [
                 'ffprobe',
                 '-v', 'error',
-                '-select_streams', 'a', 
+                '-select_streams', 'a',
                 '-read_intervals', '%+30',
                 '-show_entries', 'stream=index:stream_tags=language:packet=stream_index,pts_time',
                 '-of', 'json',
                 path
             ]
-            
+
             # Avoid cmd prompt in Windows
             if os.name == 'nt':
                 startupinfo = subprocess.STARTUPINFO()
@@ -362,21 +362,21 @@ class WhisperAIProvider(Provider):
                 res = subprocess.run(cmd, capture_output=True, text=True, startupinfo=startupinfo)
             else:
                 res = subprocess.run(cmd, capture_output=True, text=True)
-                
+
             if res.returncode != 0:
                 return 0
 
             data = json.loads(res.stdout)
             streams = data.get('streams', [])
             packets = data.get('packets', [])
-            
+
             if not streams:
                 return 0
 
             # --- STEP 1: Find the correct Stream Index ---
             target_index = None
             log_prefix = "WhisperAI"
-            
+
             if not audio_stream_language:
                 # Case A: No specific language requested
                 target_index = streams[0]['index']
@@ -384,14 +384,14 @@ class WhisperAIProvider(Provider):
             else:
                 # Case B: Search for language
                 target_lang_short = audio_stream_language[:2].lower()
-                
+
                 for stream in streams:
                     stream_lang = stream.get('tags', {}).get('language', 'und').lower()
                     if target_lang_short in stream_lang:
                         target_index = stream['index']
                         logger.debug(f"{log_prefix}: Found audio track matching '{audio_stream_language}' at Stream Index {target_index} (Tag: '{stream_lang}').")
                         break
-                
+
                 # Case C: Fallback
                 if target_index is None:
                     target_index = streams[0]['index']
@@ -403,13 +403,13 @@ class WhisperAIProvider(Provider):
                     pts = packet.get('pts_time')
                     if pts is None or pts == 'N/A':
                         return 0
-                    
+
                     # Convert seconds to ms
                     delay_ms = int(float(pts) * 1000)
-                    
+
                     if delay_ms != 0:
                         logger.debug(f"{log_prefix}: Detected audio delay of {delay_ms}ms on Stream Index {target_index}.")
-                    
+
                     return delay_ms
 
             return 0
@@ -428,10 +428,10 @@ class WhisperAIProvider(Provider):
 
             # 2. Build Filter Chain
             audio_filter = "aresample=async=1"
-            
+
             # Ignore delays smaller than 20ms (close to 1 frame at 60fps)
             # to avoid unnecessary FFmpeg filtering for imperceptible offsets.
-            SYNC_THRESHOLD = 20 
+            SYNC_THRESHOLD = 20
 
             if delay_ms > SYNC_THRESHOLD:
                 # POSITIVE DELAY: Insert silence at start
@@ -460,10 +460,10 @@ class WhisperAIProvider(Provider):
                 out = inp.output("-", format="s16le", acodec="pcm_s16le", ac=1, ar=16000, af=audio_filter)
 
             start_time = time.time()
-            out, _ = out.run(cmd=[ffmpeg_path, "-nostdin"], capture_stdout=True, capture_stderr=True) 
+            out, _ = out.run(cmd=[ffmpeg_path, "-nostdin"], capture_stdout=True, capture_stderr=True)
             elapsed_time = time.time() - start_time
-            logger.debug(f'Finished encoding audio stream in {elapsed_time:.2f} seconds with no errors for "{path}"')           
-            
+            logger.debug(f'Finished encoding audio stream in {elapsed_time:.2f} seconds with no errors for "{path}"')
+
         except ffmpeg.Error as e:
             logger.warning(f"ffmpeg failed to load audio: {e.stderr.decode()}")
             return None
@@ -523,7 +523,7 @@ class WhisperAIProvider(Provider):
                 sub.task = "error"
                 sub.release_info = "Language detection failed"
                 return sub
-            
+
             logger.debug(f'Whisper detected audio language as "{detected_lang}"')
 
             # Apply language mapping after detection
@@ -664,7 +664,7 @@ class WhisperAIProvider(Provider):
                 logger.info(f"WhisperAI cannot process {subtitle.video.original_path} because of unsupported audio track language: '{subtitle.audio_language}'")
                 subtitle.content = None
                 return
-        
+
         logger.info(f'WhisperAI Starting {subtitle.task} to {wlm.get_name(output_language)} for {subtitle.video.original_path}')
         startTime = time.time()
         video_name = subtitle.video.original_path if self.pass_video_name else None
@@ -674,7 +674,7 @@ class WhisperAIProvider(Provider):
                                       'video_file': video_name},
                               files={'audio_file': out},
                               timeout=(self.response, self.timeout))
-                              
+
         endTime = time.time()
         elapsedTime = timedelta(seconds=round(endTime - startTime))
 

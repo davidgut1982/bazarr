@@ -11,15 +11,17 @@ from languages.get_languages import alpha2_from_language, language_from_alpha2
 
 from ..utils import authenticate
 
-api_ns_system_audio_languages = Namespace('System Audio Languages',
-                                          description='Get unique audio languages from media library')
+api_ns_system_audio_languages = Namespace(
+    "System Audio Languages",
+    description="Get unique audio languages from media library",
+)
 
 
-@api_ns_system_audio_languages.route('system/languages/audio')
+@api_ns_system_audio_languages.route("system/languages/audio")
 class AudioLanguages(Resource):
     @authenticate
-    @api_ns_system_audio_languages.response(200, 'Success')
-    @api_ns_system_audio_languages.response(401, 'Not Authenticated')
+    @api_ns_system_audio_languages.response(200, "Success")
+    @api_ns_system_audio_languages.response(401, "Not Authenticated")
     def get(self):
         """List unique audio languages found in movies and episodes"""
         lang_set = set()
@@ -28,12 +30,12 @@ class AudioLanguages(Resource):
         movie_rows = database.execute(
             select(TableMovies.audio_language)
             .where(TableMovies.audio_language.is_not(None))
-            .where(TableMovies.audio_language != '[]')
+            .where(TableMovies.audio_language != "[]")
         ).all()
 
         for row in movie_rows:
             try:
-                langs = ast.literal_eval(row.audio_language or '[]')
+                langs = ast.literal_eval(row.audio_language or "[]")
                 for lang in langs:
                     if lang:
                         lang_set.add(lang)
@@ -44,12 +46,12 @@ class AudioLanguages(Resource):
         episode_rows = database.execute(
             select(TableEpisodes.audio_language)
             .where(TableEpisodes.audio_language.is_not(None))
-            .where(TableEpisodes.audio_language != '[]')
+            .where(TableEpisodes.audio_language != "[]")
         ).all()
 
         for row in episode_rows:
             try:
-                langs = ast.literal_eval(row.audio_language or '[]')
+                langs = ast.literal_eval(row.audio_language or "[]")
                 for lang in langs:
                     if lang:
                         lang_set.add(lang)
@@ -65,9 +67,9 @@ class AudioLanguages(Resource):
                 if code2 and code2 not in seen_codes:
                     seen_codes.add(code2)
                     name = language_from_alpha2(code2)
-                    result.append({'code2': code2, 'name': name or lang_name})
+                    result.append({"code2": code2, "name": name or lang_name})
             except Exception:
                 logging.debug(f"Could not resolve audio language: {lang_name}")  # noqa: G004
                 continue
 
-        return sorted(result, key=itemgetter('name'))
+        return sorted(result, key=itemgetter("name"))

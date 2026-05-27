@@ -97,10 +97,21 @@ def test_subliminal_patch_monkey_patches_core_surface():
     assert subliminal.refine is subliminal_patch.core.refine
     assert subliminal.core.refine is subliminal_patch.core.refine
     assert subliminal.list_all_subtitles is subliminal_patch.core.list_all_subtitles
-    assert subliminal.core.list_all_subtitles is subliminal_patch.core.list_all_subtitles
-    assert subliminal.download_best_subtitles is subliminal_patch.core.download_best_subtitles
-    assert subliminal.core.download_best_subtitles is subliminal_patch.core.download_best_subtitles
-    assert subliminal.core.search_external_subtitles is subliminal_patch.core.search_external_subtitles
+    assert (
+        subliminal.core.list_all_subtitles is subliminal_patch.core.list_all_subtitles
+    )
+    assert (
+        subliminal.download_best_subtitles
+        is subliminal_patch.core.download_best_subtitles
+    )
+    assert (
+        subliminal.core.download_best_subtitles
+        is subliminal_patch.core.download_best_subtitles
+    )
+    assert (
+        subliminal.core.search_external_subtitles
+        is subliminal_patch.core.search_external_subtitles
+    )
 
     assert subliminal.video.Video is subliminal_patch.video.Video
     assert subliminal.Video is subliminal_patch.video.Video
@@ -120,7 +131,9 @@ def test_provider_registry_uses_patch_provider_classes():
     for provider_name in provider_registry.names():
         provider = provider_registry[provider_name]
 
-        assert provider.__module__.startswith("subliminal_patch.providers."), provider_name
+        assert provider.__module__.startswith("subliminal_patch.providers."), (
+            provider_name
+        )
 
 
 def test_provider_registry_languages_use_subzero_language_objects():
@@ -133,7 +146,9 @@ def test_provider_registry_languages_use_subzero_language_objects():
         if provider_languages is None:
             continue
 
-        assert all(isinstance(language, Language) for language in provider_languages), provider_name
+        assert all(isinstance(language, Language) for language in provider_languages), (
+            provider_name
+        )
 
 
 def test_provider_registry_subtitle_classes_use_patch_subtitle_base():
@@ -146,11 +161,16 @@ def test_provider_registry_subtitle_classes_use_patch_subtitle_base():
         if subtitle_class is None:
             continue
 
-        assert issubclass(subtitle_class, subliminal_patch.subtitle.Subtitle), provider_name
+        assert issubclass(subtitle_class, subliminal_patch.subtitle.Subtitle), (
+            provider_name
+        )
 
 
 def test_subliminal_provider_manager_stays_vanilla_upstream_26():
-    assert sorted(subliminal.provider_manager.names()) == EXPECTED_SUBLIMINAL_PROVIDER_NAMES
+    assert (
+        sorted(subliminal.provider_manager.names())
+        == EXPECTED_SUBLIMINAL_PROVIDER_NAMES
+    )
 
 
 def test_video_compatibility_surface_survives_rebase():
@@ -223,9 +243,13 @@ def test_provider_pool_keeps_configured_priority_order_for_early_stop(monkeypatc
         calls.append(provider)
         return [FakeSubtitle()] if provider == "preferred" else []
 
-    monkeypatch.setattr(SZProviderPool, "list_subtitles_provider", fake_list_subtitles_provider)
+    monkeypatch.setattr(
+        SZProviderPool, "list_subtitles_provider", fake_list_subtitles_provider
+    )
 
-    video = subliminal.video.Episode("Show.S01E02.mkv", series="Show", season=1, episode=2)
+    video = subliminal.video.Episode(
+        "Show.S01E02.mkv", series="Show", season=1, episode=2
+    )
     pool = SZProviderPool(providers=["preferred", "fallback"])
     subtitles = pool.list_subtitles_prioritized(
         video,
@@ -263,9 +287,13 @@ def test_provider_pool_continues_after_wrong_language_or_low_score(monkeypatch):
     def fake_score(matches, subtitle, video, hearing_impaired):
         return (0 if subtitle.id == "low-score" else 1, None)
 
-    monkeypatch.setattr(SZProviderPool, "list_subtitles_provider", fake_list_subtitles_provider)
+    monkeypatch.setattr(
+        SZProviderPool, "list_subtitles_provider", fake_list_subtitles_provider
+    )
 
-    video = subliminal.video.Episode("Show.S01E02.mkv", series="Show", season=1, episode=2)
+    video = subliminal.video.Episode(
+        "Show.S01E02.mkv", series="Show", season=1, episode=2
+    )
     pool = SZProviderPool(providers=["wrong-language", "low-score", "fallback"])
     subtitles = pool.list_subtitles_prioritized(
         video,
@@ -275,10 +303,16 @@ def test_provider_pool_continues_after_wrong_language_or_low_score(monkeypatch):
     )
 
     assert calls == ["wrong-language", "low-score", "fallback"]
-    assert [subtitle.id for subtitle in subtitles] == ["wrong-language", "low-score", "fallback"]
+    assert [subtitle.id for subtitle in subtitles] == [
+        "wrong-language",
+        "low-score",
+        "fallback",
+    ]
 
 
-def test_provider_pool_continues_until_all_requested_languages_are_satisfied(monkeypatch):
+def test_provider_pool_continues_until_all_requested_languages_are_satisfied(
+    monkeypatch,
+):
     from subliminal_patch.core import SZProviderPool
 
     class FakeSubtitle:
@@ -298,9 +332,13 @@ def test_provider_pool_continues_until_all_requested_languages_are_satisfied(mon
             return [FakeSubtitle("english", Language("eng"))]
         return [FakeSubtitle("spanish", Language("spa"))]
 
-    monkeypatch.setattr(SZProviderPool, "list_subtitles_provider", fake_list_subtitles_provider)
+    monkeypatch.setattr(
+        SZProviderPool, "list_subtitles_provider", fake_list_subtitles_provider
+    )
 
-    video = subliminal.video.Episode("Show.S01E02.mkv", series="Show", season=1, episode=2)
+    video = subliminal.video.Episode(
+        "Show.S01E02.mkv", series="Show", season=1, episode=2
+    )
     pool = SZProviderPool(providers=["english", "spanish"])
     subtitles = pool.list_subtitles_prioritized(
         video,
@@ -429,7 +467,9 @@ def test_tvsubtitles_patch_converts_upstream_languages_for_bazarr_filtering():
     provider.session = Session()
     provider.search_show_id = lambda series, year=None: 123
     provider.get_episode_ids = lambda show_id, season: {2: 456}
-    video = subliminal.video.Episode("Show.S01E02.mkv", series="Show", season=1, episode=2)
+    video = subliminal.video.Episode(
+        "Show.S01E02.mkv", series="Show", season=1, episode=2
+    )
 
     subtitles = provider.list_subtitles(video, {Language("eng")})
 
@@ -442,9 +482,7 @@ def test_podnapisi_patch_uses_upstream_26_json_search_endpoint():
     from subliminal_patch.providers.podnapisi import PodnapisiProvider
 
     class Response:
-        text = (
-            '{"data": [], "page": 1, "all_pages": 1}'
-        )
+        text = '{"data": [], "page": 1, "all_pages": 1}'
 
         def raise_for_status(self):
             return None
@@ -460,7 +498,12 @@ def test_podnapisi_patch_uses_upstream_26_json_search_endpoint():
     provider = PodnapisiProvider()
     provider.session = Session()
 
-    assert provider.query(Language("eng"), "Upstream Probe", season=1, episode=2, year=2024) == []
+    assert (
+        provider.query(
+            Language("eng"), "Upstream Probe", season=1, episode=2, year=2024
+        )
+        == []
+    )
     assert provider.session.calls == [
         (
             "https://www.podnapisi.net/subtitles/search/advanced",
@@ -496,7 +539,9 @@ def test_podnapisi_patch_maps_429_status_to_too_many_requests():
     provider.session = Session()
 
     try:
-        provider.query(Language("eng"), "Upstream Probe", season=1, episode=2, year=2024)
+        provider.query(
+            Language("eng"), "Upstream Probe", season=1, episode=2, year=2024
+        )
     except TooManyRequests:
         pass
     else:
@@ -522,7 +567,9 @@ def test_podnapisi_patch_maps_429_text_to_too_many_requests():
     provider.session = Session()
 
     try:
-        provider.query(Language("eng"), "Upstream Probe", season=1, episode=2, year=2024)
+        provider.query(
+            Language("eng"), "Upstream Probe", season=1, episode=2, year=2024
+        )
     except TooManyRequests:
         pass
     else:
@@ -530,12 +577,20 @@ def test_podnapisi_patch_maps_429_text_to_too_many_requests():
 
 
 def test_subtitulamostv_patch_keeps_bazarr_id_with_upstream_language_catalog():
-    from subliminal_patch.providers.subtitulamostv import SubtitulamosTVProvider, SubtitulamosTVSubtitle
+    from subliminal_patch.providers.subtitulamostv import (
+        SubtitulamosTVProvider,
+        SubtitulamosTVSubtitle,
+    )
 
-    language_codes = {(language.alpha3, language.country) for language in SubtitulamosTVProvider.languages}
+    language_codes = {
+        (language.alpha3, language.country)
+        for language in SubtitulamosTVProvider.languages
+    }
 
     assert SubtitulamosTVSubtitle.provider_name == "subtitulamostv"
-    assert {type(language) for language in SubtitulamosTVProvider.languages} == {Language}
+    assert {type(language) for language in SubtitulamosTVProvider.languages} == {
+        Language
+    }
     assert Language.fromietf("es") in SubtitulamosTVProvider.languages
     assert ("cat", None) in language_codes
     assert ("glg", None) in language_codes
@@ -550,7 +605,9 @@ def test_subtitulamostv_patch_supports_bazarr_language_filtering(monkeypatch):
 
     calls = []
 
-    def fake_query(self, series=None, season=None, episode=None, year=None, languages=None):
+    def fake_query(
+        self, series=None, season=None, episode=None, year=None, languages=None
+    ):
         calls.append((series, season, episode, year, languages))
         return []
 
@@ -599,4 +656,6 @@ def test_subtitulamostv_patch_keeps_exact_series_match_guard():
     provider = SubtitulamosTVProvider()
     provider._session_request = lambda *args, **kwargs: Response()
 
-    assert provider._query_search("Lost (2004)") == [{"show_id": 2, "show_name": "Lost"}]
+    assert provider._query_search("Lost (2004)") == [
+        {"show_id": 2, "show_name": "Lost"}
+    ]

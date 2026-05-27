@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 def test_hashcache_caches_on_second_call():
     from compat.local_subs import _HashCache
+
     cache = _HashCache(max_entries=10)
     with tempfile.NamedTemporaryFile(delete=False) as f:
         f.write(b"\x00" * (1 << 20))
@@ -23,6 +24,7 @@ def test_hashcache_caches_on_second_call():
 
 def test_hashcache_invalidates_on_mtime_change():
     from compat.local_subs import _HashCache
+
     cache = _HashCache(max_entries=10)
     with tempfile.NamedTemporaryFile(delete=False) as f:
         f.write(b"\x00" * (1 << 20))
@@ -42,12 +44,14 @@ def test_hashcache_invalidates_on_mtime_change():
 
 def test_hashcache_returns_none_for_missing_file():
     from compat.local_subs import _HashCache
+
     cache = _HashCache(max_entries=10)
     assert cache.get("/nonexistent/path/xyz") is None
 
 
 def test_hashcache_evicts_lru_at_cap():
     from compat.local_subs import _HashCache
+
     cache = _HashCache(max_entries=2)
     paths = []
     try:

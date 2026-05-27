@@ -20,9 +20,10 @@ from .app import create_app
 
 app = create_app()
 from compat import register as register_compat  # noqa: E402
+
 register_compat(app, base_url=base_url)
-app.register_blueprint(api_bp, url_prefix=base_url.rstrip('/') + '/api')
-app.register_blueprint(ui_bp, url_prefix=base_url.rstrip('/'))
+app.register_blueprint(api_bp, url_prefix=base_url.rstrip("/") + "/api")
+app.register_blueprint(ui_bp, url_prefix=base_url.rstrip("/"))
 
 
 class Server:
@@ -30,7 +31,7 @@ class Server:
         # Mute DeprecationWarning
         warnings.simplefilter("ignore", DeprecationWarning)
         # Mute Insecure HTTPS requests made to Sonarr and Radarr
-        warnings.filterwarnings('ignore', message='Unverified HTTPS request')
+        warnings.filterwarnings("ignore", message="Unverified HTTPS request")
         # Mute Python3 BrokenPipeError
         warnings.simplefilter("ignore", BrokenPipeError)
 
@@ -54,34 +55,44 @@ class Server:
             # endpoint reads X-Forwarded-Host/Proto for download-link
             # construction; trusting arbitrary client values would let an
             # attacker forge stream URLs and exfiltrate the Api-Key.
-            self.server = create_server(app,
-                                        host=self.address,
-                                        port=self.port,
-                                        threads=100,
-                                        trusted_proxy='127.0.0.1',
-                                        trusted_proxy_headers={'x-forwarded-host',
-                                                               'x-forwarded-proto',
-                                                               'x-forwarded-for'})
+            self.server = create_server(
+                app,
+                host=self.address,
+                port=self.port,
+                threads=100,
+                trusted_proxy="127.0.0.1",
+                trusted_proxy_headers={
+                    "x-forwarded-host",
+                    "x-forwarded-proto",
+                    "x-forwarded-for",
+                },
+            )
             self.connected = True
         except OSError as error:
             if error.errno == errno.EADDRNOTAVAIL:
-                logging.exception("BAZARR cannot bind to specified IP, trying with 0.0.0.0")
-                self.address = '0.0.0.0'
+                logging.exception(
+                    "BAZARR cannot bind to specified IP, trying with 0.0.0.0"
+                )
+                self.address = "0.0.0.0"
                 self.connected = False
                 super(Server, self).__init__()
             elif error.errno == errno.EADDRINUSE:
-                if self.port != '6767':
-                    logging.exception("BAZARR cannot bind to specified TCP port, trying with default (6767)")
-                    self.port = '6767'
+                if self.port != "6767":
+                    logging.exception(
+                        "BAZARR cannot bind to specified TCP port, trying with default (6767)"
+                    )
+                    self.port = "6767"
                     self.connected = False
                     super(Server, self).__init__()
                 else:
-                    logging.exception("BAZARR cannot bind to default TCP port (6767) because it's already in use, "
-                                      "exiting...")
+                    logging.exception(
+                        "BAZARR cannot bind to default TCP port (6767) because it's already in use, "
+                        "exiting..."
+                    )
                     self.shutdown(EXIT_PORT_ALREADY_IN_USE_ERROR)
             elif error.errno in [errno.ENOLINK, errno.EAFNOSUPPORT]:
                 logging.exception("BAZARR cannot bind to IPv6 (*), trying with 0.0.0.0")
-                self.address = '0.0.0.0'
+                self.address = "0.0.0.0"
                 self.connected = False
                 super(Server, self).__init__()
             else:
@@ -96,7 +107,9 @@ class Server:
             self.shutdown(status)
 
     def start(self):
-        self.server.print_listen("BAZARR is started and waiting for requests on: http://{}:{}")
+        self.server.print_listen(
+            "BAZARR is started and waiting for requests on: http://{}:{}"
+        )
         signal.signal(signal.SIGINT, self.interrupt_handler)
         signal.signal(signal.SIGTERM, self.interrupt_handler)
         try:
@@ -129,4 +142,3 @@ class Server:
 
 
 webserver = Server()
-

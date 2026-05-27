@@ -68,7 +68,9 @@ def _bazarr_enabled_providers() -> list[str]:
         return [str(item) for item in raw]
     if isinstance(raw, str):
         trimmed = raw.strip().strip("[]")
-        return [item.strip().strip("'\"") for item in trimmed.split(",") if item.strip()]
+        return [
+            item.strip().strip("'\"") for item in trimmed.split(",") if item.strip()
+        ]
     return []
 
 
@@ -95,6 +97,7 @@ def _set_bazarr_provider_enabled(provider_id: str, enabled: bool) -> bool:
         return True
     except Exception:
         import logging
+
         logging.getLogger(__name__).exception(
             "Failed to sync enabled_providers for %s", provider_id
         )
@@ -102,7 +105,12 @@ def _set_bazarr_provider_enabled(provider_id: str, enabled: bool) -> bool:
 
 
 def utcnow_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return (
+        datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
 
 
 def _persist_job(job: dict[str, Any]) -> None:
@@ -232,16 +240,16 @@ def _validate_dev_ref(dev_ref):
     if not trimmed:
         return None
     if not _DEV_REF_RE.match(trimmed):
-        raise CatalogSourceError(
-            "dev_ref contains characters not allowed in a git ref"
-        )
+        raise CatalogSourceError("dev_ref contains characters not allowed in a git ref")
     return trimmed
 
 
 def _validate_github_catalog_url(url: str) -> str:
     parsed = urlparse(url)
     if parsed.scheme != "https" or parsed.netloc.lower() != "github.com":
-        raise CatalogSourceError("Provider Hub V1 only supports GitHub.com HTTPS catalog sources")
+        raise CatalogSourceError(
+            "Provider Hub V1 only supports GitHub.com HTTPS catalog sources"
+        )
     parts = [part for part in parsed.path.split("/") if part]
     if len(parts) < 5 or parts[2] not in ("blob", "raw"):
         raise CatalogSourceError("Catalog source must be a GitHub file URL")
@@ -288,7 +296,9 @@ def _fetch_github_catalog(
 
 
 def _catalog_source_error_message(error: Exception) -> str:
-    if isinstance(error, (requests.exceptions.ConnectionError, requests.exceptions.Timeout)):
+    if isinstance(
+        error, (requests.exceptions.ConnectionError, requests.exceptions.Timeout)
+    ):
         return (
             "Could not reach GitHub while refreshing this catalog source. "
             "Check network or DNS and try again."
@@ -334,6 +344,7 @@ def add_catalog_source(
             "last_checked_at": None,
             "last_error": None,
         }
+
         def store_source(state: dict[str, Any]) -> dict[str, Any]:
             state.setdefault("catalog_sources", {})[name] = source
             return dict(source)
@@ -363,7 +374,11 @@ def remove_catalog_source(name: str) -> bool:
             sources = state.setdefault("catalog_sources", {})
             if name not in sources:
                 return False, name
-            removed_name = sources[name].get("name", name) if isinstance(sources[name], dict) else name
+            removed_name = (
+                sources[name].get("name", name)
+                if isinstance(sources[name], dict)
+                else name
+            )
             del sources[name]
             # Drop catalog_entries that came from this source. Without this purge
             # the marketplace keeps offering stale entries and update checks may
@@ -372,7 +387,10 @@ def remove_catalog_source(name: str) -> bool:
             for key, entry in list(entries.items()):
                 if not isinstance(entry, dict):
                     continue
-                if entry.get("source") == name or entry.get("source_name") == removed_name:
+                if (
+                    entry.get("source") == name
+                    or entry.get("source_name") == removed_name
+                ):
                     del entries[key]
             return True, removed_name
 
@@ -420,7 +438,9 @@ def update_catalog_source(name: str, dev_ref=_UNSET) -> dict[str, Any] | None:
         target_id=name,
         target_name=name,
     ) as job:
-        validated_dev_ref = _validate_dev_ref(dev_ref) if dev_ref is not _UNSET else _UNSET
+        validated_dev_ref = (
+            _validate_dev_ref(dev_ref) if dev_ref is not _UNSET else _UNSET
+        )
 
         def update_source(state: dict[str, Any]) -> tuple[dict[str, Any] | None, Any]:
             _key, source = _find_catalog_source(state, name)
@@ -472,7 +492,9 @@ def list_catalog(auto_refresh: bool = False) -> dict[str, Any]:
     }
 
 
-def _normalize_catalog_manifest(manifest: dict[str, Any], source: dict[str, Any], commit: str) -> dict[str, Any]:
+def _normalize_catalog_manifest(
+    manifest: dict[str, Any], source: dict[str, Any], commit: str
+) -> dict[str, Any]:
     normalized = dict(manifest)
     manifest_source = dict(normalized.get("source") or {})
     manifest_source.setdefault("type", "github")
@@ -485,6 +507,7 @@ def _normalize_catalog_manifest(manifest: dict[str, Any], source: dict[str, Any]
 
 def refresh_catalog() -> dict[str, Any]:
     with record_job("refresh_catalog", target_kind="system") as job:
+
         def refresh(state: dict[str, Any]) -> dict[str, Any]:
             now = utcnow_iso()
             entries = state.setdefault("catalog_entries", {})
@@ -513,7 +536,11 @@ def refresh_catalog() -> dict[str, Any]:
                 for item in catalog.get("providers", []):
                     if not isinstance(item, dict):
                         continue
-                    manifest = item.get("manifest") if isinstance(item.get("manifest"), dict) else item
+                    manifest = (
+                        item.get("manifest")
+                        if isinstance(item.get("manifest"), dict)
+                        else item
+                    )
                     if not isinstance(manifest, dict):
                         continue
                     manifest = _normalize_catalog_manifest(manifest, source, commit)
@@ -595,6 +622,7 @@ def _encrypt_secret_value(value: Any) -> Any:
         return value
     try:
         from secret_store import encrypt_secret
+
         return encrypt_secret(value)
     except Exception:
         return value
@@ -605,6 +633,7 @@ def _decrypt_secret_value(value: Any) -> Any:
         return value
     try:
         from secret_store import decrypt_secret
+
         return decrypt_secret(value)
     except Exception:
         return value
@@ -641,7 +670,9 @@ def _effective_installation_config(installation: dict[str, Any]) -> dict[str, An
     return effective
 
 
-def update_provider(provider_id: str, enabled: bool | None = None, config: dict[str, Any] | None = None) -> dict[str, Any] | None:
+def update_provider(
+    provider_id: str, enabled: bool | None = None, config: dict[str, Any] | None = None
+) -> dict[str, Any] | None:
     if config is not None:
         if not isinstance(config, dict):
             raise ValueError("config must be an object")
@@ -662,7 +693,9 @@ def update_provider(provider_id: str, enabled: bool | None = None, config: dict[
             for key, value in config.items():
                 if key in secret_fields and value == SECRET_PLACEHOLDER:
                     continue
-                next_config[key] = _encrypt_secret_value(value) if key in secret_fields else value
+                next_config[key] = (
+                    _encrypt_secret_value(value) if key in secret_fields else value
+                )
             provider["config"] = next_config
 
         state.setdefault("installations", {})[provider_id] = provider
@@ -762,7 +795,9 @@ def test_provider_connection(provider_id: str) -> dict[str, Any] | None:
             if not python_path:
                 raise ProviderHubInstallError("provider Python path is missing")
 
-            manifest = validate_manifest(manifest_data, built_in_provider_ids=_built_in_provider_ids())
+            manifest = validate_manifest(
+                manifest_data, built_in_provider_ids=_built_in_provider_ids()
+            )
             bundle_path = Path(active_path)
             _remove_bundle_runtime_artifacts(bundle_path)
             verify_bundle_tree(manifest, bundle_path)
@@ -815,6 +850,7 @@ def _built_in_provider_ids() -> set[str]:
     provider_ids = set(provider_registry.names())
     try:
         from .registry import _REGISTERED_PROVIDER_HUB_IDS
+
         return provider_ids - _REGISTERED_PROVIDER_HUB_IDS
     except Exception:
         return provider_ids
@@ -840,7 +876,9 @@ def _fetch_github_bundle_file(manifest, relative_path: str) -> bytes:
     response.raise_for_status()
     content = response.content
     if not isinstance(content, bytes):
-        raise ProviderHubInstallError(f"GitHub returned invalid content for {relative_path}")
+        raise ProviderHubInstallError(
+            f"GitHub returned invalid content for {relative_path}"
+        )
     return content
 
 
@@ -859,7 +897,9 @@ def _fetch_bundle(manifest) -> Path:
         return target
 
     target.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix=".stage-", dir=str(target.parent)) as tmp_dir:
+    with tempfile.TemporaryDirectory(
+        prefix=".stage-", dir=str(target.parent)
+    ) as tmp_dir:
         tmp_path = Path(tmp_dir)
         for relative_path in manifest.files:
             destination = tmp_path / relative_path
@@ -896,7 +936,9 @@ def _catalog_manifest_trusted(manifest: dict[str, Any], state: dict[str, Any]) -
             continue
         if entry.get("provider_id") != provider_id or entry.get("version") != version:
             continue
-        entry_manifest = entry.get("manifest") if isinstance(entry.get("manifest"), dict) else {}
+        entry_manifest = (
+            entry.get("manifest") if isinstance(entry.get("manifest"), dict) else {}
+        )
         if _trust_manifest(entry_manifest) == _trust_manifest(manifest):
             return bool(entry.get("trusted", False))
     return False
@@ -920,7 +962,13 @@ def _smoke_validate_worker(manifest, bundle_path: Path, python_path: Path) -> No
         _remove_bundle_runtime_artifacts(bundle_path)
 
 
-def _staged_installation(validated, existing, bundle_path: Path, staged_python_path: Path, source_trusted: bool):
+def _staged_installation(
+    validated,
+    existing,
+    bundle_path: Path,
+    staged_python_path: Path,
+    source_trusted: bool,
+):
     existing = existing if isinstance(existing, dict) else {}
     return {
         "provider_id": validated.provider_id,
@@ -938,7 +986,9 @@ def _staged_installation(validated, existing, bundle_path: Path, staged_python_p
         "activated_at": existing.get("activated_at"),
         "last_error": None,
         "trusted": bool(source_trusted),
-        "manifest": existing.get("manifest") if existing.get("active_version") else validated.raw,
+        "manifest": existing.get("manifest")
+        if existing.get("active_version")
+        else validated.raw,
         "enabled": existing.get("enabled", True),
         "config": existing.get("config", {}),
     }
@@ -980,15 +1030,23 @@ def _failed_installation(validated, existing, error: Exception, source_trusted: 
 
 
 def stage_install(manifest: dict[str, Any]) -> dict[str, Any]:
-    validated = validate_manifest(manifest, built_in_provider_ids=_built_in_provider_ids())
+    validated = validate_manifest(
+        manifest, built_in_provider_ids=_built_in_provider_ids()
+    )
     state = load_state()
     source_trusted = _catalog_manifest_trusted(validated.raw, state)
     existing = (state.get("installations") or {}).get(validated.provider_id)
     existing_version = (
         existing.get("active_version") if isinstance(existing, dict) else None
     )
-    manifest_source = validated.raw.get("source") if isinstance(validated.raw, dict) else None
-    catalog_url = manifest_source.get("catalog_url") if isinstance(manifest_source, dict) else None
+    manifest_source = (
+        validated.raw.get("source") if isinstance(validated.raw, dict) else None
+    )
+    catalog_url = (
+        manifest_source.get("catalog_url")
+        if isinstance(manifest_source, dict)
+        else None
+    )
     is_update = bool(existing_version)
     action = "stage_update" if is_update else "install"
 
@@ -1012,7 +1070,9 @@ def stage_install(manifest: dict[str, Any]) -> dict[str, Any]:
             def record_failed_install(state: dict[str, Any]) -> dict[str, Any]:
                 installations = state.setdefault("installations", {})
                 current = installations.get(validated.provider_id, existing)
-                installation = _failed_installation(validated, current, install_error, source_trusted)
+                installation = _failed_installation(
+                    validated, current, install_error, source_trusted
+                )
                 installations[validated.provider_id] = installation
                 return dict(installation)
 
@@ -1043,7 +1103,9 @@ def stage_install(manifest: dict[str, Any]) -> dict[str, Any]:
                 f"(restart Bazarr+ to activate)"
             )
         else:
-            message = f"Staged install of v{validated.version} (restart Bazarr+ to activate)"
+            message = (
+                f"Staged install of v{validated.version} (restart Bazarr+ to activate)"
+            )
         job.update(message=message)
         return _redact_installation(installation)
 
@@ -1056,7 +1118,10 @@ def activate_staged_installations() -> list[str]:
     for provider_id, installation in list(installations.items()):
         if not isinstance(installation, dict):
             continue
-        if installation.get("pending_restart") and installation.get("state") == "removed":
+        if (
+            installation.get("pending_restart")
+            and installation.get("state") == "removed"
+        ):
             target_name = installation.get("name") or provider_id
             with record_job(
                 "uninstall",
@@ -1069,7 +1134,10 @@ def activate_staged_installations() -> list[str]:
                 changed = True
                 job.update(message=f"Removed plugin '{target_name}' on restart")
             continue
-        if not installation.get("pending_restart") or installation.get("state") != "staged":
+        if (
+            not installation.get("pending_restart")
+            or installation.get("state") != "staged"
+        ):
             continue
 
         previous_version = installation.get("active_version")
@@ -1085,7 +1153,10 @@ def activate_staged_installations() -> list[str]:
             to_version=target_version,
         ) as job:
             try:
-                manifest = validate_manifest(installation.get("manifest") or {}, built_in_provider_ids=_built_in_provider_ids())
+                manifest = validate_manifest(
+                    installation.get("manifest") or {},
+                    built_in_provider_ids=_built_in_provider_ids(),
+                )
                 if isinstance(installation.get("staged_manifest"), dict):
                     manifest = validate_manifest(
                         installation.get("staged_manifest"),
@@ -1094,11 +1165,15 @@ def activate_staged_installations() -> list[str]:
                 staged_path = installation.get("staged_path")
                 staged_python_path = installation.get("staged_python_path")
                 if not staged_path or not staged_python_path:
-                    raise ProviderHubInstallError("staged bundle or python path is missing")
+                    raise ProviderHubInstallError(
+                        "staged bundle or python path is missing"
+                    )
                 staged_bundle_path = Path(staged_path)
                 _remove_bundle_runtime_artifacts(staged_bundle_path)
                 verify_bundle_tree(manifest, staged_bundle_path)
-                _smoke_validate_worker(manifest, staged_bundle_path, Path(staged_python_path))
+                _smoke_validate_worker(
+                    manifest, staged_bundle_path, Path(staged_python_path)
+                )
             except Exception as error:
                 installation["last_error"] = str(error)
                 installation["staged_version"] = None
@@ -1154,9 +1229,7 @@ def remove_installation(provider_id: str) -> bool:
     if provider_id not in installations:
         return False
     item = installations[provider_id]
-    target_name = (
-        item.get("name") if isinstance(item, dict) else None
-    ) or provider_id
+    target_name = (item.get("name") if isinstance(item, dict) else None) or provider_id
     active_version = item.get("active_version") if isinstance(item, dict) else None
 
     with record_job(
@@ -1166,6 +1239,7 @@ def remove_installation(provider_id: str) -> bool:
         target_name=target_name,
         from_version=active_version,
     ) as job:
+
         def remove_or_stage(state: dict[str, Any]) -> str:
             installations = state.setdefault("installations", {})
             item = installations.get(provider_id)
@@ -1191,7 +1265,9 @@ def remove_installation(provider_id: str) -> bool:
         if result == "removed_pending":
             job.update(message=f"Removed pending install of '{target_name}'")
             return True
-        job.update(message=f"Staged removal of '{target_name}' (restart Bazarr+ to finalize)")
+        job.update(
+            message=f"Staged removal of '{target_name}' (restart Bazarr+ to finalize)"
+        )
         return True
 
 
@@ -1265,7 +1341,9 @@ def _version_key(version: Any) -> tuple[Any, ...] | None:
     return (0, tuple(tokens))
 
 
-def _latest_catalog_manifest(state: dict[str, Any], provider_id: str, active_version: Any) -> dict[str, Any] | None:
+def _latest_catalog_manifest(
+    state: dict[str, Any], provider_id: str, active_version: Any
+) -> dict[str, Any] | None:
     active_key = _version_key(active_version)
     candidates: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
     for entry in (state.get("catalog_entries") or {}).values():
@@ -1302,7 +1380,8 @@ def apply_update(provider_id: str) -> dict[str, Any] | None:
             target_kind="provider",
             target_id=provider_id,
             target_name=target_name,
-            from_version=provider.get("active_version") or provider.get("staged_version"),
+            from_version=provider.get("active_version")
+            or provider.get("staged_version"),
         ) as job:
             provider["last_error"] = "No update manifest is available"
 

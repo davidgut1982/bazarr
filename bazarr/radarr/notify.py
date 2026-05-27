@@ -10,11 +10,13 @@ from radarr.info import radarr_headers, url_api_radarr
 def notify_radarr(radarr_id):
     try:
         url = f"{url_api_radarr()}command"
-        data = {
-            'name': 'RescanMovie',
-            'movieId': int(radarr_id)
-        }
-        radarr_session().post(url, json=data, timeout=int(settings.radarr.http_timeout), verify=get_ssl_verify('radarr'),
-                              headers=radarr_headers(settings.radarr.apikey))
+        data = {"name": "RescanMovie", "movieId": int(radarr_id)}
+        radarr_session().post(
+            url,
+            json=data,
+            timeout=int(settings.radarr.http_timeout),
+            verify=get_ssl_verify("radarr"),
+            headers=radarr_headers(settings.radarr.apikey),
+        )
     except Exception:
-        logging.exception('BAZARR cannot notify Radarr')
+        logging.exception("BAZARR cannot notify Radarr")

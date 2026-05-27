@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 def refine(video, embedded_subtitles=True, **kwargs):
     """Refine a video by searching its metadata.
-    
+
     patch: remove embedded subtitle detection
 
     Several :class:`~subliminal.video.Video` attributes can be found:

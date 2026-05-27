@@ -24,8 +24,9 @@ def test_fanout_respects_wall_timeout(monkeypatch):
 
     video = MagicMock()
     t0 = time.time()
-    results = list_all_subtitles_parallel([video], set(), pool,
-                                           per_provider_timeout=1, wall_timeout=1.5)
+    results = list_all_subtitles_parallel(
+        [video], set(), pool, per_provider_timeout=1, wall_timeout=1.5
+    )
     elapsed = time.time() - t0
 
     # Wall timeout must kick in (assertion generous for ThreadPoolExecutor join time)

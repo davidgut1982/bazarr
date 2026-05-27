@@ -4,7 +4,7 @@ import re
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-_HEX_64_RE = re.compile(r'^[0-9a-fA-F]{64}$')
+_HEX_64_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 
 
 def validate_encryption_key(key_hex: str) -> bool:

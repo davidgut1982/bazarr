@@ -14,7 +14,9 @@ from typing import Any
 
 OFFICIAL_CATALOG_SOURCE_ID = "official"
 OFFICIAL_CATALOG_SOURCE_NAME = "Official Bazarr Provider Catalog"
-OFFICIAL_CATALOG_URL = "https://github.com/LavX/bazarr-provider-catalog/blob/main/catalog.json"
+OFFICIAL_CATALOG_URL = (
+    "https://github.com/LavX/bazarr-provider-catalog/blob/main/catalog.json"
+)
 _STATE_LOCK = threading.RLock()
 
 
@@ -90,6 +92,7 @@ def default_state() -> dict[str, Any]:
 def _default_state_file() -> Path:
     try:
         from app.get_args import args
+
         return Path(args.config_dir) / "provider_hub" / "state.json"
     except Exception:
         return Path("provider_hub") / "state.json"
@@ -156,7 +159,9 @@ def load_state(path: str | os.PathLike[str] | None = None) -> dict[str, Any]:
         else:
             source["official"] = False
             source["trusted"] = False
-            if spoofs_official_catalog_source(source.get("id")) or spoofs_official_catalog_source(source.get("name")):
+            if spoofs_official_catalog_source(
+                source.get("id")
+            ) or spoofs_official_catalog_source(source.get("name")):
                 source["name"] = source_id
         if "dev_ref" not in source:
             source["dev_ref"] = None
@@ -172,7 +177,9 @@ def load_state(path: str | os.PathLike[str] | None = None) -> dict[str, Any]:
     return data
 
 
-def save_state(data: dict[str, Any], path: str | os.PathLike[str] | None = None) -> None:
+def save_state(
+    data: dict[str, Any], path: str | os.PathLike[str] | None = None
+) -> None:
     with state_write_lock():
         current = Path(path) if path is not None else state_file()
         current.parent.mkdir(parents=True, exist_ok=True)
@@ -182,7 +189,9 @@ def save_state(data: dict[str, Any], path: str | os.PathLike[str] | None = None)
         os.replace(tmp, current)
 
 
-def active_installations(path: str | os.PathLike[str] | None = None) -> list[ProviderHubInstallation]:
+def active_installations(
+    path: str | os.PathLike[str] | None = None,
+) -> list[ProviderHubInstallation]:
     data = load_state(path)
     installations = []
     for provider_id, item in (data.get("installations") or {}).items():

@@ -139,8 +139,13 @@ def test_query_does_not_keyerror_on_malformed_rows():
     payload = {
         "success": True,
         "subtitles": [
-            {"name": "valid.srt", "url": "/u/1", "language": "EN",
-             "subtitlePage": "/s/1", "releases": ["Dummy.Show.S01E03"]},
+            {
+                "name": "valid.srt",
+                "url": "/u/1",
+                "language": "EN",
+                "subtitlePage": "/s/1",
+                "releases": ["Dummy.Show.S01E03"],
+            },
             # Malformed row: no 'name'
             {"url": "/u/2", "language": "EN"},  # noqa: missing 'name'
         ],
@@ -160,7 +165,9 @@ def test_query_non_anime_mode_makes_single_call():
     video = _episode()
 
     payload = {"success": True, "subtitles": []}
-    with patch.object(provider, "retry", return_value=_mock_response(payload)) as retry_mock:
+    with patch.object(
+        provider, "retry", return_value=_mock_response(payload)
+    ) as retry_mock:
         provider.query({Language("eng")}, video)
 
     # Exactly one upstream call in non-anime mode.
@@ -173,7 +180,9 @@ def test_query_anime_mode_fires_extra_season_call():
     video = _episode()
 
     payload = {"success": True, "subtitles": []}
-    with patch.object(provider, "retry", return_value=_mock_response(payload)) as retry_mock:
+    with patch.object(
+        provider, "retry", return_value=_mock_response(payload)
+    ) as retry_mock:
         provider.query({Language("eng")}, video)
 
     # Without absolute_episode, anime_mode adds: primary + season-only + title-fallback = 3
@@ -189,9 +198,13 @@ def test_query_non_anime_mode_skips_packs():
         "success": True,
         "subtitles": [
             {
-                "name": "pack.srt", "url": "/u/1", "language": "EN",
-                "subtitlePage": "/s/1", "releases": ["Dummy.Show.S01E01-E10"],
-                "episode_from": 1, "episode_end": 10,
+                "name": "pack.srt",
+                "url": "/u/1",
+                "language": "EN",
+                "subtitlePage": "/s/1",
+                "releases": ["Dummy.Show.S01E01-E10"],
+                "episode_from": 1,
+                "episode_end": 10,
             },
         ],
     }
@@ -211,9 +224,13 @@ def test_query_anime_mode_accepts_pack_covering_target():
         "success": True,
         "subtitles": [
             {
-                "name": "pack.srt", "url": "/u/1", "language": "EN",
-                "subtitlePage": "/s/1", "releases": ["Dummy.Show.S01E01-E10"],
-                "episode_from": 1, "episode_end": 10,
+                "name": "pack.srt",
+                "url": "/u/1",
+                "language": "EN",
+                "subtitlePage": "/s/1",
+                "releases": ["Dummy.Show.S01E01-E10"],
+                "episode_from": 1,
+                "episode_end": 10,
             },
         ],
     }
@@ -232,9 +249,13 @@ def test_query_anime_mode_skips_pack_not_covering_target():
         "success": True,
         "subtitles": [
             {
-                "name": "pack.srt", "url": "/u/1", "language": "EN",
-                "subtitlePage": "/s/1", "releases": ["Dummy.Show.S01E05-E10"],
-                "episode_from": 5, "episode_end": 10,
+                "name": "pack.srt",
+                "url": "/u/1",
+                "language": "EN",
+                "subtitlePage": "/s/1",
+                "releases": ["Dummy.Show.S01E05-E10"],
+                "episode_from": 5,
+                "episode_end": 10,
             },
         ],
     }
@@ -250,21 +271,29 @@ def test_query_anime_mode_merges_fallbacks_when_primary_reports_cant_find():
     provider = SubdlProvider(api_key="fake", anime_mode=True)
     video = _episode(season=1, episode=3)
 
-    primary = _mock_response({
-        "status": False,
-        "error": "Sorry, we can't find any subtitles.",
-    })
+    primary = _mock_response(
+        {
+            "status": False,
+            "error": "Sorry, we can't find any subtitles.",
+        }
+    )
     # Season-only fallback returns the real match
-    season_fallback = _mock_response({
-        "success": True,
-        "subtitles": [
-            {
-                "name": "found_in_fallback.srt", "url": "/u/99", "language": "EN",
-                "subtitlePage": "/s/99", "releases": ["Dummy.Show.S01E03"],
-                "season": 1, "episode": 3,
-            },
-        ],
-    })
+    season_fallback = _mock_response(
+        {
+            "success": True,
+            "subtitles": [
+                {
+                    "name": "found_in_fallback.srt",
+                    "url": "/u/99",
+                    "language": "EN",
+                    "subtitlePage": "/s/99",
+                    "releases": ["Dummy.Show.S01E03"],
+                    "season": 1,
+                    "episode": 3,
+                },
+            ],
+        }
+    )
     empty = _mock_response({"success": True, "subtitles": []})
 
     # Sequence: [primary, season_fallback, title_fallback_empty]
@@ -281,10 +310,12 @@ def test_query_non_anime_mode_short_circuits_on_cant_find():
     provider = SubdlProvider(api_key="fake", anime_mode=False)
     video = _episode()
 
-    primary = _mock_response({
-        "status": False,
-        "error": "Sorry, we can't find any subtitles.",
-    })
+    primary = _mock_response(
+        {
+            "status": False,
+            "error": "Sorry, we can't find any subtitles.",
+        }
+    )
     with patch.object(provider, "retry", return_value=primary) as retry_mock:
         subs = provider.query({Language("eng")}, video)
 
@@ -311,6 +342,7 @@ def test_query_raises_on_fallback_throttle():
 def test_query_still_raises_non_can_find_primary_error():
     """A non-'cant find' primary error must still raise ProviderError even in anime_mode."""
     from subliminal.exceptions import ProviderError
+
     provider = SubdlProvider(api_key="fake", anime_mode=True)
     video = _episode()
 

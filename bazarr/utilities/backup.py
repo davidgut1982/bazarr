@@ -16,7 +16,7 @@ from app.event_handler import event_stream
 from app.jobs_queue import jobs_queue
 from utilities.central import restart_bazarr
 
-_BACKUP_FILENAME_RE = re.compile(r'^bazarr_backup_v[\w.\-]+\.zip$')
+_BACKUP_FILENAME_RE = re.compile(r"^bazarr_backup_v[\w.\-]+\.zip$")
 
 
 def _validate_backup_filename(filename):
@@ -37,7 +37,7 @@ def _safe_extract(zip_obj, dest_path):
     for member in zip_obj.namelist():
         member_real = os.path.realpath(os.path.join(dest_real, member))
         if member_real != dest_real and not member_real.startswith(dest_real + os.sep):
-            raise BadZipFile(f'Unsafe path in backup archive: {member}')
+            raise BadZipFile(f"Unsafe path in backup archive: {member}")
     zip_obj.extractall(path=dest_path)
 
 
@@ -45,53 +45,61 @@ def get_backup_path():
     backup_dir = settings.backup.folder
     if not os.path.isdir(backup_dir):
         os.makedirs(backup_dir)
-    logging.debug(f'Backup directory path is: {backup_dir}')  # noqa: G004
+    logging.debug(f"Backup directory path is: {backup_dir}")  # noqa: G004
     return backup_dir
 
 
 def get_restore_path():
-    restore_dir = os.path.join(args.config_dir, 'restore')
+    restore_dir = os.path.join(args.config_dir, "restore")
     if not os.path.isdir(restore_dir):
         os.makedirs(restore_dir)
-    logging.debug(f'Restore directory path is: {restore_dir}')  # noqa: G004
+    logging.debug(f"Restore directory path is: {restore_dir}")  # noqa: G004
     return restore_dir
 
 
 def get_backup_files(fullpath=True):
-    backup_file_pattern = os.path.join(get_backup_path(), 'bazarr_backup_v*.zip')
+    backup_file_pattern = os.path.join(get_backup_path(), "bazarr_backup_v*.zip")
     file_list = glob(backup_file_pattern)
     file_list.sort(key=os.path.getmtime, reverse=True)
     if fullpath:
         return file_list
     else:
-        return [{
-            'type': 'backup',
-            'filename': os.path.basename(x),
-            'size': sizeof_fmt(os.path.getsize(x)),
-            'date': datetime.fromtimestamp(os.path.getmtime(x)).strftime("%b %d %Y")
-        } for x in file_list]
+        return [
+            {
+                "type": "backup",
+                "filename": os.path.basename(x),
+                "size": sizeof_fmt(os.path.getsize(x)),
+                "date": datetime.fromtimestamp(os.path.getmtime(x)).strftime(
+                    "%b %d %Y"
+                ),
+            }
+            for x in file_list
+        ]
 
 
 def backup_to_zip(job_id=None, wait_for_completion=False):
     if not job_id:
-        jobs_queue.add_job_from_function("Backing up Database and Configuration File", is_progress=False,
-                                         wait_for_completion=wait_for_completion)
+        jobs_queue.add_job_from_function(
+            "Backing up Database and Configuration File",
+            is_progress=False,
+            wait_for_completion=wait_for_completion,
+        )
         return
 
     now = datetime.now()
     database_backup_file = None
     now_string = now.strftime("%Y.%m.%d_%H.%M.%S")
     backup_filename = f"bazarr_backup_v{os.environ['BAZARR_VERSION']}_{now_string}.zip"
-    logging.debug(f'Backup filename will be: {backup_filename}')  # noqa: G004
+    logging.debug(f"Backup filename will be: {backup_filename}")  # noqa: G004
 
     if not settings.postgresql.enabled:
-        database_src_file = os.path.join(args.config_dir, 'db', 'bazarr.db')
-        logging.debug(f'Database file path to backup is: {database_src_file}')  # noqa: G004
+        database_src_file = os.path.join(args.config_dir, "db", "bazarr.db")
+        logging.debug(f"Database file path to backup is: {database_src_file}")  # noqa: G004
 
         try:
             database_src_con = sqlite3.connect(database_src_file)
 
-            database_backup_file = os.path.join(get_backup_path(), 'bazarr_temp.db')
+            database_backup_file = os.path.join(get_backup_path(), "bazarr_temp.db")
             database_backup_con = sqlite3.connect(database_backup_file)
 
             with database_backup_con:
@@ -101,81 +109,98 @@ def backup_to_zip(job_id=None, wait_for_completion=False):
             database_src_con.close()
         except Exception:
             database_backup_file = None
-            logging.exception('Unable to backup database file.')
+            logging.exception("Unable to backup database file.")
 
-    config_file = os.path.join(args.config_dir, 'config', 'config.yaml')
-    logging.debug(f'Config file path to backup is: {config_file}')  # noqa: G004
+    config_file = os.path.join(args.config_dir, "config", "config.yaml")
+    logging.debug(f"Config file path to backup is: {config_file}")  # noqa: G004
 
-    with ZipFile(os.path.join(get_backup_path(), backup_filename), 'w', compression=ZIP_DEFLATED,
-                 compresslevel=9) as backupZip:
+    with ZipFile(
+        os.path.join(get_backup_path(), backup_filename),
+        "w",
+        compression=ZIP_DEFLATED,
+        compresslevel=9,
+    ) as backupZip:
         if database_backup_file:
-            backupZip.write(database_backup_file, 'bazarr.db')
+            backupZip.write(database_backup_file, "bazarr.db")
             try:
                 os.remove(database_backup_file)
             except (OSError, FileNotFoundError):
-                logging.exception(f'Unable to delete temporary database backup file: {database_backup_file}')  # noqa: G004
+                logging.exception(
+                    f"Unable to delete temporary database backup file: {database_backup_file}"  # noqa: G004
+                )
         else:
-            logging.debug('Database file is not included in backup. See previous exception')
-        backupZip.write(config_file, 'config.yaml')
+            logging.debug(
+                "Database file is not included in backup. See previous exception"
+            )
+        backupZip.write(config_file, "config.yaml")
 
-    jobs_queue.update_job_name(job_id=job_id, new_job_name="Backed up Database and Configuration File")
-    event_stream(type='backup')
+    jobs_queue.update_job_name(
+        job_id=job_id, new_job_name="Backed up Database and Configuration File"
+    )
+    event_stream(type="backup")
 
 
 def restore_from_backup():
-    if os.path.isfile(os.path.join(get_restore_path(), 'config.yaml')):
-        restore_config_path = os.path.join(get_restore_path(), 'config.yaml')
-        dest_config_path = os.path.join(args.config_dir, 'config', 'config.yaml')
+    if os.path.isfile(os.path.join(get_restore_path(), "config.yaml")):
+        restore_config_path = os.path.join(get_restore_path(), "config.yaml")
+        dest_config_path = os.path.join(args.config_dir, "config", "config.yaml")
         new_config = True
     else:
-        restore_config_path = os.path.join(get_restore_path(), 'config.ini')
-        dest_config_path = os.path.join(args.config_dir, 'config', 'config.ini')
+        restore_config_path = os.path.join(get_restore_path(), "config.ini")
+        dest_config_path = os.path.join(args.config_dir, "config", "config.ini")
         new_config = False
 
-    restore_database_path = os.path.join(get_restore_path(), 'bazarr.db')
-    dest_database_path = os.path.join(args.config_dir, 'db', 'bazarr.db')
+    restore_database_path = os.path.join(get_restore_path(), "bazarr.db")
+    dest_database_path = os.path.join(args.config_dir, "db", "bazarr.db")
 
     if os.path.isfile(restore_config_path) and os.path.isfile(restore_database_path):
         try:
             shutil.copy(restore_config_path, dest_config_path)
             os.remove(restore_config_path)
         except (OSError, FileNotFoundError):
-            logging.exception(f'Unable to restore or delete config file to {dest_config_path}')  # noqa: G004
+            logging.exception(
+                f"Unable to restore or delete config file to {dest_config_path}"  # noqa: G004
+            )
         else:
             if new_config:
-                if os.path.isfile(os.path.join(get_restore_path(), 'config.ini')):
-                    os.remove(os.path.join(get_restore_path(), 'config.ini'))
+                if os.path.isfile(os.path.join(get_restore_path(), "config.ini")):
+                    os.remove(os.path.join(get_restore_path(), "config.ini"))
             else:
-                if os.path.isfile(os.path.join(get_restore_path(), 'config.yaml')):
-                    os.remove(os.path.join(get_restore_path(), 'config.yaml'))
+                if os.path.isfile(os.path.join(get_restore_path(), "config.yaml")):
+                    os.remove(os.path.join(get_restore_path(), "config.yaml"))
         if not settings.postgresql.enabled:
             try:
                 shutil.copy(restore_database_path, dest_database_path)
             except (OSError, FileNotFoundError):
-                logging.exception(f'Unable to restore or delete db to {dest_database_path}')  # noqa: G004
+                logging.exception(
+                    f"Unable to restore or delete db to {dest_database_path}"  # noqa: G004
+                )
             else:
                 try:
-                    if os.path.isfile(f'{dest_database_path}-shm'):
-                        os.remove(f'{dest_database_path}-shm')
-                    if os.path.isfile(f'{dest_database_path}-wal'):
-                        os.remove(f'{dest_database_path}-wal')
+                    if os.path.isfile(f"{dest_database_path}-shm"):
+                        os.remove(f"{dest_database_path}-shm")
+                    if os.path.isfile(f"{dest_database_path}-wal"):
+                        os.remove(f"{dest_database_path}-wal")
                 except (OSError, FileNotFoundError):
-                    logging.exception('Unable to delete SHM and WAL file.')
+                    logging.exception("Unable to delete SHM and WAL file.")
 
             try:
                 os.remove(restore_database_path)
             except (OSError, FileNotFoundError):
-                logging.exception(f'Unable to delete {dest_database_path}')  # noqa: G004
+                logging.exception(f"Unable to delete {dest_database_path}")  # noqa: G004
 
-        logging.info('Backup restored successfully. Bazarr will restart.')
+        logging.info("Backup restored successfully. Bazarr will restart.")
         from app.server import webserver
+
         if webserver is not None:
             webserver.close_all()
         restart_bazarr()
     elif os.path.isfile(restore_config_path) or os.path.isfile(restore_database_path):
-        logging.debug('Cannot restore a partial backup. You must have both config and database.')
+        logging.debug(
+            "Cannot restore a partial backup. You must have both config and database."
+        )
     else:
-        logging.debug('No backup to restore.')
+        logging.debug("No backup to restore.")
         return
 
     try:
@@ -183,13 +208,13 @@ def restore_from_backup():
     except FileNotFoundError:
         pass
     except (OSError, FileNotFoundError):
-        logging.exception(f'Unable to delete {dest_config_path}')  # noqa: G004
+        logging.exception(f"Unable to delete {dest_config_path}")  # noqa: G004
 
 
 def prepare_restore(filename):
     filename = _validate_backup_filename(filename)
     if filename is None:
-        logging.error('Invalid backup filename refused for restore.')
+        logging.error("Invalid backup filename refused for restore.")
         return False
     src_zip_file_path = os.path.join(get_backup_path(), filename)
     dest_zip_file_path = os.path.join(get_restore_path(), filename)
@@ -197,24 +222,27 @@ def prepare_restore(filename):
     try:
         shutil.copy(src_zip_file_path, dest_zip_file_path)
     except (OSError, FileNotFoundError):
-        logging.exception(f'Unable to copy backup archive to {dest_zip_file_path}')  # noqa: G004
+        logging.exception(f"Unable to copy backup archive to {dest_zip_file_path}")  # noqa: G004
     else:
         try:
-            with ZipFile(dest_zip_file_path, 'r') as zipObj:
+            with ZipFile(dest_zip_file_path, "r") as zipObj:
                 _safe_extract(zipObj, get_restore_path())
         except BadZipFile:
-            logging.exception(f'Unable to extract files from backup archive {dest_zip_file_path}')  # noqa: G004
+            logging.exception(
+                f"Unable to extract files from backup archive {dest_zip_file_path}"  # noqa: G004
+            )
         else:
             success = True
     finally:
         try:
             os.remove(dest_zip_file_path)
         except (OSError, FileNotFoundError):
-            logging.exception(f'Unable to delete backup archive {dest_zip_file_path}')  # noqa: G004
+            logging.exception(f"Unable to delete backup archive {dest_zip_file_path}")  # noqa: G004
 
     if success:
-        logging.debug('time to restart')
-        from app.server import webserver        
+        logging.debug("time to restart")
+        from app.server import webserver
+
         if webserver is not None:
             webserver.close_all()
         restart_bazarr()
@@ -227,34 +255,37 @@ def backup_rotation():
     try:
         int(backup_retention)
     except ValueError:
-        logging.error('Backup retention time must be a valid integer. Please fix this in your settings.')
+        logging.error(
+            "Backup retention time must be a valid integer. Please fix this in your settings."
+        )
         return
 
     backup_files = get_backup_files()
 
-    logging.debug(f'Cleaning up backup files older than {backup_retention} days')  # noqa: G004
+    logging.debug(f"Cleaning up backup files older than {backup_retention} days")  # noqa: G004
     for file in backup_files:
-        if (datetime.fromtimestamp(os.path.getmtime(file), tz=timezone.utc) + timedelta(days=int(backup_retention)) <
-                datetime.now(tz=timezone.utc)):
-            logging.debug(f'Deleting old backup file {file}')  # noqa: G004
+        if datetime.fromtimestamp(os.path.getmtime(file), tz=timezone.utc) + timedelta(
+            days=int(backup_retention)
+        ) < datetime.now(tz=timezone.utc):
+            logging.debug(f"Deleting old backup file {file}")  # noqa: G004
             try:
                 os.remove(file)
             except (OSError, FileNotFoundError):
-                logging.debug(f'Unable to delete backup file {file}')  # noqa: G004
-    logging.debug('Finished cleaning up old backup files')
+                logging.debug(f"Unable to delete backup file {file}")  # noqa: G004
+    logging.debug("Finished cleaning up old backup files")
 
 
 def delete_backup_file(filename):
     filename = _validate_backup_filename(filename)
     if filename is None:
-        logging.error('Invalid backup filename refused for deletion.')
+        logging.error("Invalid backup filename refused for deletion.")
         return False
     backup_file_path = os.path.join(get_backup_path(), filename)
     try:
         os.remove(backup_file_path)
         return True
     except (OSError, FileNotFoundError):
-        logging.debug(f'Unable to delete backup file {backup_file_path}')  # noqa: G004
+        logging.debug(f"Unable to delete backup file {backup_file_path}")  # noqa: G004
     return False
 
 

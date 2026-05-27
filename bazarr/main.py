@@ -4,20 +4,20 @@ import os
 
 from threading import Thread
 
-bazarr_version = 'unknown'
+bazarr_version = "unknown"
 
 # Try to read version from VERSION file (authoritative for releases)
-version_file = os.path.join(os.path.dirname(__file__), '..', 'VERSION')
+version_file = os.path.join(os.path.dirname(__file__), "..", "VERSION")
 if os.path.isfile(version_file):
-    with open(version_file, 'r') as f:
+    with open(version_file, "r") as f:
         bazarr_version = f.readline()
-        bazarr_version = bazarr_version.rstrip('\n')
+        bazarr_version = bazarr_version.rstrip("\n")
 
 # Fall back to environment variable if VERSION file not found (dev/Docker setups)
-if bazarr_version == 'unknown' and "BAZARR_VERSION" in os.environ:
+if bazarr_version == "unknown" and "BAZARR_VERSION" in os.environ:
     bazarr_version = os.environ["BAZARR_VERSION"]
 
-os.environ["BAZARR_VERSION"] = bazarr_version.lstrip('v')
+os.environ["BAZARR_VERSION"] = bazarr_version.lstrip("v")
 
 import app.libs  # noqa: E402
 
@@ -32,7 +32,7 @@ from init import *  # noqa: E402, F403
 import logging  # noqa: E402
 
 # Install downloaded update
-if bazarr_version != '':
+if bazarr_version != "":
     apply_update()
 
 # Check for new update and install latest
@@ -44,8 +44,15 @@ else:
     # there's missing embedded packages after a commit
     check_if_new_update()
 
-from app.database import (System, database, update, migrate_db, create_db_revision, upgrade_languages_profile_values,  # noqa: E402
-                          fix_languages_profiles_with_duplicate_ids)
+from app.database import (  # noqa: E402
+    System,
+    database,
+    update,
+    migrate_db,
+    create_db_revision,
+    upgrade_languages_profile_values,
+    fix_languages_profiles_with_duplicate_ids,
+)
 from app.notifier import update_notifier  # noqa: E402
 from provider_hub.service import activate_staged_installations  # noqa: E402
 from languages.get_languages import load_language_in_db  # noqa: E402
@@ -70,14 +77,12 @@ configure_proxy_func()
 get_announcements_to_file(startup=True)
 
 # Reset the updated once Bazarr have been restarted after an update
-database.execute(
-    update(System)
-    .values(updated='0'))
+database.execute(update(System).values(updated="0"))
 
 # Set the configured state based on config.yaml file existence
 database.execute(
-    update(System)
-    .values(configured=os.environ.get('BAZARR_CONFIGURED', '0')))
+    update(System).values(configured=os.environ.get("BAZARR_CONFIGURED", "0"))
+)
 
 # Load languages in database
 load_language_in_db()

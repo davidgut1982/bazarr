@@ -8,13 +8,23 @@ import sys
 import time
 
 from bazarr.app.get_args import args
-from bazarr.literals import EXIT_PYTHON_UPGRADE_NEEDED, EXIT_NORMAL, FILE_RESTART, FILE_STOP, ENV_RESTARTFILE, ENV_STOPFILE, EXIT_INTERRUPT, EXIT_UNEXPECTED_ERROR
+from bazarr.literals import (
+    EXIT_PYTHON_UPGRADE_NEEDED,
+    EXIT_NORMAL,
+    FILE_RESTART,
+    FILE_STOP,
+    ENV_RESTARTFILE,
+    ENV_STOPFILE,
+    EXIT_INTERRUPT,
+    EXIT_UNEXPECTED_ERROR,
+)
 
 # always flush print statements
 sys.stdout.reconfigure(line_buffering=True)
 
+
 def exit_program(status_code):
-    print(f'Bazarr exited with status code {status_code}.')
+    print(f"Bazarr exited with status code {status_code}.")
     raise SystemExit(status_code)
 
 
@@ -24,23 +34,43 @@ def check_python_version():
     minimum_py3_str = ".".join(str(i) for i in minimum_py3_tuple)
 
     if int(python_version[0]) < minimum_py3_tuple[0]:
-        print("Python " + minimum_py3_str + " or greater required. "
-              "Current version is " + platform.python_version() + ". Please upgrade Python.")
+        print(
+            "Python " + minimum_py3_str + " or greater required. "
+            "Current version is "
+            + platform.python_version()
+            + ". Please upgrade Python."
+        )
         exit_program(EXIT_PYTHON_UPGRADE_NEEDED)
     elif int(python_version[0]) == 3 and int(python_version[1]) > 14:
-        print("Python version greater than 3.14.x is unsupported. Current version is " + platform.python_version() +
-              ". Keep in mind that even if it works, you're on your own.")
-    elif (int(python_version[0]) == minimum_py3_tuple[0] and int(python_version[1]) < minimum_py3_tuple[1]) or \
-            (int(python_version[0]) != minimum_py3_tuple[0]):
-        print("Python " + minimum_py3_str + " or greater required. "
-              "Current version is " + platform.python_version() + ". Please upgrade Python.")
+        print(
+            "Python version greater than 3.14.x is unsupported. Current version is "
+            + platform.python_version()
+            + ". Keep in mind that even if it works, you're on your own."
+        )
+    elif (
+        int(python_version[0]) == minimum_py3_tuple[0]
+        and int(python_version[1]) < minimum_py3_tuple[1]
+    ) or (int(python_version[0]) != minimum_py3_tuple[0]):
+        print(
+            "Python " + minimum_py3_str + " or greater required. "
+            "Current version is "
+            + platform.python_version()
+            + ". Please upgrade Python."
+        )
         exit_program(EXIT_PYTHON_UPGRADE_NEEDED)
 
 
 def get_python_path():
     if sys.platform == "darwin":
         # Do not run Python from within macOS framework bundle.
-        python_bundle_path = os.path.join(sys.base_exec_prefix, "Resources", "Python.app", "Contents", "MacOS", "Python")
+        python_bundle_path = os.path.join(
+            sys.base_exec_prefix,
+            "Resources",
+            "Python.app",
+            "Contents",
+            "MacOS",
+            "Python",
+        )
         if os.path.exists(python_bundle_path):
             import tempfile
 
@@ -58,8 +88,14 @@ dir_name = os.path.dirname(__file__)
 
 
 def start_bazarr():
-    script = [get_python_path(), "-u", os.path.normcase(os.path.join(dir_name, 'bazarr', 'main.py'))] + sys.argv[1:]
-    ep = subprocess.Popen(script, stdout=None, stderr=None, stdin=subprocess.DEVNULL, env=os.environ)
+    script = [
+        get_python_path(),
+        "-u",
+        os.path.normcase(os.path.join(dir_name, "bazarr", "main.py")),
+    ] + sys.argv[1:]
+    ep = subprocess.Popen(
+        script, stdout=None, stderr=None, stdin=subprocess.DEVNULL, env=os.environ
+    )
     print(f"Bazarr starting child process with PID {ep.pid}...")
     return ep
 
@@ -79,7 +115,7 @@ def terminate_child(timeout=30):
 
 def get_stop_status_code(input_file):
     try:
-        with open(input_file, 'r') as file:
+        with open(input_file, "r") as file:
             # read status code from file, if it exists
             line = file.readline()
             try:
@@ -100,7 +136,7 @@ def check_status():
             print("Deleting stop file...")
             os.remove(stop_file)
         except Exception:
-            print('Unable to delete stop file.')
+            print("Unable to delete stop file.")
         finally:
             terminate_child()
             exit_program(status_code)
@@ -110,12 +146,12 @@ def check_status():
             print("Deleting restart file...")
             os.remove(restart_file)
         except Exception:
-            print('Unable to delete restart file.')
+            print("Unable to delete restart file.")
         terminate_child()
         print("Bazarr is restarting...")
         child_process = start_bazarr()
         return
-        
+
     if not is_process_running(child_process):
         print("Bazarr child process has stopped unexpectedly. Shutting down...")
         exit_program(EXIT_UNEXPECTED_ERROR)
@@ -134,7 +170,7 @@ def interrupt_handler(signum, frame):
     if not interrupted:
         # ignore user hammering Ctrl-C; we heard you the first time!
         interrupted = True
-        print('Handling keyboard interrupt...')
+        print("Handling keyboard interrupt...")
     else:
         if not is_process_running(child_process):
             # this will be caught by the main loop below
@@ -145,12 +181,12 @@ def sigterm_handler(signum, frame):
     global interrupted
     if not interrupted:
         interrupted = True
-        print('Received SIGTERM, forwarding to child process and shutting down...')
+        print("Received SIGTERM, forwarding to child process and shutting down...")
         terminate_child()
         exit_program(EXIT_NORMAL)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     interrupted = False
     signal.signal(signal.SIGINT, interrupt_handler)
     signal.signal(signal.SIGTERM, sigterm_handler)
@@ -182,6 +218,5 @@ if __name__ == '__main__':
             raise
         except (KeyboardInterrupt, ChildProcessError):
             # this code should never be reached, if signal handling is working properly
-            print('Bazarr exited main script file via keyboard interrupt.')
+            print("Bazarr exited main script file via keyboard interrupt.")
             exit_program(EXIT_INTERRUPT)
-

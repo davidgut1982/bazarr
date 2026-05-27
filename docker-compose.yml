@@ -38,50 +38,50 @@ services:
     depends_on:
       opensubtitles-scraper:
         condition: service_healthy
-    
+
     ports:
       - "${BAZARR_PORT:-6767}:6767"
-    
+
     environment:
       # User/Group ID for file permissions
       # Match these to your media user on the host
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
-      
+
       # Timezone (e.g., Europe/Budapest, America/New_York)
       - TZ=${TZ:-UTC}
-      
+
       # OpenSubtitles Scraper Configuration
       # Enable the web scraper for OpenSubtitles.org (bypasses API/VIP requirement)
       - OPENSUBTITLES_USE_WEB_SCRAPER=true
       # Scraper service URL - points to the scraper container
       - OPENSUBTITLES_SCRAPER_URL=http://opensubtitles-scraper:8000
-    
+
     volumes:
       # Configuration directory - contains database, logs, and settings
       - ${CONFIG_PATH:-./config}:/config
-      
+
       # Media directories - adjust paths to match your setup
       # Movies library
       - ${MOVIES_PATH:-/path/to/movies}:/movies
-      
+
       # TV Shows library
       - ${TV_PATH:-/path/to/tv}:/tv
-      
+
       # Optional: Additional media paths
       # - /path/to/anime:/anime
       # - /path/to/downloads:/downloads
-    
+
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:6767/_supervisor/status | grep -q '\"running\"'"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 30s
-    
+
     networks:
       - bazarr-network
-    
+
     # Optional: Resource limits
     # deploy:
     #   resources:

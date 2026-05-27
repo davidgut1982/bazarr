@@ -129,7 +129,9 @@ def test_third_party_libs_directory_is_not_part_of_runtime_or_tests():
     ci_lines = (repo_root / ".github" / "workflows" / "ci.yml").read_text().splitlines()
     assert "      - libs/**" not in ci_lines
     assert "\nlibs\n" not in (repo_root / ".github" / "files_to_copy").read_text()
-    assert 'APP_DIR / "libs"' not in (repo_root / "docker" / "supervisor.py").read_text()
+    assert (
+        'APP_DIR / "libs"' not in (repo_root / "docker" / "supervisor.py").read_text()
+    )
     assert "../libs" not in (repo_root / "tests" / "conftest.py").read_text()
     assert '"libs"' not in (repo_root / "tests" / "compat" / "conftest.py").read_text()
     assert "../libs/" not in (repo_root / "bazarr" / "app" / "libs.py").read_text()
@@ -195,8 +197,12 @@ def test_startup_requirements_probe_rejects_wrong_pinned_versions(monkeypatch):
     from app import requirements
 
     monkeypatch.setattr(requirements, "RUNTIME_IMPORTS", ("subliminal",))
-    monkeypatch.setattr(requirements, "RUNTIME_REQUIREMENTS", {"subliminal": ("subliminal", "==2.6.0")})
-    monkeypatch.setattr(requirements.importlib, "import_module", lambda module: object())
+    monkeypatch.setattr(
+        requirements, "RUNTIME_REQUIREMENTS", {"subliminal": ("subliminal", "==2.6.0")}
+    )
+    monkeypatch.setattr(
+        requirements.importlib, "import_module", lambda module: object()
+    )
     monkeypatch.setattr(requirements, "_module_origin", lambda module: None)
     monkeypatch.setattr(requirements.metadata, "version", lambda distribution: "2.5.0")
 
@@ -217,8 +223,12 @@ def test_startup_requirements_probe_rejects_removed_vendor_origins(monkeypatch):
     repo_root = Path(__file__).resolve().parents[2]
 
     monkeypatch.setattr(requirements, "RUNTIME_IMPORTS", ("subliminal",))
-    monkeypatch.setattr(requirements, "RUNTIME_REQUIREMENTS", {"subliminal": ("subliminal", "==2.6.0")})
-    monkeypatch.setattr(requirements.importlib, "import_module", lambda module: object())
+    monkeypatch.setattr(
+        requirements, "RUNTIME_REQUIREMENTS", {"subliminal": ("subliminal", "==2.6.0")}
+    )
+    monkeypatch.setattr(
+        requirements.importlib, "import_module", lambda module: object()
+    )
     monkeypatch.setattr(
         requirements,
         "_module_origin",
@@ -251,7 +261,9 @@ def test_sonarr_sub_v4_api_compat_paths_are_removed():
     assert "def is_legacy" not in sonarr_info
     assert '"/v3" if not get_sonarr_info.is_legacy() else ""' not in sonarr_info
 
-    sonarr_sync_utils = (repo_root / "bazarr" / "sonarr" / "sync" / "utils.py").read_text()
+    sonarr_sync_utils = (
+        repo_root / "bazarr" / "sonarr" / "sync" / "utils.py"
+    ).read_text()
     assert "languageprofile" not in sonarr_sync_utils
     assert "qualityProfileId" not in sonarr_sync_utils
 
@@ -259,7 +271,9 @@ def test_sonarr_sub_v4_api_compat_paths_are_removed():
     assert "qualityProfileId" not in sonarr_parser
     assert "languageProfileId" not in sonarr_parser
 
-    sonarr_episodes = (repo_root / "bazarr" / "sonarr" / "sync" / "episodes.py").read_text()
+    sonarr_episodes = (
+        repo_root / "bazarr" / "sonarr" / "sync" / "episodes.py"
+    ).read_text()
     assert "Sonarr v3" not in sonarr_episodes
     assert "get_sonarr_info.is_legacy()" not in sonarr_episodes
 

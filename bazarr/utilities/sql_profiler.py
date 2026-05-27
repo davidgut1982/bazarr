@@ -47,7 +47,10 @@ def _short_callsite() -> str:
     """Last bazarr/ frame in the stack, so we can attribute slow queries
     to a specific module:line without printing the entire trace."""
     for frame in reversed(traceback.extract_stack()[:-3]):
-        if "/bazarr/" in frame.filename and "/utilities/sql_profiler.py" not in frame.filename:
+        if (
+            "/bazarr/" in frame.filename
+            and "/utilities/sql_profiler.py" not in frame.filename
+        ):
             return f"{frame.filename}:{frame.lineno} in {frame.name}"
     return "<unknown>"
 

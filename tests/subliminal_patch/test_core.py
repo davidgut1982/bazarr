@@ -171,6 +171,7 @@ def test_language_equals_pool_intance_list_subtitles_return_nothing(movies):
 
 # ---- list_subtitles_prioritized: exhaustive flag behavior ----
 
+
 def _make_fake_subtitle(language):
     """Why: list_subtitles_prioritized requires real-looking subtitle objects
     (filters out anything lacking get_matches) and reads ``subtitle.language.alpha3``.
@@ -219,13 +220,13 @@ def test_list_subtitles_prioritized_early_exit_when_not_exhaustive(
             return [sub_a]
         return []  # provider_b would return something too, but we should never get here
 
-    monkeypatch.setattr(
-        core.SZProviderPool, "list_subtitles_provider", fake_list
-    )
+    monkeypatch.setattr(core.SZProviderPool, "list_subtitles_provider", fake_list)
 
     video = MagicMock()
     result = two_provider_pool.list_subtitles_prioritized(
-        video, {lang}, min_score=80,
+        video,
+        {lang},
+        min_score=80,
         compute_score=_fixed_score(100),  # above min_score -> satisfied
     )
 
@@ -255,13 +256,13 @@ def test_list_subtitles_prioritized_no_early_exit_when_exhaustive(
             return [sub_a]
         return [sub_b]
 
-    monkeypatch.setattr(
-        core.SZProviderPool, "list_subtitles_provider", fake_list
-    )
+    monkeypatch.setattr(core.SZProviderPool, "list_subtitles_provider", fake_list)
 
     video = MagicMock()
     result = two_provider_pool.list_subtitles_prioritized(
-        video, {lang}, min_score=80,
+        video,
+        {lang},
+        min_score=80,
         compute_score=_fixed_score(100),
         exhaustive=True,
     )

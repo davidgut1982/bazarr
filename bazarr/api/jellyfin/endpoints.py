@@ -18,21 +18,29 @@ def _parse_verify_ssl(raw):
         return None
     if isinstance(raw, bool):
         return raw
-    return str(raw).lower() not in ('false', '0', 'no', 'off')
+    return str(raw).lower() not in ("false", "0", "no", "off")
 
 
-@api_ns_jellyfin.route('jellyfin/test-connection')
+@api_ns_jellyfin.route("jellyfin/test-connection")
 class JellyfinTestConnection(Resource):
     post_request_parser = reqparse.RequestParser()
-    post_request_parser.add_argument('url', type=str, required=True, help='Jellyfin server URL')
-    post_request_parser.add_argument('apikey', type=str, required=True, help='Jellyfin API key')
-    post_request_parser.add_argument('verify_ssl', type=str, required=False,
-                                     help='Override saved verify_ssl flag for this test (true/false)')
+    post_request_parser.add_argument(
+        "url", type=str, required=True, help="Jellyfin server URL"
+    )
+    post_request_parser.add_argument(
+        "apikey", type=str, required=True, help="Jellyfin API key"
+    )
+    post_request_parser.add_argument(
+        "verify_ssl",
+        type=str,
+        required=False,
+        help="Override saved verify_ssl flag for this test (true/false)",
+    )
 
     @authenticate
     @api_ns_jellyfin.doc(parser=post_request_parser)
-    @api_ns_jellyfin.response(200, 'Success')
-    @api_ns_jellyfin.response(401, 'Not Authenticated')
+    @api_ns_jellyfin.response(200, "Success")
+    @api_ns_jellyfin.response(401, "Not Authenticated")
     def post(self):
         """Test connection to a Jellyfin server with provided credentials.
 
@@ -42,30 +50,38 @@ class JellyfinTestConnection(Resource):
         the toggle feel broken on first use."""
         args = self.post_request_parser.parse_args()
         result = jellyfin_test_connection(
-            url=args['url'],
-            apikey=args['apikey'],
-            verify_ssl=_parse_verify_ssl(args.get('verify_ssl')),
+            url=args["url"],
+            apikey=args["apikey"],
+            verify_ssl=_parse_verify_ssl(args.get("verify_ssl")),
         )
 
         return result, 200
 
 
-@api_ns_jellyfin.route('jellyfin/libraries')
+@api_ns_jellyfin.route("jellyfin/libraries")
 class JellyfinLibraries(Resource):
     # POST (not GET) so apikey rides in the request body instead of the
     # query string. apikey-in-URL leaks to browser history, reverse-proxy
     # access logs, and any URL telemetry; body keeps it inside the TLS
     # tunnel and out of long-lived logs.
     post_request_parser = reqparse.RequestParser()
-    post_request_parser.add_argument('url', type=str, required=False, help='Jellyfin server URL')
-    post_request_parser.add_argument('apikey', type=str, required=False, help='Jellyfin API key')
-    post_request_parser.add_argument('verify_ssl', type=str, required=False,
-                                     help='Override saved verify_ssl flag for this query (true/false)')
+    post_request_parser.add_argument(
+        "url", type=str, required=False, help="Jellyfin server URL"
+    )
+    post_request_parser.add_argument(
+        "apikey", type=str, required=False, help="Jellyfin API key"
+    )
+    post_request_parser.add_argument(
+        "verify_ssl",
+        type=str,
+        required=False,
+        help="Override saved verify_ssl flag for this query (true/false)",
+    )
 
     @authenticate
     @api_ns_jellyfin.doc(parser=post_request_parser)
-    @api_ns_jellyfin.response(200, 'Success')
-    @api_ns_jellyfin.response(401, 'Not Authenticated')
+    @api_ns_jellyfin.response(200, "Success")
+    @api_ns_jellyfin.response(401, "Not Authenticated")
     def post(self):
         """List available movie and series libraries from the Jellyfin server.
         Accepts optional url/apikey params (in the request body) to query
@@ -76,21 +92,21 @@ class JellyfinLibraries(Resource):
         connection/configuration failures (data=[], error_code set)."""
         args = self.post_request_parser.parse_args()
         result = jellyfin_get_libraries(
-            url=args.get('url'),
-            apikey=args.get('apikey'),
-            verify_ssl=_parse_verify_ssl(args.get('verify_ssl')),
+            url=args.get("url"),
+            apikey=args.get("apikey"),
+            verify_ssl=_parse_verify_ssl(args.get("verify_ssl")),
         )
         return {
-            'data': result['libraries'],
-            'error_code': result['error_code'],
+            "data": result["libraries"],
+            "error_code": result["error_code"],
         }, 200
 
 
-@api_ns_jellyfin.route('jellyfin/refresh-libraries')
+@api_ns_jellyfin.route("jellyfin/refresh-libraries")
 class JellyfinRefreshLibraries(Resource):
     @authenticate
-    @api_ns_jellyfin.response(200, 'Success')
-    @api_ns_jellyfin.response(401, 'Not Authenticated')
+    @api_ns_jellyfin.response(200, "Success")
+    @api_ns_jellyfin.response(401, "Not Authenticated")
     def post(self):
         """Trigger an on-demand refresh for every configured Jellyfin library
         (movie + series). Used by the Maintenance card on the Settings page

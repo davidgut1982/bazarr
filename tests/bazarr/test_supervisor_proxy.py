@@ -8,7 +8,9 @@ from aiohttp.test_utils import make_mocked_request
 
 
 _SUPERVISOR_PATH = Path(__file__).resolve().parents[2] / "docker" / "supervisor.py"
-_SPEC = importlib.util.spec_from_file_location("bazarr_docker_supervisor", _SUPERVISOR_PATH)
+_SPEC = importlib.util.spec_from_file_location(
+    "bazarr_docker_supervisor", _SUPERVISOR_PATH
+)
 supervisor = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(supervisor)
 
@@ -32,7 +34,11 @@ async def _static_marker(request):
 @pytest.mark.asyncio
 async def test_backup_download_path_is_proxied_to_backend(monkeypatch, tmp_path):
     monkeypatch.setattr(supervisor, "proxy_handler", _proxy_marker)
-    monkeypatch.setattr(supervisor, "create_static_handler", lambda config_dir, backend=None: _static_marker)
+    monkeypatch.setattr(
+        supervisor,
+        "create_static_handler",
+        lambda config_dir, backend=None: _static_marker,
+    )
 
     app = supervisor.create_app(str(tmp_path), _Backend())
     request = make_mocked_request(
@@ -83,14 +89,18 @@ async def test_spa_routes_are_proxied_when_backend_is_running(monkeypatch, tmp_p
 
 
 @pytest.mark.asyncio
-async def test_spa_routes_do_not_boot_app_while_backend_is_starting(monkeypatch, tmp_path):
+async def test_spa_routes_do_not_boot_app_while_backend_is_starting(
+    monkeypatch, tmp_path
+):
     monkeypatch.setattr(
         supervisor,
         "_get_index_html",
         lambda config_dir: '<script>window.Bazarr = {"apiKey": ""}</script><script src="/assets/app.js"></script>',
     )
 
-    handler = supervisor.create_static_handler(str(tmp_path), _Backend(state="starting"))
+    handler = supervisor.create_static_handler(
+        str(tmp_path), _Backend(state="starting")
+    )
     request = make_mocked_request("GET", "/system/releases")
 
     response = await handler(request)

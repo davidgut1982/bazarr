@@ -43,7 +43,9 @@ def verify_bundle_tree(manifest: ValidatedManifest, root: str | Path) -> None:
         try:
             resolved = file_path.resolve(strict=False)
         except OSError as error:
-            raise BundleValidationError(f"invalid bundle path: {relative_path}") from error
+            raise BundleValidationError(
+                f"invalid bundle path: {relative_path}"
+            ) from error
 
         if root not in (resolved, *resolved.parents):
             raise BundleValidationError(f"path escapes bundle root: {relative_path}")

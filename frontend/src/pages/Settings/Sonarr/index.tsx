@@ -107,8 +107,8 @@ const SettingsSonarrView: FunctionComponent = () => {
           <Message>
             Search can be triggered using this command:
             <Code>
-              {`curl -H "Content-Type: application/json" -H "X-API-KEY: ###############################" -X POST 
-                -d '{ "eventType": "Download", "episodeFiles": [ { "id": "$sonarr_episodefile_id" } ] }' 
+              {`curl -H "Content-Type: application/json" -H "X-API-KEY: ###############################" -X POST
+                -d '{ "eventType": "Download", "episodeFiles": [ { "id": "$sonarr_episodefile_id" } ] }'
                 http://localhost:6767/api/webhooks/sonarr
               `}
             </Code>

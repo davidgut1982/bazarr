@@ -1,12 +1,20 @@
 import base64
 from unittest.mock import patch, MagicMock  # noqa: F401
 import pytest
-from subtitles.tools.translate.services.encryption import encrypt_api_key, validate_encryption_key
+from subtitles.tools.translate.services.encryption import (
+    encrypt_api_key,
+    validate_encryption_key,
+)
 
 
 class TestValidateEncryptionKey:
     def test_valid_64_hex(self):
-        assert validate_encryption_key("79866a5b6ef41b78681a7f774f6628fe66c49b0f0c96808cc3f48acbbfe1ac41") is True
+        assert (
+            validate_encryption_key(
+                "79866a5b6ef41b78681a7f774f6628fe66c49b0f0c96808cc3f48acbbfe1ac41"
+            )
+            is True
+        )
 
     def test_empty_string(self):
         assert validate_encryption_key("") is False
@@ -51,6 +59,7 @@ class TestEncryptApiKey:
     def test_roundtrip_decrypt(self):
         """Verify we can decrypt what we encrypted."""
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
         encrypted = encrypt_api_key(self.API_KEY, self.KEY_HEX)
         payload = base64.b64decode(encrypted[4:])
         nonce = payload[:12]
@@ -75,12 +84,24 @@ class TestGetApiKeyValue:
     API_KEY = "sk-or-v1-test1234567890"
 
     def _make_service(self):
-        from subtitles.tools.translate.services.openrouter_translator import OpenRouterTranslatorService
+        from subtitles.tools.translate.services.openrouter_translator import (
+            OpenRouterTranslatorService,
+        )
+
         return OpenRouterTranslatorService(
-            source_srt_file="", dest_srt_file="", lang_obj=None,
-            to_lang="hun", from_lang="en", media_type="series",
-            video_path="", orig_to_lang="hu", forced=False, hi=False,
-            sonarr_series_id=None, sonarr_episode_id=None, radarr_id=None,
+            source_srt_file="",
+            dest_srt_file="",
+            lang_obj=None,
+            to_lang="hun",
+            from_lang="en",
+            media_type="series",
+            video_path="",
+            orig_to_lang="hu",
+            forced=False,
+            hi=False,
+            sonarr_series_id=None,
+            sonarr_episode_id=None,
+            radarr_id=None,
         )
 
     @patch("subtitles.tools.translate.services.openrouter_translator.settings")
@@ -102,6 +123,7 @@ class TestGetApiKeyValue:
     @patch("subtitles.tools.translate.services.openrouter_translator.settings")
     def test_with_encryption_key_roundtrips(self, mock_settings):
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
         mock_settings.translator.openrouter_api_key = self.API_KEY
         mock_settings.translator.openrouter_encryption_key = self.KEY_HEX
         svc = self._make_service()

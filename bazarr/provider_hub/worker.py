@@ -94,7 +94,9 @@ class ProviderWorkerClient:
         self._stdout_thread.start()
 
     @staticmethod
-    def _enqueue_stdout(process: subprocess.Popen, stdout_queue: queue.Queue[str | None]) -> None:
+    def _enqueue_stdout(
+        process: subprocess.Popen, stdout_queue: queue.Queue[str | None]
+    ) -> None:
         stdout = process.stdout
         if stdout is None:
             stdout_queue.put(None)
@@ -115,7 +117,11 @@ class ProviderWorkerClient:
         if process.poll() is not None:
             return
         try:
-            self.request("shutdown", {"reason": "app_shutdown", "grace_ms": int(grace_seconds * 1000)}, grace_seconds)
+            self.request(
+                "shutdown",
+                {"reason": "app_shutdown", "grace_ms": int(grace_seconds * 1000)},
+                grace_seconds,
+            )
             process.wait(timeout=grace_seconds)
         except Exception:
             process.kill()
@@ -140,9 +146,7 @@ class ProviderWorkerClient:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 self._kill_worker()
-                raise WorkerError(
-                    f"worker exceeded {timeout:.1f}s deadline"
-                )
+                raise WorkerError(f"worker exceeded {timeout:.1f}s deadline")
             try:
                 chunk = stdout_queue.get(timeout=remaining)
             except queue.Empty:
@@ -167,9 +171,15 @@ class ProviderWorkerClient:
             except Exception:
                 pass
 
-    def request(self, op: str, payload: dict[str, Any] | None = None, timeout: float = 30.0) -> WorkerResult:
+    def request(
+        self, op: str, payload: dict[str, Any] | None = None, timeout: float = 30.0
+    ) -> WorkerResult:
         self.start()
-        if self.process is None or self.process.stdin is None or self.process.stdout is None:
+        if (
+            self.process is None
+            or self.process.stdin is None
+            or self.process.stdout is None
+        ):
             raise WorkerError("worker process did not start")
 
         request_id = str(uuid.uuid4())
@@ -183,8 +193,7 @@ class ProviderWorkerClient:
 
         with self._lock:
             self.process.stdin.write(
-                json.dumps(message, separators=(",", ":"), default=_json_default)
-                + "\n"
+                json.dumps(message, separators=(",", ":"), default=_json_default) + "\n"
             )
             self.process.stdin.flush()
             line = self._read_line_with_deadline(timeout)
@@ -204,7 +213,9 @@ class ProviderWorkerClient:
 
         if not response.get("ok", False):
             error = response.get("error") or {}
-            message = error.get("message") or error.get("code") or "worker request failed"
+            message = (
+                error.get("message") or error.get("code") or "worker request failed"
+            )
             raise WorkerError(str(message))
 
         payload = response.get("payload") or {}
@@ -216,5 +227,7 @@ class ProviderWorkerClient:
         return WorkerResult(ok=True, payload=payload, events=events)
 
 
-def worker_command(python_exe: str | os.PathLike[str], runner: str | os.PathLike[str]) -> list[str]:
+def worker_command(
+    python_exe: str | os.PathLike[str], runner: str | os.PathLike[str]
+) -> list[str]:
     return [str(python_exe), "-I", "-B", str(Path(runner))]

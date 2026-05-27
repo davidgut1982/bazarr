@@ -20,6 +20,7 @@ bazarr_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 
 class JobCancelled(Exception):
     """Raised when a running job is cancelled by the user."""
+
     pass
 
 
@@ -61,15 +62,27 @@ class Job:
     :ivar job_returned_value: Value returned by the job function, initialized to None.
     :type job_returned_value: Any
     """
-    def __init__(self, job_id: int, job_name: str, module: str, func: str, args: list = None, kwargs: dict = None,
-                 is_progress: bool = False, is_signalr: bool = False, progress_max: int = 0, job_returned_value=None,):
+
+    def __init__(
+        self,
+        job_id: int,
+        job_name: str,
+        module: str,
+        func: str,
+        args: list = None,
+        kwargs: dict = None,
+        is_progress: bool = False,
+        is_signalr: bool = False,
+        progress_max: int = 0,
+        job_returned_value=None,
+    ):
         self.job_id = job_id
         self.job_name = job_name
         self.module = module
         self.func = func
         self.args = args
         self.kwargs = kwargs
-        self.status = 'pending'
+        self.status = "pending"
         self.last_run_time = datetime.now()
         self.is_progress = is_progress
         self.is_signalr = is_signalr
@@ -109,13 +122,14 @@ class JobsQueue:
     :ivar current_job_id: Identifier of the latest job, incremented with each new job added to the queue.
     :type current_job_id: int
     """
+
     def __init__(self):
         self.jobs_pending_queue = deque()
         self.jobs_running_queue = deque()
         self.jobs_failed_queue = deque(maxlen=10)
         self.jobs_completed_queue = deque(maxlen=10)
         self.current_job_id = 0
-        
+
         # Add locks for thread safety
         self._queue_lock = RLock()  # Reentrant lock for nested operations
         self._job_id_lock = Lock()  # Separate lock for ID generation
@@ -127,8 +141,17 @@ class JobsQueue:
         flush_thread = Thread(target=self._flush_progress_loop, daemon=True)
         flush_thread.start()
 
-    def feed_jobs_pending_queue(self, job_name, module, func, args: list = None, kwargs: dict = None,
-                                is_progress=False, is_signalr=False, progress_max: int = 0,):
+    def feed_jobs_pending_queue(
+        self,
+        job_name,
+        module,
+        func,
+        args: list = None,
+        kwargs: dict = None,
+        is_progress=False,
+        is_signalr=False,
+        progress_max: int = 0,
+    ):
         """
         Adds a new job to the pending jobs queue with specified details and triggers an event
         to notify about the queue update. Each job is uniquely identified by a job ID,
@@ -161,14 +184,17 @@ class JobsQueue:
 
         with self._queue_lock:
             if self._is_an_existing_job(module, func, args, kwargs):
-                logging.debug(f"Task {job_name} already exists in pending and running queue")  # noqa: G004
+                logging.debug(
+                    f"Task {job_name} already exists in pending and running queue"  # noqa: G004
+                )
                 return False
 
             with self._job_id_lock:
                 new_job_id = self.current_job_id = self.current_job_id + 1
 
             self.jobs_pending_queue.append(
-                Job(job_id=new_job_id,
+                Job(
+                    job_id=new_job_id,
                     job_name=job_name,
                     module=module,
                     func=func,
@@ -176,12 +202,16 @@ class JobsQueue:
                     kwargs=kwargs,
                     is_progress=is_progress,
                     is_signalr=is_signalr,
-                    progress_max=progress_max,)
+                    progress_max=progress_max,
+                )
             )
 
         logging.debug(f"Task {job_name} ({new_job_id}) added to queue")  # noqa: G004
-        event_stream(type='jobs', action='update', payload={"job_id": new_job_id, "progress_value": None,
-                                                            "status": "pending"})
+        event_stream(
+            type="jobs",
+            action="update",
+            payload={"job_id": new_job_id, "progress_value": None, "status": "pending"},
+        )
         return new_job_id
 
     def list_jobs_from_queue(self, job_id: int = None, status: str = None):
@@ -202,10 +232,15 @@ class JobsQueue:
             If no matches are found, an empty list is returned.
         :rtype: list[dict]
         """
-        queues = self.jobs_pending_queue + self.jobs_running_queue + self.jobs_failed_queue + self.jobs_completed_queue
+        queues = (
+            self.jobs_pending_queue
+            + self.jobs_running_queue
+            + self.jobs_failed_queue
+            + self.jobs_completed_queue
+        )
         if status:
             try:
-                queues = self.__dict__[f'jobs_{status}_queue']
+                queues = self.__dict__[f"jobs_{status}_queue"]
             except KeyError:
                 return []
 
@@ -225,8 +260,8 @@ class JobsQueue:
         :rtype: str
         """
         job = self.list_jobs_from_queue(job_id=job_id)
-        if job and 'status' in job[0]:
-            return job[0]['status']
+        if job and "status" in job[0]:
+            return job[0]["status"]
         else:
             return "Unknown job"
 
@@ -241,18 +276,30 @@ class JobsQueue:
         :return: A boolean indicating whether the job name was successfully updated (True) or the job
                  was not found in any of the queues (False).
         """
-        queues = self.jobs_pending_queue + self.jobs_running_queue + self.jobs_failed_queue + self.jobs_completed_queue
-        
+        queues = (
+            self.jobs_pending_queue
+            + self.jobs_running_queue
+            + self.jobs_failed_queue
+            + self.jobs_completed_queue
+        )
+
         for job in queues:
             if job.job_id == job_id:
                 job.job_name = new_job_name
-                event_stream(type='jobs', action='update', payload={"job_id": job.job_id})
+                event_stream(
+                    type="jobs", action="update", payload={"job_id": job.job_id}
+                )
                 return True
         return False
 
     def get_job_name(self, job_id: int) -> str:
         """Get the current name of a job by its ID."""
-        queues = self.jobs_pending_queue + self.jobs_running_queue + self.jobs_failed_queue + self.jobs_completed_queue
+        queues = (
+            self.jobs_pending_queue
+            + self.jobs_running_queue
+            + self.jobs_failed_queue
+            + self.jobs_completed_queue
+        )
         for job in queues:
             if job.job_id == job_id:
                 return job.job_name
@@ -273,8 +320,8 @@ class JobsQueue:
         :rtype: Any
         """
         job = self.list_jobs_from_queue(job_id=job_id)
-        if job and 'job_returned_value' in job[0]:
-            return job[0]['job_returned_value']
+        if job and "job_returned_value" in job[0]:
+            return job[0]["job_returned_value"]
         else:
             return None
 
@@ -285,10 +332,15 @@ class JobsQueue:
                 payloads = list(self._progress_buffer.values())
                 self._progress_buffer.clear()
             for payload in payloads:
-                event_stream(type='jobs', action='update', payload=payload)
+                event_stream(type="jobs", action="update", payload=payload)
 
-    def update_job_progress(self, job_id: int, progress_value: Union[int, str, None] = None,
-                            progress_max: Union[int, None] = None, progress_message: str = ""):
+    def update_job_progress(
+        self,
+        job_id: int,
+        progress_value: Union[int, str, None] = None,
+        progress_max: Union[int, None] = None,
+        progress_message: str = "",
+    ):
         """
         Updates the progress value and message for a specific job within the running jobs queue. The function
         iterates through a queue of running jobs, identifies the matching job by its ID, and updates its progress
@@ -309,16 +361,24 @@ class JobsQueue:
         for job in self.jobs_running_queue:
             if job.job_id == job_id:
                 if job.cancelled:
-                    raise JobCancelled(f"Job {job.job_name} ({job.job_id}) was cancelled")
-                payload = self._build_progress_payload(job, progress_value, progress_max, progress_message)
+                    raise JobCancelled(
+                        f"Job {job.job_name} ({job.job_id}) was cancelled"
+                    )
+                payload = self._build_progress_payload(
+                    job, progress_value, progress_max, progress_message
+                )
                 with self._progress_buffer_lock:
                     self._progress_buffer[job_id] = payload
                 return True
         return False
 
     @staticmethod
-    def _build_progress_payload(job, progress_value: Union[int, str, None],
-                                progress_max: Union[int, None], progress_message: str):
+    def _build_progress_payload(
+        job,
+        progress_value: Union[int, str, None],
+        progress_max: Union[int, None],
+        progress_message: str,
+    ):
         """
         Builds the payload dictionary for job progress updates and updates job attributes.
 
@@ -336,7 +396,7 @@ class JobsQueue:
         progress_max_updated = False
 
         if progress_value:
-            if progress_value == 'max':
+            if progress_value == "max":
                 progress_value = job.progress_max or 1
                 job.progress_value = job.progress_max = progress_value
                 progress_max_updated = True
@@ -354,7 +414,9 @@ class JobsQueue:
 
         return payload
 
-    def update_job_progress_status(self, job_id: int, is_progress: bool = False) -> bool:
+    def update_job_progress_status(
+        self, job_id: int, is_progress: bool = False
+    ) -> bool:
         """
         Updates the is_progress attribute for a specific job.
 
@@ -368,12 +430,19 @@ class JobsQueue:
         for job in self.jobs_running_queue:
             if job.job_id == job_id:
                 job.is_progress = is_progress
-                event_stream(type='jobs', action='update', payload={"job_id": job.job_id})
+                event_stream(
+                    type="jobs", action="update", payload={"job_id": job.job_id}
+                )
                 return True
         return False
 
-    def add_job_from_function(self, job_name: str, is_progress: bool, progress_max: int = 0,
-                              wait_for_completion: bool = False) -> int | bool:
+    def add_job_from_function(
+        self,
+        job_name: str,
+        is_progress: bool,
+        progress_max: int = 0,
+        wait_for_completion: bool = False,
+    ) -> int | bool:
         """
         Adds a job to the pending queue using the details of the calling function. The job is then executed.
 
@@ -402,11 +471,17 @@ class JobsQueue:
         parent_function_name = caller_code.co_name
 
         # Get the file path of the parent function
-        relative_parent_function_path = os.path.relpath(caller_code.co_filename, start=bazarr_dir)
-        parent_function_path = os.path.splitext(relative_parent_function_path)[0].replace(os.sep, '.')
+        relative_parent_function_path = os.path.relpath(
+            caller_code.co_filename, start=bazarr_dir
+        )
+        parent_function_path = os.path.splitext(relative_parent_function_path)[
+            0
+        ].replace(os.sep, ".")
 
         # Get the function signature of the caller
-        caller_signature = inspect.signature(inspect.getmodule(caller_code).__dict__[caller_code.co_name])
+        caller_signature = inspect.signature(
+            inspect.getmodule(caller_code).__dict__[caller_code.co_name]
+        )
         # Get the local variables within the caller's frame
         caller_locals = caller_frame.f_locals
 
@@ -414,18 +489,31 @@ class JobsQueue:
         arguments = bound_arguments.arguments
 
         # Clean up the frame objects to prevent reference cycles
-        del current_frame, caller_frame, caller_code, caller_signature, caller_locals, bound_arguments
+        del (
+            current_frame,
+            caller_frame,
+            caller_code,
+            caller_signature,
+            caller_locals,
+            bound_arguments,
+        )
 
         # Feed the job to the pending queue
-        job_id = self.feed_jobs_pending_queue(job_name=job_name, module=parent_function_path, func=parent_function_name,
-                                              kwargs=arguments, is_progress=is_progress, progress_max=progress_max)
+        job_id = self.feed_jobs_pending_queue(
+            job_name=job_name,
+            module=parent_function_path,
+            func=parent_function_name,
+            kwargs=arguments,
+            is_progress=is_progress,
+            progress_max=progress_max,
+        )
 
         if not job_id:
             return False
 
         if wait_for_completion:
             time.sleep(1)
-            while jobs_queue.get_job_status(job_id) in ['pending', 'running']:
+            while jobs_queue.get_job_status(job_id) in ["pending", "running"]:
                 time.sleep(1)
 
         return job_id
@@ -447,14 +535,18 @@ class JobsQueue:
         :rtype: bool
         """
         for job in self.jobs_pending_queue:
-            if job.job_id == job_id and job.status == 'pending':
+            if job.job_id == job_id and job.status == "pending":
                 try:
                     self.jobs_pending_queue.remove(job)
                 except ValueError:
                     return False
                 else:
-                    logging.debug(f"Task {job.job_name} ({job.job_id}) removed from queue")  # noqa: G004
-                    event_stream(type='jobs', action='delete', payload={"job_id": job.job_id})
+                    logging.debug(
+                        f"Task {job.job_name} ({job.job_id}) removed from queue"  # noqa: G004
+                    )
+                    event_stream(
+                        type="jobs", action="delete", payload={"job_id": job.job_id}
+                    )
                     return True
         return False
 
@@ -475,27 +567,35 @@ class JobsQueue:
         :rtype: bool
         """
         for job in self.jobs_pending_queue:
-            if job.job_id == job_id and job.status == 'pending':
+            if job.job_id == job_id and job.status == "pending":
                 try:
                     self.jobs_pending_queue.remove(job)
                 except ValueError:
                     return False
                 except Exception as e:
-                    logging.exception(f"Unhandled exception while trying to move job {job.job_name} ({job.job_id}) in "  # noqa: G004
-                                      f"pending queue: {e}")
+                    logging.exception(
+                        f"Unhandled exception while trying to move job {job.job_name} ({job.job_id}) in "  # noqa: G004
+                        f"pending queue: {e}"
+                    )
                     return False
                 else:
-                    if move_destination == 'top':
+                    if move_destination == "top":
                         self.jobs_pending_queue.appendleft(job)
-                    elif move_destination == 'bottom':
+                    elif move_destination == "bottom":
                         self.jobs_pending_queue.append(job)
                     else:
-                        logging.error(f"Invalid move destination: {move_destination}. Accepted values are 'top' and "  # noqa: G004
-                                      f"'bottom'")
+                        logging.error(
+                            f"Invalid move destination: {move_destination}. Accepted values are 'top' and "  # noqa: G004
+                            f"'bottom'"
+                        )
                         return False
-                    logging.debug(f"Task {job.job_name} ({job.job_id}) moved to {move_destination} of the pending "  # noqa: G004
-                                  f"queue")
-                    event_stream(type='jobs', action='update', payload={"job_id": job.job_id})
+                    logging.debug(
+                        f"Task {job.job_name} ({job.job_id}) moved to {move_destination} of the pending "  # noqa: G004
+                        f"queue"
+                    )
+                    event_stream(
+                        type="jobs", action="update", payload={"job_id": job.job_id}
+                    )
                     return True
         return False
 
@@ -512,7 +612,9 @@ class JobsQueue:
         for job in self.jobs_running_queue:
             if job.job_id == job_id:
                 job.cancelled = True
-                logging.info(f"Job {job.job_name} ({job.job_id}) marked for cancellation")  # noqa: G004
+                logging.info(
+                    f"Job {job.job_name} ({job.job_id}) marked for cancellation"  # noqa: G004
+                )
                 return True
         return False
 
@@ -528,7 +630,7 @@ class JobsQueue:
         :rtype: bool
         """
         for job in self.jobs_pending_queue:
-            if job.job_id == job_id and job.status == 'pending':
+            if job.job_id == job_id and job.status == "pending":
                 self._run_job(job_instance=job)
                 return True
         return False
@@ -545,9 +647,9 @@ class JobsQueue:
         :return: A boolean value indicating whether the specified queue was successfully emptied.
         :rtype: bool
         """
-        if queue_name in ['pending', 'failed', 'completed']:
+        if queue_name in ["pending", "failed", "completed"]:
             logging.debug(f"Emptying jobs queue for {queue_name} jobs")  # noqa: G004
-            getattr(self, f'jobs_{queue_name}_queue').clear()
+            getattr(self, f"jobs_{queue_name}_queue").clear()
             return True
         return False
 
@@ -565,19 +667,31 @@ class JobsQueue:
             try:
                 if self.jobs_pending_queue:
                     with self._queue_lock:
-                        next_job = self.jobs_pending_queue[0] if self.jobs_pending_queue else None
+                        next_job = (
+                            self.jobs_pending_queue[0]
+                            if self.jobs_pending_queue
+                            else None
+                        )
                         if next_job:
-                            is_translation = 'translat' in (next_job.job_name or '').lower()
+                            is_translation = (
+                                "translat" in (next_job.job_name or "").lower()
+                            )
                             if is_translation:
                                 # Translation jobs respect their own concurrency limit
                                 running_translations = sum(
-                                    1 for j in self.jobs_running_queue
-                                    if 'translat' in (j.job_name or '').lower()
+                                    1
+                                    for j in self.jobs_running_queue
+                                    if "translat" in (j.job_name or "").lower()
                                 )
-                                max_translations = settings.translator.openrouter_max_concurrent
+                                max_translations = (
+                                    settings.translator.openrouter_max_concurrent
+                                )
                                 can_run_job = running_translations < max_translations
                             else:
-                                can_run_job = len(self.jobs_running_queue) < settings.general.concurrent_jobs
+                                can_run_job = (
+                                    len(self.jobs_running_queue)
+                                    < settings.general.concurrent_jobs
+                                )
                         else:
                             can_run_job = False
 
@@ -613,15 +727,15 @@ class JobsQueue:
                 if not self.jobs_pending_queue:
                     return False
                 job = self.jobs_pending_queue.popleft()
-    
+
         if not job:
             sleep(0.1)
             return False
         try:
-            job.status = 'running'
+            job.status = "running"
             job.last_run_time = datetime.now()
-            if 'job_id' not in job.kwargs or not job.kwargs['job_id']:
-                job.kwargs['job_id'] = job.job_id
+            if "job_id" not in job.kwargs or not job.kwargs["job_id"]:
+                job.kwargs["job_id"] = job.job_id
             self.jobs_running_queue.append(job)
 
             # sending event to update the status of progress jobs
@@ -630,19 +744,21 @@ class JobsQueue:
                 payload["progress_value"] = None
                 payload["progress_max"] = job.progress_max
                 payload["progress_message"] = job.progress_message
-            event_stream(type='jobs', action='update', payload=payload)
+            event_stream(type="jobs", action="update", payload=payload)
 
-            logging.debug(f"Running job {job.job_name} (id {job.job_id}): "  # noqa: G004
-                          f"{job.module}.{job.func}({job.args}, {job.kwargs})")
-            
+            logging.debug(
+                f"Running job {job.job_name} (id {job.job_id}): "  # noqa: G004
+                f"{job.module}.{job.func}({job.args}, {job.kwargs})"
+            )
+
             # Use import lock to prevent deadlocks
             with self._import_lock:
                 module = importlib.import_module(job.module)
-            
+
             job.job_returned_value = getattr(module, job.func)(*job.args, **job.kwargs)
         except JobCancelled:
             logging.info(f"Job {job.job_name} ({job.job_id}) was cancelled by user")  # noqa: G004
-            job.status = 'completed'
+            job.status = "completed"
             job.progress_message = "Cancelled by user"
             job.last_run_time = datetime.now()
             self.jobs_running_queue.remove(job)
@@ -650,13 +766,13 @@ class JobsQueue:
             return False
         except Exception as e:
             logging.exception(f"Exception raised while running function: {e}")  # noqa: G004
-            job.status = 'failed'
+            job.status = "failed"
             job.last_run_time = datetime.now()
             self.jobs_running_queue.remove(job)
             self.jobs_failed_queue.append(job)
             return False
         else:
-            job.status = 'completed'
+            job.status = "completed"
             job.last_run_time = datetime.now()
             self.jobs_running_queue.remove(job)
             self.jobs_completed_queue.append(job)
@@ -672,9 +788,9 @@ class JobsQueue:
                 payload = {
                     "job_id": job.job_id,
                     "status": job.status,  # 'completed' or 'failed'
-                    "progress_value": None  # Trigger frontend API call to update the whole job payload
+                    "progress_value": None,  # Trigger frontend API call to update the whole job payload
                 }
-                event_stream(type='jobs', action='update', payload=payload)
+                event_stream(type="jobs", action="update", payload=payload)
             except Exception as e:
                 logging.exception(f"Exception raised while sending event: {e}")  # noqa: G004
 
@@ -694,20 +810,23 @@ class JobsQueue:
         :rtype: bool
         """
         cleaned_kwargs = kwargs.copy()
-        cleaned_kwargs.pop('job_id', None)
-        with (self._queue_lock):
-            queues_to_check = list(self.jobs_pending_queue) + list(self.jobs_running_queue)
+        cleaned_kwargs.pop("job_id", None)
+        with self._queue_lock:
+            queues_to_check = list(self.jobs_pending_queue) + list(
+                self.jobs_running_queue
+            )
 
             for job in queues_to_check:
                 cleaned_job_kwargs = job.kwargs.copy()
-                cleaned_job_kwargs.pop('job_id', None)
-                if (job.module == module and
-                        job.func == func and
-                        job.args == args and
-                        cleaned_job_kwargs == cleaned_kwargs):
+                cleaned_job_kwargs.pop("job_id", None)
+                if (
+                    job.module == module
+                    and job.func == func
+                    and job.args == args
+                    and cleaned_job_kwargs == cleaned_kwargs
+                ):
                     return True
             return False
 
 
 jobs_queue = JobsQueue()
-

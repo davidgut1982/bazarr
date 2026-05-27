@@ -4,6 +4,7 @@ Providers pack multiple releases into one field with inconsistent separators.
 These tests pin the picking rule: prefer the part with the most release-
 quality markers (resolution/source/codec), tiebreak on length.
 """
+
 from compat.response_mapper import _normalize_release
 
 
@@ -66,6 +67,7 @@ def test_massive_anonymus_blob_picks_best_release():
     # All the plausible winners contain BOTH a resolution AND a source marker.
     # Just assert that it has at least one resolution marker.
     import re
+
     assert re.search(r"\b(2160p|1080p|720p|480p)\b", out), out
 
 
@@ -97,13 +99,18 @@ def test_response_mapper_applies_normalization():
     """End-to-end: subtitle_to_os_entry uses the normalizer."""
     from unittest.mock import MagicMock
     from compat.response_mapper import subtitle_to_os_entry
+
     sub = MagicMock(
         language=MagicMock(alpha2="hu"),
         release_info="WEB-DL\nx264",
-        id="s1", download_count=0, ratings=0.0,
-        uploader="gestdown", provider_name="gestdown",
+        id="s1",
+        download_count=0,
+        ratings=0.0,
+        uploader="gestdown",
+        provider_name="gestdown",
         upload_date=None,
     )
-    entry = subtitle_to_os_entry(sub, file_id=1, media_type="episode",
-                                  imdb_id="9198004", season=1, episode=1)
+    entry = subtitle_to_os_entry(
+        sub, file_id=1, media_type="episode", imdb_id="9198004", season=1, episode=1
+    )
     assert "\n" not in entry["attributes"]["release"]

@@ -58,7 +58,10 @@ def language_to_payload(language) -> dict[str, Any]:
         "script": str(getattr(language, "script", "") or "") or None,
         "basename": getattr(language, "basename", None),
         "ietf": getattr(language, "ietf", None),
-        "hi": bool(getattr(language, "hi", False) or getattr(language, "hearing_impaired", False)),
+        "hi": bool(
+            getattr(language, "hi", False)
+            or getattr(language, "hearing_impaired", False)
+        ),
         "forced": bool(getattr(language, "forced", False)),
     }
 
@@ -83,7 +86,11 @@ def video_to_payload(video) -> dict[str, Any]:
     is_episode = isinstance(video, Episode)
     is_movie = isinstance(video, Movie)
     return {
-        "kind": "episode" if is_episode else "movie" if is_movie else video.__class__.__name__.lower(),
+        "kind": "episode"
+        if is_episode
+        else "movie"
+        if is_movie
+        else video.__class__.__name__.lower(),
         "name": getattr(video, "name", None),
         "original_path": getattr(video, "original_path", None),
         "original_name": getattr(video, "original_name", None),
@@ -128,7 +135,9 @@ def video_to_payload(video) -> dict[str, Any]:
     }
 
 
-def candidate_from_worker(provider_name: str, payload: dict[str, Any]) -> HubWorkerSubtitle:
+def candidate_from_worker(
+    provider_name: str, payload: dict[str, Any]
+) -> HubWorkerSubtitle:
     if not isinstance(payload, dict):
         raise WorkerProtocolError("candidate payload must be an object")
 
@@ -137,7 +146,9 @@ def candidate_from_worker(provider_name: str, payload: dict[str, Any]) -> HubWor
     if not isinstance(provider_payload, dict):
         raise WorkerProtocolError("candidate.provider_payload is required")
 
-    source_provider = str(payload.get("provider") or provider_payload.get("provider") or provider_name)
+    source_provider = str(
+        payload.get("provider") or provider_payload.get("provider") or provider_name
+    )
     worker_id = str(payload.get("id") or "")
     if not worker_id:
         raise WorkerProtocolError("candidate.id is required")
@@ -148,7 +159,9 @@ def candidate_from_worker(provider_name: str, payload: dict[str, Any]) -> HubWor
         worker_id=worker_id,
         language=language,
         provider_payload=provider_payload,
-        hearing_impaired=bool(payload.get("hearing_impaired", getattr(language, "hi", False))),
+        hearing_impaired=bool(
+            payload.get("hearing_impaired", getattr(language, "hi", False))
+        ),
         page_link=payload.get("page_link"),
     )
     subtitle.release_info = payload.get("release_info")
@@ -159,7 +172,9 @@ def candidate_from_worker(provider_name: str, payload: dict[str, Any]) -> HubWor
     subtitle.score_without_hash = payload.get("score_without_hash")
     subtitle.score_out_of = payload.get("score_out_of")
     subtitle.hash_verifiable = bool(payload.get("hash_verifiable", False))
-    subtitle.hearing_impaired_verifiable = bool(payload.get("hearing_impaired_verifiable", False))
+    subtitle.hearing_impaired_verifiable = bool(
+        payload.get("hearing_impaired_verifiable", False)
+    )
 
     display = payload.get("display") or {}
     if isinstance(display, dict):
@@ -169,7 +184,9 @@ def candidate_from_worker(provider_name: str, payload: dict[str, Any]) -> HubWor
     return subtitle
 
 
-def worker_download_to_content(subtitle: HubWorkerSubtitle, payload: dict[str, Any]) -> bool:
+def worker_download_to_content(
+    subtitle: HubWorkerSubtitle, payload: dict[str, Any]
+) -> bool:
     if payload.get("empty"):
         subtitle.content = b""
         return True

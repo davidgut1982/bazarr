@@ -6,6 +6,7 @@ bound or, worse, lose its thread-safety. These tests pin both the LRU
 eviction behaviour and the configured maxsize, plus assert no corruption
 under concurrent access from many threads.
 """
+
 import concurrent.futures
 
 import pytest
@@ -27,19 +28,19 @@ def _isolate_compat_region():
 def test_compat_region_is_lru_bounded():
     backend_cache = compat_region.backend._cache
     assert isinstance(backend_cache, LockedLRU), (
-        f'compat_region backend cache must be a LockedLRU, got '
-        f'{type(backend_cache).__name__}'
+        f"compat_region backend cache must be a LockedLRU, got "
+        f"{type(backend_cache).__name__}"
     )
     # And the inner cache stays a cachetools LRUCache so we still get LRU
     # eviction semantics rather than e.g. an unbounded dict.
     assert isinstance(backend_cache._cache, LRUCache), (
-        f'LockedLRU must wrap a cachetools.LRUCache, got '
-        f'{type(backend_cache._cache).__name__}'
+        f"LockedLRU must wrap a cachetools.LRUCache, got "
+        f"{type(backend_cache._cache).__name__}"
     )
 
     maxsize = backend_cache.maxsize
     assert maxsize == 2048, (
-        f'compat_region LRU maxsize must stay at 2048, got {maxsize}'
+        f"compat_region LRU maxsize must stay at 2048, got {maxsize}"
     )
 
     # Insert well past maxsize and confirm eviction kicks in. We use the
@@ -47,7 +48,7 @@ def test_compat_region_is_lru_bounded():
     # to how dogpile stores values still flows through this assertion.
     extra = 64
     for i in range(maxsize + extra):
-        compat_region.set(f'smoke-key-{i}', i)
+        compat_region.set(f"smoke-key-{i}", i)
         # The size invariant must hold after every single set, not just at
         # the end. dogpile.cache.memory MemoryBackend stores values via
         # backend._cache[key] = value, so the LRU enforces the bound on

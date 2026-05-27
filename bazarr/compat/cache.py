@@ -23,11 +23,18 @@ compat_region = make_region(key_mangler=lambda k: k).configure(
 )
 
 
-def build_key(media_type: str, imdb_id: str, season: int | None,
-              episode: int | None, languages, enabled_providers,
-              query: str | None = None, moviehash: str | None = None,
-              moviehash_match: str | None = None,
-              requested_languages: list[str] | None = None) -> str:
+def build_key(
+    media_type: str,
+    imdb_id: str,
+    season: int | None,
+    episode: int | None,
+    languages,
+    enabled_providers,
+    query: str | None = None,
+    moviehash: str | None = None,
+    moviehash_match: str | None = None,
+    requested_languages: list[str] | None = None,
+) -> str:
     """Deterministic across restarts. Language variants preserved.
 
     query/moviehash/moviehash_match are part of the key because they
@@ -36,8 +43,12 @@ def build_key(media_type: str, imdb_id: str, season: int | None,
     cross-contaminate via cache hits.
     """
     lang_tuples = sorted(
-        (str(l.alpha3), str(l.country) if l.country else "",
-         bool(getattr(l, "forced", False)), bool(getattr(l, "hi", False)))
+        (
+            str(l.alpha3),
+            str(l.country) if l.country else "",
+            bool(getattr(l, "forced", False)),
+            bool(getattr(l, "hi", False)),
+        )
         for l in languages  # noqa: E741
     )
     provider_hash = hashlib.sha256(
@@ -49,6 +60,7 @@ def build_key(media_type: str, imdb_id: str, season: int | None,
     # serve_local_subs flag would keep returning the previous cached
     # envelope until natural TTL expiry.
     from app.config import settings as _cfg
+
     local_flag = int(bool(_cfg.compat_endpoint.serve_local_subs))
     extras = hashlib.sha256(
         f"{query or ''}|{moviehash or ''}|{moviehash_match or ''}"

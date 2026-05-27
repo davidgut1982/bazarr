@@ -6,6 +6,7 @@ silently dead in every Bazarr deployment for years. This module verifies
 the Python-3-safe resolver honors a plain OMDB_API_KEY and can also
 decode the legacy obfuscated envelope when present.
 """
+
 import base64
 import codecs
 import zlib
@@ -22,6 +23,7 @@ def _isolate_env(monkeypatch):
     # Clear Dynaconf setting so env-var tests aren't masked by a live config.
     try:
         from app.config import settings
+
         monkeypatch.setattr(settings.omdb, "apikey", "")
     except Exception:
         pass
@@ -29,6 +31,7 @@ def _isolate_env(monkeypatch):
 
 def test_settings_apikey_wins_over_env(monkeypatch):
     from app.config import settings
+
     settings.omdb.apikey = "fromSettings"
     monkeypatch.setenv("OMDB_API_KEY", "fromEnv")
     assert _resolve_omdb_apikey() == "fromSettings"

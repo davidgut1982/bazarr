@@ -50,4 +50,3 @@ class SZFileBackend(CacheBackend):
         if not hasattr(self._cache, "_buffer") or self._cache._sync:
             self._cache._sync = False
             self._cache._buffer = {}
-

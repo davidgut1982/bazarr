@@ -27,16 +27,17 @@ def build_signalr_connection(url, headers):
     from signalrcore.hub_connection_builder import HubConnectionBuilder
     from signalrcore.protocol.json_hub_protocol import JsonHubProtocol
 
-    return HubConnectionBuilder() \
-        .with_url(url,
-                  options={
-                      "verify_ssl": False,
-                      "headers": headers
-                  }) \
-        .with_hub_protocol(JsonHubProtocol()) \
-        .with_automatic_reconnect({
-            "type": "raw",
-            "keep_alive_interval": 5,
-            "reconnect_interval": 180,
-            "max_attempts": None
-        }).build()
+    return (
+        HubConnectionBuilder()
+        .with_url(url, options={"verify_ssl": False, "headers": headers})
+        .with_hub_protocol(JsonHubProtocol())
+        .with_automatic_reconnect(
+            {
+                "type": "raw",
+                "keep_alive_interval": 5,
+                "reconnect_interval": 180,
+                "max_attempts": None,
+            }
+        )
+        .build()
+    )

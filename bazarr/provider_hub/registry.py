@@ -12,7 +12,12 @@ from subliminal_patch.extensions import provider_registry
 from subliminal_patch.providers import Provider
 
 from .manifest import ManifestValidationError, validate_manifest
-from .protocol import candidate_from_worker, language_to_payload, video_to_payload, worker_download_to_content
+from .protocol import (
+    candidate_from_worker,
+    language_to_payload,
+    video_to_payload,
+    worker_download_to_content,
+)
 from .state import active_installations
 from .worker import ProviderWorkerClient, WorkerError, worker_command
 
@@ -29,7 +34,9 @@ class HubProxyProvider(Provider):
 
     def __init__(self, timeout=30, worker_client=None, **config):
         self.timeout = int(timeout)
-        self.worker_client = worker_client or getattr(self.__class__, "worker_client", None)
+        self.worker_client = worker_client or getattr(
+            self.__class__, "worker_client", None
+        )
         self.config = config
 
     def initialize(self):
@@ -104,7 +111,8 @@ def _make_provider_class(manifest, worker_client=None, installation=None):
         "provider_name": manifest.provider_id,
         "languages": _languages_from_manifest(manifest),
         "video_types": tuple(
-            item for media in manifest.supported_media
+            item
+            for media in manifest.supported_media
             for item in ((Movie,) if media == "movie" else (Episode,))
         ),
         "manifest": manifest,
@@ -117,18 +125,29 @@ def _make_provider_class(manifest, worker_client=None, installation=None):
             attrs["bundle_path"] = installation.active_path
         if getattr(installation, "python_path", None):
             attrs["python_path"] = installation.python_path
-    return type(f"{manifest.provider_id.title().replace('_', '')}HubProvider", (HubProxyProvider,), attrs)
+    return type(
+        f"{manifest.provider_id.title().replace('_', '')}HubProvider",
+        (HubProxyProvider,),
+        attrs,
+    )
 
 
 def register_active_provider_classes(installations=None) -> list[str]:
     registered = []
-    built_in_provider_ids = set(provider_registry.names()) - _REGISTERED_PROVIDER_HUB_IDS
-    installations = installations if installations is not None else active_installations()
+    built_in_provider_ids = (
+        set(provider_registry.names()) - _REGISTERED_PROVIDER_HUB_IDS
+    )
+    installations = (
+        installations if installations is not None else active_installations()
+    )
 
     for installation in installations:
         provider_id = installation.provider_id
         if provider_id in built_in_provider_ids:
-            logger.warning("Skipping Provider Hub provider %s because it shadows a built-in provider", provider_id)
+            logger.warning(
+                "Skipping Provider Hub provider %s because it shadows a built-in provider",
+                provider_id,
+            )
             continue
         try:
             manifest = validate_manifest(
@@ -136,10 +155,15 @@ def register_active_provider_classes(installations=None) -> list[str]:
                 built_in_provider_ids=built_in_provider_ids,
             )
         except ManifestValidationError:
-            logger.exception("Skipping invalid Provider Hub manifest for %s", provider_id)
+            logger.exception(
+                "Skipping invalid Provider Hub manifest for %s", provider_id
+            )
             continue
 
-        provider_registry.register(manifest.provider_id, _make_provider_class(manifest, installation=installation))
+        provider_registry.register(
+            manifest.provider_id,
+            _make_provider_class(manifest, installation=installation),
+        )
         _REGISTERED_PROVIDER_HUB_IDS.add(manifest.provider_id)
         registered.append(manifest.provider_id)
 

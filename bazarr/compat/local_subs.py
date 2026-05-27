@@ -5,6 +5,7 @@ bazarr/api/subtitles/*. The compat surface is isolated by design (see
 bazarr/compat/__init__.py); this module re-implements the small slice of
 DB lookup and path-safety logic it needs inline.
 """
+
 from __future__ import annotations
 
 import ast as _ast
@@ -121,17 +122,20 @@ def _imdb_candidates(imdb_id: str | None) -> list[str]:
     return sorted(candidates)
 
 
-def _resolve_by_imdb(imdb_id: str, season: int | None, episode: int | None,
-                    media_type: str) -> tuple[str, int] | None:
+def _resolve_by_imdb(
+    imdb_id: str, season: int | None, episode: int | None, media_type: str
+) -> tuple[str, int] | None:
     from app.database import select, TableMovies, TableShows, TableEpisodes
+
     candidates = _imdb_candidates(imdb_id)
     if not candidates:
         return None
     try:
         if media_type == "episode":
             show = database.execute(
-                select(TableShows.sonarrSeriesId)
-                .where(TableShows.imdbId.in_(candidates))
+                select(TableShows.sonarrSeriesId).where(
+                    TableShows.imdbId.in_(candidates)
+                )
             ).first()
             if not show:
                 return None
@@ -144,8 +148,7 @@ def _resolve_by_imdb(imdb_id: str, season: int | None, episode: int | None,
             return ("episode", int(ep.sonarrEpisodeId)) if ep else None
         else:
             row = database.execute(
-                select(TableMovies.radarrId)
-                .where(TableMovies.imdbId.in_(candidates))
+                select(TableMovies.radarrId).where(TableMovies.imdbId.in_(candidates))
             ).first()
             return ("movie", int(row.radarrId)) if row else None
     except Exception as e:
@@ -159,6 +162,7 @@ def _guessit_filename(filename: str) -> dict:
         return {}
     try:
         from subliminal_patch.core import guessit as _g
+
         return dict(_g(filename) or {})
     except Exception as e:
         logger.debug("compat local: guessit failed on %r: %s", filename, e)
@@ -167,6 +171,7 @@ def _guessit_filename(filename: str) -> dict:
 
 def _resolve_by_query(query: str, media_type: str) -> tuple[str, int] | None:
     from app.database import select, TableMovies, TableShows, TableEpisodes
+
     g = _guessit_filename(query)
     title = (g.get("title") or "").strip()
     if not title:
@@ -178,13 +183,13 @@ def _resolve_by_query(query: str, media_type: str) -> tuple[str, int] | None:
             if season is None or episode is None:
                 return None
             show = database.execute(
-                select(TableShows.sonarrSeriesId)
-                .where(TableShows.title.ilike(title))
+                select(TableShows.sonarrSeriesId).where(TableShows.title.ilike(title))
             ).first()
             if not show:
                 show = database.execute(
-                    select(TableShows.sonarrSeriesId)
-                    .where(TableShows.alternativeTitles.ilike(f"%{title}%"))
+                    select(TableShows.sonarrSeriesId).where(
+                        TableShows.alternativeTitles.ilike(f"%{title}%")
+                    )
                 ).first()
             if not show:
                 return None
@@ -198,8 +203,9 @@ def _resolve_by_query(query: str, media_type: str) -> tuple[str, int] | None:
         else:
             year = g.get("year")
             rows = database.execute(
-                select(TableMovies.radarrId, TableMovies.year)
-                .where(TableMovies.title.ilike(title))
+                select(TableMovies.radarrId, TableMovies.year).where(
+                    TableMovies.title.ilike(title)
+                )
             ).all()
             if not rows:
                 return None
@@ -227,6 +233,7 @@ def _resolve_by_moviehash(moviehash: str, media_type: str) -> tuple[str, int] | 
     if not target or len(target) != 16:
         return None
     from app.database import select, TableMovies, TableEpisodes
+
     try:
         if media_type == "episode":
             rows = database.execute(
@@ -243,7 +250,11 @@ def _resolve_by_moviehash(moviehash: str, media_type: str) -> tuple[str, int] | 
                 select(TableMovies.radarrId, TableMovies.path)
             ).all()
             for r in rows:
-                local = path_mappings.path_replace_movie(r.path) if path_mappings else r.path
+                local = (
+                    path_mappings.path_replace_movie(r.path)
+                    if path_mappings
+                    else r.path
+                )
                 h = _hash_cache.get(local)
                 if h and h.lower() == target:
                     return ("movie", int(r.radarrId))
@@ -253,10 +264,14 @@ def _resolve_by_moviehash(moviehash: str, media_type: str) -> tuple[str, int] | 
         return None
 
 
-def _resolve_media(imdb_id: str | None, season: int | None,
-                   episode: int | None, media_type: str,
-                   query: str | None, moviehash: str | None
-                   ) -> tuple[str, int, str] | None:
+def _resolve_media(
+    imdb_id: str | None,
+    season: int | None,
+    episode: int | None,
+    media_type: str,
+    query: str | None,
+    moviehash: str | None,
+) -> tuple[str, int, str] | None:
     """Return (media_type, media_id, source) on hit, None on miss.
 
     `source` records which resolver path produced the hit:
@@ -282,7 +297,9 @@ def _resolve_media(imdb_id: str | None, season: int | None,
     return None
 
 
-_CONVERTIBLE_FORMATS = frozenset({"srt", "ass", "ssa", "vtt", "sub", "smi", "ttml", "dfxp"})
+_CONVERTIBLE_FORMATS = frozenset(
+    {"srt", "ass", "ssa", "vtt", "sub", "smi", "ttml", "dfxp"}
+)
 
 
 def _parse_subtitles_blob(raw) -> list:
@@ -321,8 +338,9 @@ def _parse_request_bcp47(code: str) -> tuple[str, str | None]:
     return code.lower(), None
 
 
-def _lang_matches(entry_base: str, request_base: str,
-                  request_region: str | None) -> bool:
+def _lang_matches(
+    entry_base: str, request_base: str, request_region: str | None
+) -> bool:
     e_parts = entry_base.split("-", 1)
     e_base = e_parts[0].lower()
     e_region = e_parts[1].upper() if len(e_parts) > 1 else None
@@ -355,6 +373,7 @@ def _decode_subtitle_bytes(raw: bytes) -> str:
         pass
     try:
         import charset_normalizer
+
         result = charset_normalizer.from_bytes(raw).best()
         if result is not None:
             return str(result)
@@ -376,6 +395,7 @@ def _convert_to_srt(raw: bytes, fmt: str) -> bytes:
     """
     try:
         import pysubs2
+
         text = _decode_subtitle_bytes(raw)
         sub = pysubs2.SSAFile.from_string(text, format_=fmt)
         return sub.to_string("srt").encode("utf-8")
@@ -442,27 +462,35 @@ def _fetch_media_row(media_type: str, media_id: int):
     episode). Episodes need a join to TableShows for series-level fields.
     """
     from app.database import select, TableMovies, TableEpisodes, TableShows
+
     try:
         if media_type == "episode":
             return database.execute(
                 select(
-                    TableEpisodes.subtitles, TableEpisodes.path,
-                    TableEpisodes.season, TableEpisodes.episode,
+                    TableEpisodes.subtitles,
+                    TableEpisodes.path,
+                    TableEpisodes.season,
+                    TableEpisodes.episode,
                     TableEpisodes.title.label("episode_title"),
                     TableShows.title.label("series_title"),
-                    TableShows.year, TableShows.imdbId,
+                    TableShows.year,
+                    TableShows.imdbId,
                 )
-                .join(TableShows,
-                      TableEpisodes.sonarrSeriesId == TableShows.sonarrSeriesId)
+                .join(
+                    TableShows,
+                    TableEpisodes.sonarrSeriesId == TableShows.sonarrSeriesId,
+                )
                 .where(TableEpisodes.sonarrEpisodeId == int(media_id))
             ).first()
         else:
             return database.execute(
                 select(
-                    TableMovies.subtitles, TableMovies.path,
-                    TableMovies.title, TableMovies.year, TableMovies.imdbId,
-                )
-                .where(TableMovies.radarrId == int(media_id))
+                    TableMovies.subtitles,
+                    TableMovies.path,
+                    TableMovies.title,
+                    TableMovies.year,
+                    TableMovies.imdbId,
+                ).where(TableMovies.radarrId == int(media_id))
             ).first()
     except Exception as e:
         logger.debug("compat local: media row fetch failed: %s", e)
@@ -483,9 +511,11 @@ def _build_request_to_lang_map(requested: list[str]) -> dict[str, str]:
 def _path_replace_for(media_type: str):
     if path_mappings is None:
         return lambda p: p
-    return (path_mappings.path_replace
-            if media_type == "episode"
-            else path_mappings.path_replace_movie)
+    return (
+        path_mappings.path_replace
+        if media_type == "episode"
+        else path_mappings.path_replace_movie
+    )
 
 
 def _allowed_subtitle_roots(media_dir_real: str, media_path_real: str) -> list[str]:
@@ -501,6 +531,7 @@ def _allowed_subtitle_roots(media_dir_real: str, media_path_real: str) -> list[s
     roots = [media_dir_real]
     try:
         from utilities.helper import get_target_folder
+
         target = get_target_folder(media_path_real)
         if target:
             target_real = os.path.realpath(target)
@@ -521,9 +552,12 @@ def _path_under_any_root(real_path: str, roots: list[str]) -> bool:
     return False
 
 
-def _select_local_subs(raw_subtitles, media_dir: str,
-                      requested_languages: list[str],
-                      media_path: str | None = None) -> list[dict]:
+def _select_local_subs(
+    raw_subtitles,
+    media_dir: str,
+    requested_languages: list[str],
+    media_path: str | None = None,
+) -> list[dict]:
     """Filter Bazarr's `subtitles` column entries by requested languages
     and surviving on-disk files.
 
@@ -555,8 +589,7 @@ def _select_local_subs(raw_subtitles, media_dir: str,
         if not (isinstance(item, list) and len(item) >= 2):
             continue
         lang_code, raw_path = item[0], item[1]
-        if not (isinstance(lang_code, str) and isinstance(raw_path, str)
-                and raw_path):
+        if not (isinstance(lang_code, str) and isinstance(raw_path, str) and raw_path):
             continue
 
         entry_base, modifier = _parse_lang_code(lang_code)
@@ -588,15 +621,17 @@ def _select_local_subs(raw_subtitles, media_dir: str,
         if st.st_size > _MAX_SUB_BYTES:
             continue
 
-        out.append({
-            "lang": entry_base,
-            "modifier": modifier,
-            "fmt": fmt,
-            "path": real,
-            "filename": os.path.basename(real),
-            "size": st.st_size,
-            "mtime": st.st_mtime,
-        })
+        out.append(
+            {
+                "lang": entry_base,
+                "modifier": modifier,
+                "fmt": fmt,
+                "path": real,
+                "filename": os.path.basename(real),
+                "size": st.st_size,
+                "mtime": st.st_mtime,
+            }
+        )
     return out
 
 
@@ -643,8 +678,9 @@ def search_local(
             hit = _resolve_by_moviehash(moviehash, media_type)
             resolved = (*hit, "moviehash") if hit else None
         else:
-            resolved = _resolve_media(imdb_id, season, episode, media_type,
-                                       query, moviehash)
+            resolved = _resolve_media(
+                imdb_id, season, episode, media_type, query, moviehash
+            )
         if resolved is None:
             return []
         media_type_resolved, media_id, resolve_source = resolved
@@ -683,8 +719,9 @@ def search_local(
         # The same roots list the selector used to validate paths; carry
         # it into each minted file_id so serve_local can re-validate at
         # stream time, including subs in the absolute target folder.
-        allowed_roots = _allowed_subtitle_roots(media_dir_real,
-                                                 os.path.realpath(media_local))
+        allowed_roots = _allowed_subtitle_roots(
+            media_dir_real, os.path.realpath(media_local)
+        )
 
         # Pull metadata for feature_details (Jellyfin's plugin filters
         # entries lacking it). Episodes use series_title; movies use
@@ -723,27 +760,29 @@ def search_local(
             )
             base_alpha2 = c["lang"].split("-", 1)[0].lower()
             requested_language = req_lang_map.get(base_alpha2)
-            out.append(local_to_os_entry(
-                file_id=file_id,
-                lang=c["lang"],
-                modifier=c["modifier"],
-                filename=c["filename"],
-                upload_mtime=c["mtime"],
-                media_type=media_type_resolved,
-                media_id=media_id,
-                requested_language=requested_language,
-                imdb_id=md_imdb,
-                title=md_title,
-                year=md_year,
-                season=md_season,
-                episode=md_episode,
-                episode_title=md_episode_title,
-                # Hash-match flag reflects how the row was resolved, not
-                # the request mode: a moviehash-resolved row is
-                # hash-validated regardless of moviehash_match=include vs
-                # only. Codex P2.
-                hash_matched=resolve_source == "moviehash",
-            ))
+            out.append(
+                local_to_os_entry(
+                    file_id=file_id,
+                    lang=c["lang"],
+                    modifier=c["modifier"],
+                    filename=c["filename"],
+                    upload_mtime=c["mtime"],
+                    media_type=media_type_resolved,
+                    media_id=media_id,
+                    requested_language=requested_language,
+                    imdb_id=md_imdb,
+                    title=md_title,
+                    year=md_year,
+                    season=md_season,
+                    episode=md_episode,
+                    episode_title=md_episode_title,
+                    # Hash-match flag reflects how the row was resolved, not
+                    # the request mode: a moviehash-resolved row is
+                    # hash-validated regardless of moviehash_match=include vs
+                    # only. Codex P2.
+                    hash_matched=resolve_source == "moviehash",
+                )
+            )
         return out
     except Exception as e:
         logger.warning("compat local: search_local crashed (returning []): %s", e)

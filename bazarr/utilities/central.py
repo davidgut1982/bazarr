@@ -7,7 +7,14 @@ import logging
 import os
 from pathlib import Path
 
-from literals import ENV_BAZARR_ROOT_DIR, DIR_LOG, ENV_STOPFILE, ENV_RESTARTFILE, EXIT_NORMAL, FILE_LOG
+from literals import (
+    ENV_BAZARR_ROOT_DIR,
+    DIR_LOG,
+    ENV_STOPFILE,
+    ENV_RESTARTFILE,
+    EXIT_NORMAL,
+    FILE_LOG,
+)
 
 
 def get_bazarr_dir(sub_dir):
@@ -36,20 +43,24 @@ def get_restart_file_path():
 
 def stop_bazarr(status_code=EXIT_NORMAL):
     try:
-        with open(get_stop_file_path(), 'w', encoding='UTF-8') as file:
+        with open(get_stop_file_path(), "w", encoding="UTF-8") as file:
             # write out status code for final exit
-            file.write(f'{status_code}\n')
+            file.write(f"{status_code}\n")
             file.close()
     except Exception as e:
-        logging.error(f'BAZARR Cannot create stop file: {repr(e)}')  # noqa: G004
-    logging.info('Bazarr is being shutdown...')
-    os._exit(status_code)  # Don't raise SystemExit here since it's catch by waitress and it prevents proper exit
+        logging.error(f"BAZARR Cannot create stop file: {repr(e)}")  # noqa: G004
+    logging.info("Bazarr is being shutdown...")
+    os._exit(
+        status_code
+    )  # Don't raise SystemExit here since it's catch by waitress and it prevents proper exit
 
 
 def restart_bazarr():
     try:
         Path(get_restart_file_path()).touch()
     except Exception as e:
-        logging.error(f'BAZARR Cannot create restart file: {repr(e)}')  # noqa: G004
-    logging.info('Bazarr is being restarted...')
-    os._exit(EXIT_NORMAL)  # Don't raise SystemExit here since it's catch by waitress and it prevents proper exit
+        logging.error(f"BAZARR Cannot create restart file: {repr(e)}")  # noqa: G004
+    logging.info("Bazarr is being restarted...")
+    os._exit(
+        EXIT_NORMAL
+    )  # Don't raise SystemExit here since it's catch by waitress and it prevents proper exit

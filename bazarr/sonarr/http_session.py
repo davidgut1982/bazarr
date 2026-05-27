@@ -44,7 +44,7 @@ def sonarr_session() -> requests.Session:
                         status_forcelist=(502, 503, 504),
                     ),
                 )
-                s.mount('http://', adapter)
-                s.mount('https://', adapter)
+                s.mount("http://", adapter)
+                s.mount("https://", adapter)
                 _session = s
     return _session

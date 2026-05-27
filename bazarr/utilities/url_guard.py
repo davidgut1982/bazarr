@@ -7,8 +7,10 @@ from urllib.parse import urljoin, urlparse
 import requests
 from requests.adapters import HTTPAdapter
 
+
 class UnsafeURLError(ValueError):
     """Outbound URL is rejected by the SSRF guard."""
+
 
 _ALLOWED_SCHEMES = frozenset({"http", "https"})
 _BLOCKED_TLD_SUFFIXES = (".local", ".internal")
@@ -51,7 +53,9 @@ def assert_safe_outbound(url: str) -> None:
     if not host:
         raise UnsafeURLError("missing host")
     host_l = host.lower()
-    if host_l in ("localhost",) or any(host_l.endswith(s) for s in _BLOCKED_TLD_SUFFIXES):
+    if host_l in ("localhost",) or any(
+        host_l.endswith(s) for s in _BLOCKED_TLD_SUFFIXES
+    ):
         raise UnsafeURLError(f"host {host!r} is reserved")
 
     # Build the candidate IP list: literal or all DNS results.
@@ -79,8 +83,14 @@ def assert_safe_outbound(url: str) -> None:
         raise UnsafeURLError(f"no IPs resolved for {host!r}")
 
     for ip in ips:
-        if (ip.is_private or ip.is_loopback or ip.is_link_local or
-                ip.is_multicast or ip.is_reserved or ip.is_unspecified):
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_multicast
+            or ip.is_reserved
+            or ip.is_unspecified
+        ):
             raise UnsafeURLError(f"destination IP {ip} is not a public address")
 
 
@@ -109,9 +119,7 @@ def resolve_safe_url(url: str, max_redirects: int = 5, timeout: float = 10.0) ->
     session = _get_walker_session()
     for _ in range(max_redirects):
         try:
-            response = session.head(
-                current, allow_redirects=False, timeout=timeout
-            )
+            response = session.head(current, allow_redirects=False, timeout=timeout)
         except requests.RequestException:
             # HEAD probe failed entirely. Cannot walk further.
             # Caller's existing post-download guard remains as defense
@@ -122,12 +130,8 @@ def resolve_safe_url(url: str, max_redirects: int = 5, timeout: float = 10.0) ->
             return current
         location = response.headers.get("Location")
         if not location:
-            raise UnsafeURLError(
-                f"redirect at {current!r} missing Location header"
-            )
+            raise UnsafeURLError(f"redirect at {current!r} missing Location header")
         next_url = urljoin(current, location)
         assert_safe_outbound(next_url)
         current = next_url
-    raise UnsafeURLError(
-        f"too many redirects (>{max_redirects}) starting at {url!r}"
-    )
+    raise UnsafeURLError(f"too many redirects (>{max_redirects}) starting at {url!r}")

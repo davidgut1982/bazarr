@@ -6,8 +6,17 @@ import socket
 import requests
 import mimetypes
 
-from flask import (request, abort, render_template, Response, session, send_file, stream_with_context, Blueprint,
-                   redirect)
+from flask import (
+    request,
+    abort,
+    render_template,
+    Response,
+    session,
+    send_file,
+    stream_with_context,
+    Blueprint,
+    redirect,
+)
 from functools import wraps
 from urllib.parse import unquote, urlparse
 
@@ -22,57 +31,91 @@ from .config import settings, base_url, get_ssl_verify
 from .database import database, System
 from .get_args import args
 
-frontend_build_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'frontend', 'build')
+frontend_build_path = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "frontend", "build"
+)
 
-ui_bp = Blueprint('ui', __name__,
-                  template_folder=frontend_build_path,
-                  static_folder=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'frontend',
-                                             'build', 'assets'),
-                  static_url_path='/assets')
+ui_bp = Blueprint(
+    "ui",
+    __name__,
+    template_folder=frontend_build_path,
+    static_folder=os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        "frontend",
+        "build",
+        "assets",
+    ),
+    static_url_path="/assets",
+)
 
-if os.path.exists(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'frontend', 'build',
-                               'images')):
-    static_directory = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'frontend', 'build',
-                                    'images')
+if os.path.exists(
+    os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        "frontend",
+        "build",
+        "images",
+    )
+):
+    static_directory = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        "frontend",
+        "build",
+        "images",
+    )
 else:
-    static_directory = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'frontend', 'public',
-                                    'images')
-static_bp = Blueprint('images', __name__, static_folder=static_directory, static_url_path='/images')
+    static_directory = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        "frontend",
+        "public",
+        "images",
+    )
+static_bp = Blueprint(
+    "images", __name__, static_folder=static_directory, static_url_path="/images"
+)
 
 ui_bp.register_blueprint(static_bp)
 
-mimetypes.add_type('application/javascript', '.js')
-mimetypes.add_type('text/css', '.css')
-mimetypes.add_type('font/woff2', '.woff2')
-mimetypes.add_type('image/svg+xml', '.svg')
-mimetypes.add_type('image/png', '.png')
-mimetypes.add_type('image/x-icon', '.ico')
-mimetypes.add_type('application/manifest+json', '.webmanifest')
+mimetypes.add_type("application/javascript", ".js")
+mimetypes.add_type("text/css", ".css")
+mimetypes.add_type("font/woff2", ".woff2")
+mimetypes.add_type("image/svg+xml", ".svg")
+mimetypes.add_type("image/png", ".png")
+mimetypes.add_type("image/x-icon", ".ico")
+mimetypes.add_type("application/manifest+json", ".webmanifest")
 
-pwa_assets = ['registerSW.js', 'manifest.webmanifest', 'sw.js']
+pwa_assets = ["registerSW.js", "manifest.webmanifest", "sw.js"]
 
 
 def check_login(actual_method):
     @wraps(actual_method)
     def wrapper(*args, **kwargs):
-        if settings.auth.type == 'basic':
+        if settings.auth.type == "basic":
             auth = request.authorization
-            if not (auth and
-                    check_credentials(request.authorization.username, request.authorization.password, request)):
-                return ('Unauthorized', 401, {
-                    'WWW-Authenticate': 'Basic realm="Login Required"'
-                })
-        elif settings.auth.type == 'form':
-            if 'logged_in' not in session:
+            if not (
+                auth
+                and check_credentials(
+                    request.authorization.username,
+                    request.authorization.password,
+                    request,
+                )
+            ):
+                return (
+                    "Unauthorized",
+                    401,
+                    {"WWW-Authenticate": 'Basic realm="Login Required"'},
+                )
+        elif settings.auth.type == "form":
+            if "logged_in" not in session:
                 return abort(401)
         return actual_method(*args, **kwargs)
+
     return wrapper
 
 
-@ui_bp.route('/', defaults={'path': ''})
-@ui_bp.route('/<path:path>')
+@ui_bp.route("/", defaults={"path": ""})
+@ui_bp.route("/<path:path>")
 def catch_all(path):
-    if path.startswith('login') and settings.auth.type not in ['basic', 'form']:
+    if path.startswith("login") and settings.auth.type not in ["basic", "form"]:
         # login page has been accessed when no authentication is enabled
         return redirect(base_url or "/", code=302)
 
@@ -80,7 +123,7 @@ def catch_all(path):
     # Uses the CodeQL-documented "GOOD" pattern from py/path-injection:
     # normpath(join(base, name)) + startswith(base). Pre-rejects absolute
     # paths because os.path.join(base, '/abs') would silently drop the base.
-    if path in pwa_assets or path.startswith('workbox-'):
+    if path in pwa_assets or path.startswith("workbox-"):
         if os.path.isabs(path):
             return abort(403)
         fullpath = os.path.normpath(os.path.join(frontend_build_path, path))
@@ -89,34 +132,43 @@ def catch_all(path):
         return send_file(fullpath)
 
     auth = True
-    if settings.auth.type == 'basic':
+    if settings.auth.type == "basic":
         auth = request.authorization
-        if not (auth and check_credentials(request.authorization.username, request.authorization.password, request,
-                                           log_success=False)):
-            return ('Unauthorized', 401, {
-                'WWW-Authenticate': 'Basic realm="Login Required"'
-            })
-    elif settings.auth.type == 'form':
-        if 'logged_in' not in session or not session['logged_in']:
+        if not (
+            auth
+            and check_credentials(
+                request.authorization.username,
+                request.authorization.password,
+                request,
+                log_success=False,
+            )
+        ):
+            return (
+                "Unauthorized",
+                401,
+                {"WWW-Authenticate": 'Basic realm="Login Required"'},
+            )
+    elif settings.auth.type == "form":
+        if "logged_in" not in session or not session["logged_in"]:
             auth = False
 
     try:
         updated = database.scalar(System.updated)
     except Exception:
-        updated = '0'
+        updated = "0"
 
     try:
         configured = database.scalar(System.configured)
     except Exception:
-        configured = '0'
+        configured = "0"
 
     inject = dict()
 
-    if not path.startswith('api/'):
+    if not path.startswith("api/"):
         inject["baseUrl"] = base_url
         inject["canUpdate"] = not args.no_update
-        inject["hasUpdate"] = updated != '0'
-        inject["isConfigured"] = configured != '0'
+        inject["hasUpdate"] = updated != "0"
+        inject["isConfigured"] = configured != "0"
 
         if auth:
             inject["apiKey"] = settings.auth.apikey
@@ -125,62 +177,88 @@ def catch_all(path):
     if not template_url.endswith("/"):
         template_url += "/"
 
-    return render_template("index.html", BAZARR_SERVER_INJECT=inject, baseUrl=template_url)
+    return render_template(
+        "index.html", BAZARR_SERVER_INJECT=inject, baseUrl=template_url
+    )
 
 
-@ui_bp.route('/' + FILE_LOG)
+@ui_bp.route("/" + FILE_LOG)
 @check_login
 def download_log():
     return send_file(get_log_file_path(), max_age=0, as_attachment=True)
 
 
-@ui_bp.route('/images/series/<path:url>', methods=['GET'])
+@ui_bp.route("/images/series/<path:url>", methods=["GET"])
 @check_login
 def series_images(url):
     url = url.strip("/")
     apikey = settings.sonarr.apikey
     baseUrl = settings.sonarr.base_url
-    url_image = f'{url_api_sonarr()}{url.lstrip(baseUrl)}?apikey={apikey}'.replace('poster-250', 'poster-500')
+    url_image = f"{url_api_sonarr()}{url.lstrip(baseUrl)}?apikey={apikey}".replace(
+        "poster-250", "poster-500"
+    )
     try:
-        req = requests.get(url_image, stream=True, timeout=15, verify=get_ssl_verify('sonarr'), headers=HEADERS)
+        req = requests.get(
+            url_image,
+            stream=True,
+            timeout=15,
+            verify=get_ssl_verify("sonarr"),
+            headers=HEADERS,
+        )
     except Exception:
-        return '', 404
+        return "", 404
     else:
-        return Response(stream_with_context(req.iter_content(2048)), content_type=req.headers['content-type'])
+        return Response(
+            stream_with_context(req.iter_content(2048)),
+            content_type=req.headers["content-type"],
+        )
 
 
-@ui_bp.route('/images/movies/<path:url>', methods=['GET'])
+@ui_bp.route("/images/movies/<path:url>", methods=["GET"])
 @check_login
 def movies_images(url):
     apikey = settings.radarr.apikey
     baseUrl = settings.radarr.base_url
-    url_image = f'{url_api_radarr()}{url.lstrip(baseUrl)}?apikey={apikey}'
+    url_image = f"{url_api_radarr()}{url.lstrip(baseUrl)}?apikey={apikey}"
     try:
-        req = requests.get(url_image, stream=True, timeout=15, verify=get_ssl_verify('radarr'), headers=HEADERS)
+        req = requests.get(
+            url_image,
+            stream=True,
+            timeout=15,
+            verify=get_ssl_verify("radarr"),
+            headers=HEADERS,
+        )
     except Exception:
-        return '', 404
+        return "", 404
     else:
-        return Response(stream_with_context(req.iter_content(2048)), content_type=req.headers['content-type'])
+        return Response(
+            stream_with_context(req.iter_content(2048)),
+            content_type=req.headers["content-type"],
+        )
 
 
-@ui_bp.route('/system/backup/download/<path:filename>', methods=['GET'])
+@ui_bp.route("/system/backup/download/<path:filename>", methods=["GET"])
 @check_login
 def backup_download(filename):
     fullpath = os.path.normpath(os.path.join(settings.backup.folder, filename))
     if not fullpath.startswith(settings.backup.folder):
-        return '', 404
+        return "", 404
     else:
         return send_file(fullpath, max_age=0, as_attachment=True)
 
 
-@ui_bp.route('/api/swaggerui/static/<path:filename>', methods=['GET'])
+@ui_bp.route("/api/swaggerui/static/<path:filename>", methods=["GET"])
 def swaggerui_static(filename):
-    basepath = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'libs', 'flask_restx',
-                            'static')
+    basepath = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        "libs",
+        "flask_restx",
+        "static",
+    )
     fullpath = os.path.realpath(os.path.join(basepath, filename))
     # Use startswith to prevent path traversal
     if not fullpath.startswith(os.path.realpath(basepath) + os.sep):
-        return '', 404
+        return "", 404
     else:
         return send_file(fullpath)
 
@@ -192,7 +270,7 @@ def _resolve_and_validate(url_str):
     hostname = parsed.hostname
     if not hostname:
         raise ValueError("No hostname in URL")
-    port = parsed.port or (443 if parsed.scheme == 'https' else 80)
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
     addrs = socket.getaddrinfo(hostname, port)
     if not addrs:
         raise ValueError("DNS resolution returned no results")
@@ -242,7 +320,7 @@ def _resolve_and_validate_constrained(url_str):
     hostname = parsed.hostname
     if not hostname:
         raise ValueError("No hostname in URL")
-    port = parsed.port or (443 if parsed.scheme == 'https' else 80)
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
     addrs = socket.getaddrinfo(hostname, port)
     if not addrs:
         raise ValueError("DNS resolution returned no results")
@@ -276,15 +354,21 @@ def _resolve_and_validate_constrained(url_str):
 #                           public Whisper instances over HTTPS still
 #                           validate certificates.
 _TEST_SERVICES = {
-    'sonarr':    {'paths': ('/api/system/status', '/api/v3/system/status'),
-                  'apikey_required': True,
-                  'has_verify_ssl_setting': True},
-    'radarr':    {'paths': ('/api/system/status', '/api/v3/system/status'),
-                  'apikey_required': True,
-                  'has_verify_ssl_setting': True},
-    'whisperai': {'paths': ('/status',),
-                  'apikey_required': False,
-                  'has_verify_ssl_setting': False},
+    "sonarr": {
+        "paths": ("/api/system/status", "/api/v3/system/status"),
+        "apikey_required": True,
+        "has_verify_ssl_setting": True,
+    },
+    "radarr": {
+        "paths": ("/api/system/status", "/api/v3/system/status"),
+        "apikey_required": True,
+        "has_verify_ssl_setting": True,
+    },
+    "whisperai": {
+        "paths": ("/status",),
+        "apikey_required": False,
+        "has_verify_ssl_setting": False,
+    },
 }
 
 
@@ -294,14 +378,14 @@ def _validate_test_base_url(base):
     request via .., query string, or fragment.
     """
     parsed = urlparse(base)
-    if parsed.scheme not in ('http', 'https'):
-        raise ValueError('unsupported protocol')
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError("unsupported protocol")
     if not parsed.hostname:
-        raise ValueError('missing host')
+        raise ValueError("missing host")
     if parsed.query or parsed.fragment:
-        raise ValueError('query strings and fragments are not allowed in url')
-    if '..' in (parsed.path or ''):
-        raise ValueError('relative path segments are not allowed in url')
+        raise ValueError("query strings and fragments are not allowed in url")
+    if ".." in (parsed.path or ""):
+        raise ValueError("relative path segments are not allowed in url")
     return parsed
 
 
@@ -317,11 +401,11 @@ def _format_host_header(hostname, original_port, scheme):
     Port is included only when non-default for the scheme, matching the
     convention urllib3 follows when it generates Host headers itself.
     """
-    is_ipv6 = ':' in hostname
-    host = f'[{hostname}]' if is_ipv6 else hostname
-    default_port = 443 if scheme == 'https' else 80
+    is_ipv6 = ":" in hostname
+    host = f"[{hostname}]" if is_ipv6 else hostname
+    default_port = 443 if scheme == "https" else 80
     if original_port and original_port != default_port:
-        return f'{host}:{original_port}'
+        return f"{host}:{original_port}"
     return host
 
 
@@ -341,22 +425,23 @@ def _build_request_url(base_parsed, status_path, resolved_ip, hostname, pin):
     e.g. sonarr.example.com) would not match the IP, and TLS hostname
     validation would fail every legitimate test. Codex P2.
     """
-    base_path = (base_parsed.path or '').rstrip('/')
+    base_path = (base_parsed.path or "").rstrip("/")
     test_path = base_path + status_path
     test_url = base_parsed._replace(path=test_path).geturl()
     headers = dict(HEADERS)
     if not pin:
         return test_url, headers
     parsed = urlparse(test_url)
-    port = parsed.port or (443 if parsed.scheme == 'https' else 80)
-    pinned_netloc = (f'[{resolved_ip}]:{port}' if ':' in resolved_ip
-                     else f'{resolved_ip}:{port}')
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    pinned_netloc = (
+        f"[{resolved_ip}]:{port}" if ":" in resolved_ip else f"{resolved_ip}:{port}"
+    )
     pinned_url = parsed._replace(netloc=pinned_netloc).geturl()
-    headers['Host'] = _format_host_header(hostname, parsed.port, parsed.scheme)
+    headers["Host"] = _format_host_header(hostname, parsed.port, parsed.scheme)
     return pinned_url, headers
 
 
-@ui_bp.route('/test/<service>', methods=['GET'])
+@ui_bp.route("/test/<service>", methods=["GET"])
 @check_login
 def proxy_service(service):
     """Constrained connection tester for Sonarr/Radarr.
@@ -371,29 +456,28 @@ def proxy_service(service):
     See LavX/bazarr#92 for the original report and rationale.
     """
     if service not in _TEST_SERVICES:
-        return dict(status=False, error='unsupported service', code=0)
+        return dict(status=False, error="unsupported service", code=0)
     config = _TEST_SERVICES[service]
-    base = (request.args.get('url') or '').strip()
-    apikey = (request.args.get('apikey') or '').strip()
+    base = (request.args.get("url") or "").strip()
+    apikey = (request.args.get("apikey") or "").strip()
     if not base:
-        return dict(status=False, error='missing url', code=0)
-    if config['apikey_required'] and not apikey:
-        return dict(status=False, error='missing apikey', code=0)
+        return dict(status=False, error="missing url", code=0)
+    if config["apikey_required"] and not apikey:
+        return dict(status=False, error="missing apikey", code=0)
 
     try:
         base_parsed = _validate_test_base_url(base)
     except ValueError as e:
-        return dict(status=False, error=f'Request blocked: {e}', code=0)
+        return dict(status=False, error=f"Request blocked: {e}", code=0)
 
     try:
         resolved_ips, hostname, _ = _resolve_and_validate_constrained(
             base_parsed.geturl()
         )
     except (ValueError, socket.gaierror) as e:
-        return dict(status=False, error=f'Request blocked: {e}', code=0)
+        return dict(status=False, error=f"Request blocked: {e}", code=0)
 
-    verify = (get_ssl_verify(service)
-              if config['has_verify_ssl_setting'] else True)
+    verify = get_ssl_verify(service) if config["has_verify_ssl_setting"] else True
     # Pin to a resolved IP only when TLS hostname validation is NOT
     # going to do the work for us. For HTTPS + verify=True, the cert's
     # SAN/CN check provides equivalent DNS-rebinding mitigation: an
@@ -401,7 +485,7 @@ def proxy_service(service):
     # hostname. Pinning in that case would replace the hostname with
     # the IP literal in the URL, SNI would be set to the IP, and a
     # legitimate cert installation would fail TLS validation. Codex P2.
-    pin_to_ip = not (base_parsed.scheme == 'https' and verify is True)
+    pin_to_ip = not (base_parsed.scheme == "https" and verify is True)
     # When pinning is off, dual-stack fallback is unnecessary: urllib3
     # already iterates DNS-resolved addresses internally during the
     # actual GET. Iterate only the first usable IP slot in that case;
@@ -422,16 +506,20 @@ def proxy_service(service):
             # Already proven a different IP is reachable; do not
             # cross-probe additional addresses.
             break
-        for status_path in config['paths']:
+        for status_path in config["paths"]:
             request_url, request_headers = _build_request_url(
                 base_parsed, status_path, resolved_ip, hostname, pin_to_ip
             )
             if apikey:
-                request_headers['X-Api-Key'] = apikey
+                request_headers["X-Api-Key"] = apikey
             try:
-                result = requests.get(request_url, allow_redirects=False,
-                                      verify=verify,
-                                      timeout=5, headers=request_headers)
+                result = requests.get(
+                    request_url,
+                    allow_redirects=False,
+                    verify=verify,
+                    timeout=5,
+                    headers=request_headers,
+                )
             except requests.ConnectionError as e:
                 last_connection_error = repr(e)
                 # Cannot reach this IP; try the next one. Skip the
@@ -443,22 +531,24 @@ def proxy_service(service):
             last_response_code = result.status_code
             if result.status_code == 200:
                 try:
-                    version = result.json()['version']
-                    return dict(status=True, version=version,
-                                code=result.status_code)
+                    version = result.json()["version"]
+                    return dict(status=True, version=version, code=result.status_code)
                 except Exception:
-                    last_error = 'Error Occurred. Check your settings.'
+                    last_error = "Error Occurred. Check your settings."
                     continue
             elif result.status_code == 401:
-                return dict(status=False,
-                            error='Access Denied. Check API key.',
-                            code=result.status_code)
+                return dict(
+                    status=False,
+                    error="Access Denied. Check API key.",
+                    code=result.status_code,
+                )
             elif result.status_code == 404:
-                last_error = 'Cannot get version. Maybe unsupported legacy API call?'
+                last_error = "Cannot get version. Maybe unsupported legacy API call?"
                 continue
             elif 300 <= result.status_code <= 399:
-                return dict(status=False, error='Wrong URL Base.',
-                            code=result.status_code)
+                return dict(
+                    status=False, error="Wrong URL Base.", code=result.status_code
+                )
             else:
                 # Codex P2: result.raise_for_status() RAISES on 4xx/5xx
                 # rather than returning a value, so wrapping it in dict()
@@ -466,52 +556,77 @@ def proxy_service(service):
                 # surface as 500 to the frontend. Return a structured
                 # error string instead so the UI can show the upstream
                 # status code on transient failures.
-                return dict(status=False,
-                            error=f'Upstream returned status {result.status_code}',
-                            code=result.status_code)
+                return dict(
+                    status=False,
+                    error=f"Upstream returned status {result.status_code}",
+                    code=result.status_code,
+                )
     if reachable_ip is None and last_connection_error is not None:
-        return dict(status=False,
-                    error=f'Cannot connect: {last_connection_error}', code=0)
-    return dict(status=False,
-                error=last_error or 'Cannot reach Sonarr/Radarr at the configured URL.',
-                code=last_response_code)
+        return dict(
+            status=False, error=f"Cannot connect: {last_connection_error}", code=0
+        )
+    return dict(
+        status=False,
+        error=last_error or "Cannot reach Sonarr/Radarr at the configured URL.",
+        code=last_response_code,
+    )
 
 
-@ui_bp.route('/test', methods=['GET'])
-@ui_bp.route('/test/<protocol>/<path:url>', methods=['GET'])
+@ui_bp.route("/test", methods=["GET"])
+@ui_bp.route("/test/<protocol>/<path:url>", methods=["GET"])
 @check_login
 def proxy(protocol, url):
-    if protocol.lower() not in ['http', 'https']:
-        return dict(status=False, error='Unsupported protocol', code=0)
-    url = f'{protocol}://{unquote(url)}'
+    if protocol.lower() not in ["http", "https"]:
+        return dict(status=False, error="Unsupported protocol", code=0)
+    url = f"{protocol}://{unquote(url)}"
     try:
         resolved_ip, hostname, parsed = _resolve_and_validate(url)
     except (ValueError, socket.gaierror) as e:
-        return dict(status=False, error=f'Request blocked: {e}', code=0)
+        return dict(status=False, error=f"Request blocked: {e}", code=0)
     # Pin request to resolved IP to prevent DNS rebinding
-    port = parsed.port or (443 if parsed.scheme == 'https' else 80)
-    pinned_netloc = f'{resolved_ip}:{port}'
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    pinned_netloc = f"{resolved_ip}:{port}"
     pinned_url = parsed._replace(netloc=pinned_netloc).geturl()
     pinned_headers = dict(HEADERS)
-    pinned_headers['Host'] = hostname
+    pinned_headers["Host"] = hostname
     params = request.args
     try:
-        result = requests.get(pinned_url, params, allow_redirects=False, verify=False, timeout=5, headers=pinned_headers)
+        result = requests.get(
+            pinned_url,
+            params,
+            allow_redirects=False,
+            verify=False,
+            timeout=5,
+            headers=pinned_headers,
+        )
     except Exception as e:
         return dict(status=False, error=repr(e))
     else:
         if result.status_code == 200:
             try:
-                version = result.json()['version']
+                version = result.json()["version"]
                 return dict(status=True, version=version, code=result.status_code)
             except Exception:
-                return dict(status=False, error='Error Occurred. Check your settings.', code=result.status_code)
+                return dict(
+                    status=False,
+                    error="Error Occurred. Check your settings.",
+                    code=result.status_code,
+                )
         elif result.status_code == 401:
-            return dict(status=False, error='Access Denied. Check API key.', code=result.status_code)
+            return dict(
+                status=False,
+                error="Access Denied. Check API key.",
+                code=result.status_code,
+            )
         elif result.status_code == 404:
-            return dict(status=False, error='Cannot get version. Maybe unsupported legacy API call?',
-                        code=result.status_code)
+            return dict(
+                status=False,
+                error="Cannot get version. Maybe unsupported legacy API call?",
+                code=result.status_code,
+            )
         elif 300 <= result.status_code <= 399:
-            return dict(status=False, error='Wrong URL Base.', code=result.status_code)
+            return dict(status=False, error="Wrong URL Base.", code=result.status_code)
         else:
-            return dict(status=False, error=result.raise_for_status(), code=result.status_code)
+            return dict(
+                status=False, error=result.raise_for_status(), code=result.status_code
+            )

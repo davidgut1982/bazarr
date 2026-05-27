@@ -9,8 +9,12 @@ from compat import service as compat_service
 api_ns_compat_admin = Namespace("compat_admin", description="Compat endpoint admin")
 
 _stats = {
-    "requests_total": 0, "cache_hits": 0, "cache_misses": 0,
-    "inflight_depth": 0, "auth_failures": 0, "upstream_failures": 0,
+    "requests_total": 0,
+    "cache_hits": 0,
+    "cache_misses": 0,
+    "inflight_depth": 0,
+    "auth_failures": 0,
+    "upstream_failures": 0,
 }
 
 
@@ -43,6 +47,7 @@ def regenerate_all_secrets(write_fn=None) -> str:
     compat_region.invalidate(hard=True)
     compat_service.reset_compat_pool()
     from compat.file_id_store import reset_store
+
     reset_store()
     return new_token
 

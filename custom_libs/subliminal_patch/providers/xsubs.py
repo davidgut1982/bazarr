@@ -190,7 +190,7 @@ class XSubsProvider(Provider):
                 break
 
         return int(show_id) if show_id else None
-    
+
     @reinitialize_on_error((RequestException,), attempts=1)
     def query(self, show_id, series, season, year=None, country=None):
         # get the season list of the show

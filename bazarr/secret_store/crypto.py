@@ -160,7 +160,7 @@ def decrypt_secret(value, master_key: str = None) -> str:
     if master_key is None:
         master_key = get_master_key()
 
-    payload_text = value[len(SECRET_MARKER_PREFIX):]
+    payload_text = value[len(SECRET_MARKER_PREFIX) :]
 
     # Current format: Fernet (AES-128-CBC + HMAC-SHA256, authenticated).
     try:

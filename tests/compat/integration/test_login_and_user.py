@@ -5,11 +5,17 @@ from flask import Flask
 @pytest.fixture(autouse=True)
 def _reset_compat_secrets():
     from app.config import settings
+
     original = {
         name: getattr(settings.compat_endpoint, name, "")
-        for name in ("token", "jwt_secret", "file_id_secret",
-                     "jwt_ttl_seconds", "file_id_ttl_seconds",
-                     "stream_token_ttl_seconds")
+        for name in (
+            "token",
+            "jwt_secret",
+            "file_id_secret",
+            "jwt_ttl_seconds",
+            "file_id_ttl_seconds",
+            "stream_token_ttl_seconds",
+        )
     }
     settings.compat_endpoint.token = "t" * 32
     settings.compat_endpoint.jwt_secret = "j" * 32
@@ -24,6 +30,7 @@ def _reset_compat_secrets():
 
 def _make_app():
     from compat.routes import compat_bp
+
     app = Flask(__name__)
     app.register_blueprint(compat_bp, url_prefix="/api/v1")
     return app
@@ -51,8 +58,7 @@ def test_login_base_url_honors_x_forwarded_host():
     app = _make_app()
     r = app.test_client().post(
         "/api/v1/login",
-        headers={"Api-Key": "t" * 32,
-                 "X-Forwarded-Host": "bazarr.example.com:6767"},
+        headers={"Api-Key": "t" * 32, "X-Forwarded-Host": "bazarr.example.com:6767"},
         json={},
     )
     assert r.status_code == 200
@@ -65,9 +71,15 @@ def test_download_link_uses_forwarded_host_for_fqdn():
     from compat import auth
     from compat.file_id_store import reset_store
     from unittest.mock import MagicMock
+
     reset_store()
-    fake_sub = MagicMock(provider_name="os", id="1", language=MagicMock(),
-                          release_info="r", download_count=0)
+    fake_sub = MagicMock(
+        provider_name="os",
+        id="1",
+        language=MagicMock(),
+        release_info="r",
+        download_count=0,
+    )
     fid = auth.mint_file_id("os", "1", "eng", "", subtitle=fake_sub)
 
     # Mint a JWT the route can accept
@@ -75,10 +87,12 @@ def test_download_link_uses_forwarded_host_for_fqdn():
     jwt_tok = auth.mint_jwt()
     r = app.test_client().post(
         "/api/v1/download",
-        headers={"Api-Key": "t" * 32,
-                 "Authorization": f"Bearer {jwt_tok}",
-                 "X-Forwarded-Host": "bazarr.example.com",
-                 "X-Forwarded-Proto": "https"},
+        headers={
+            "Api-Key": "t" * 32,
+            "Authorization": f"Bearer {jwt_tok}",
+            "X-Forwarded-Host": "bazarr.example.com",
+            "X-Forwarded-Proto": "https",
+        },
         json={"file_id": fid},
     )
     assert r.status_code == 200
@@ -94,6 +108,7 @@ def test_download_link_is_always_absolute():
     from compat import auth
     from compat.file_id_store import reset_store
     from unittest.mock import MagicMock
+
     reset_store()
     fake_sub = MagicMock(provider_name="os", id="1")
     fid = auth.mint_file_id("os", "1", "eng", "", subtitle=fake_sub)
@@ -101,8 +116,7 @@ def test_download_link_is_always_absolute():
     jwt_tok = auth.mint_jwt()
     r = app.test_client().post(
         "/api/v1/download",
-        headers={"Api-Key": "t" * 32,
-                 "Authorization": f"Bearer {jwt_tok}"},
+        headers={"Api-Key": "t" * 32, "Authorization": f"Bearer {jwt_tok}"},
         json={"file_id": fid},
     )
     assert r.status_code == 200

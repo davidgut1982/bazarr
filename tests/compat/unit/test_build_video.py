@@ -5,6 +5,7 @@ whatever the client and local library can provide. Providers score heavily on
 fields like source, release_group, resolution, so enriching the Video makes
 the difference between 0 and dozens of useful results.
 """
+
 from unittest.mock import patch
 import pytest
 
@@ -14,13 +15,18 @@ def _no_library(monkeypatch):
     """Force the library metadata lookup to return empty by default; tests
     that care about it patch the function explicitly."""
     from compat import service
-    monkeypatch.setattr(service, "_lookup_library_metadata",
-                        lambda imdb_id, media_type, season=None, episode=None: {})
+
+    monkeypatch.setattr(
+        service,
+        "_lookup_library_metadata",
+        lambda imdb_id, media_type, season=None, episode=None: {},
+    )
 
 
 def test_movie_without_query_is_bare_but_has_imdb_id():
     from compat.service import _build_video
     from subliminal.video import Movie
+
     v = _build_video("tt0111161", None, None, "movie")
     assert isinstance(v, Movie)
     assert v.imdb_id == "tt0111161"
@@ -31,8 +37,12 @@ def test_movie_without_query_is_bare_but_has_imdb_id():
 def test_movie_with_filename_extracts_release_metadata():
     """guessit should populate source/release_group/resolution/codec."""
     from compat.service import _build_video
+
     v = _build_video(
-        "tt0111161", None, None, "movie",
+        "tt0111161",
+        None,
+        None,
+        "movie",
         query="The.Shawshank.Redemption.1994.1080p.BluRay.x264-RARBG.mkv",
     )
     assert v.resolution == "1080p"
@@ -46,8 +56,12 @@ def test_movie_with_filename_extracts_release_metadata():
 def test_movie_uses_library_title_when_available():
     from compat import service
     from compat.service import _build_video
-    with patch.object(service, "_lookup_library_metadata",
-                       return_value={"title": "The Shawshank Redemption", "year": "1994"}):
+
+    with patch.object(
+        service,
+        "_lookup_library_metadata",
+        return_value={"title": "The Shawshank Redemption", "year": "1994"},
+    ):
         v = _build_video("tt0111161", None, None, "movie")
     assert v.title == "The Shawshank Redemption"
     assert v.year == 1994
@@ -56,8 +70,14 @@ def test_movie_uses_library_title_when_available():
 def test_episode_sets_series_imdb_and_season_episode():
     from compat.service import _build_video
     from subliminal.video import Episode
-    v = _build_video("tt0903747", 1, 2, "episode",
-                     query="Breaking.Bad.S01E02.720p.HDTV.x264-GROUP.mkv")
+
+    v = _build_video(
+        "tt0903747",
+        1,
+        2,
+        "episode",
+        query="Breaking.Bad.S01E02.720p.HDTV.x264-GROUP.mkv",
+    )
     assert isinstance(v, Episode)
     assert v.series_imdb_id == "tt0903747"
     assert v.season == 1 and v.episode == 2
@@ -68,8 +88,8 @@ def test_episode_sets_series_imdb_and_season_episode():
 def test_moviehash_is_wired_for_opensubtitles_providers():
     """OS-style moviehash enables exact-hash matching on the OS providers."""
     from compat.service import _build_video
-    v = _build_video("tt0111161", None, None, "movie",
-                     moviehash="8e245d9679d31e12")
+
+    v = _build_video("tt0111161", None, None, "movie", moviehash="8e245d9679d31e12")
     assert v.hashes.get("opensubtitles") == "8e245d9679d31e12"
     assert v.hashes.get("opensubtitlescom") == "8e245d9679d31e12"
 
@@ -79,6 +99,7 @@ def test_imdb_id_normalized_to_tt_prefix():
     OMDB / TVDB v1 / v4 all reject the bare numeric form, so we normalize
     at Video construction and carry the tt-prefixed value downstream."""
     from compat.service import _tt, _build_video
+
     assert _tt("9198004") == "tt9198004"
     assert _tt("tt9198004") == "tt9198004"
     assert _tt("TT9198004") == "tt9198004"
@@ -87,8 +108,7 @@ def test_imdb_id_normalized_to_tt_prefix():
     assert _tt("") == ""
     assert _tt("notanid") == ""
     # Video inherits the normalized form
-    v = _build_video("9198004", 1, 1, "episode",
-                     query="For.All.Mankind.S01E01.mkv")
+    v = _build_video("9198004", 1, 1, "episode", query="For.All.Mankind.S01E01.mkv")
     assert v.series_imdb_id == "tt9198004"
 
 
@@ -97,10 +117,17 @@ def test_library_title_wins_over_guessit_title_but_guessit_fills_gaps():
     provides the release-quality fields library lookup can't supply."""
     from compat import service
     from compat.service import _build_video
-    with patch.object(service, "_lookup_library_metadata",
-                       return_value={"title": "The Shawshank Redemption", "year": "1994"}):
+
+    with patch.object(
+        service,
+        "_lookup_library_metadata",
+        return_value={"title": "The Shawshank Redemption", "year": "1994"},
+    ):
         v = _build_video(
-            "tt0111161", None, None, "movie",
+            "tt0111161",
+            None,
+            None,
+            "movie",
             query="shawshank.1994.2160p.UHD.BluRay.x265-TERMiNAL.mkv",
         )
     assert v.title == "The Shawshank Redemption"  # library beats guessit
@@ -118,21 +145,28 @@ def test_library_path_delegates_to_parse_video():
     from compat.service import _build_video
     from subliminal.video import Movie
 
-    fake_video = Movie(name="Shawshank.2160p.BluRay.mkv",
-                       title="The Shawshank Redemption", year=1994)
+    fake_video = Movie(
+        name="Shawshank.2160p.BluRay.mkv", title="The Shawshank Redemption", year=1994
+    )
     fake_video.resolution = "2160p"
     fake_video.release_group = "REAL-GROUP"
     fake_video.source = "Blu-ray"
     fake_video.hashes = {"opensubtitles": "deadbeef"}
 
-    with patch.object(service, "_lookup_library_metadata",
-                       return_value={"title": "The Shawshank Redemption",
-                                     "year": "1994",
-                                     "path": "/storage/shawshank.mkv",
-                                     "sceneName": "shawshank.2160p.bluray"}), \
-         patch("os.path.exists", return_value=True), \
-         patch("subtitles.utils.get_video",
-                return_value=fake_video) as gv:
+    with (
+        patch.object(
+            service,
+            "_lookup_library_metadata",
+            return_value={
+                "title": "The Shawshank Redemption",
+                "year": "1994",
+                "path": "/storage/shawshank.mkv",
+                "sceneName": "shawshank.2160p.bluray",
+            },
+        ),
+        patch("os.path.exists", return_value=True),
+        patch("subtitles.utils.get_video", return_value=fake_video) as gv,
+    ):
         v = _build_video("tt0111161", None, None, "movie")
 
     gv.assert_called_once()
@@ -146,10 +180,19 @@ def test_library_path_missing_file_falls_back_to_virtual():
     virtual Video rather than erroring."""
     from compat import service
     from compat.service import _build_video
-    with patch.object(service, "_lookup_library_metadata",
-                       return_value={"title": "Shawshank", "year": "1994",
-                                     "path": "/nonexistent/file.mkv"}), \
-         patch("os.path.exists", return_value=False):
+
+    with (
+        patch.object(
+            service,
+            "_lookup_library_metadata",
+            return_value={
+                "title": "Shawshank",
+                "year": "1994",
+                "path": "/nonexistent/file.mkv",
+            },
+        ),
+        patch("os.path.exists", return_value=False),
+    ):
         v = _build_video("tt0111161", None, None, "movie")
     # Virtual Movie built from library title + imdb
     assert v.title == "Shawshank"

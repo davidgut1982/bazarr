@@ -38,23 +38,23 @@ api_ns_list = [
     api_ns_list_provider_hub,
 ]
 
-authorizations = {
-    'apikey': {
-        'type': 'apiKey',
-        'in': 'header',
-        'name': 'X-API-KEY'
-    }
-}
+authorizations = {"apikey": {"type": "apiKey", "in": "header", "name": "X-API-KEY"}}
 
-api_bp = Blueprint('api', __name__, url_prefix='/api')
+api_bp = Blueprint("api", __name__, url_prefix="/api")
 
 
 @apidoc.apidoc.add_app_template_global
 def swagger_static(filename):
-    return url_for('ui.swaggerui_static', filename=filename)
+    return url_for("ui.swaggerui_static", filename=filename)
 
 
-api = Api(api_bp, authorizations=authorizations, security='apikey', validate=True, **swaggerui_api_params)
+api = Api(
+    api_bp,
+    authorizations=authorizations,
+    security="apikey",
+    validate=True,
+    **swaggerui_api_params,
+)
 
 for api_ns in api_ns_list:
     for item in api_ns:

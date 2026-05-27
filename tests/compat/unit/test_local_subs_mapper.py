@@ -1,10 +1,18 @@
 def test_local_to_os_entry_basic():
     from compat.response_mapper import local_to_os_entry
+
     e = local_to_os_entry(
-        file_id=42, lang="en", modifier=None, filename="movie.en.srt",
-        upload_mtime=1700000000.0, media_type="movie", media_id=99,
+        file_id=42,
+        lang="en",
+        modifier=None,
+        filename="movie.en.srt",
+        upload_mtime=1700000000.0,
+        media_type="movie",
+        media_id=99,
         requested_language="en",
-        imdb_id="tt1375666", title="Inception", year=2010,
+        imdb_id="tt1375666",
+        title="Inception",
+        year=2010,
     )
     assert e["id"] == "subtitle-42"
     assert e["type"] == "subtitle"
@@ -43,9 +51,15 @@ def test_local_to_os_entry_basic():
 
 def test_local_to_os_entry_hi_flag():
     from compat.response_mapper import local_to_os_entry
+
     e = local_to_os_entry(
-        file_id=43, lang="en", modifier="hi", filename="movie.en.hi.srt",
-        upload_mtime=0, media_type="movie", media_id=99,
+        file_id=43,
+        lang="en",
+        modifier="hi",
+        filename="movie.en.hi.srt",
+        upload_mtime=0,
+        media_type="movie",
+        media_id=99,
         requested_language="en",
     )
     assert e["attributes"]["hearing_impaired"] is True
@@ -54,10 +68,16 @@ def test_local_to_os_entry_hi_flag():
 
 def test_local_to_os_entry_forced_flag():
     from compat.response_mapper import local_to_os_entry
+
     e = local_to_os_entry(
-        file_id=44, lang="en", modifier="forced",
-        filename="movie.en.forced.srt", upload_mtime=0,
-        media_type="movie", media_id=99, requested_language="en",
+        file_id=44,
+        lang="en",
+        modifier="forced",
+        filename="movie.en.forced.srt",
+        upload_mtime=0,
+        media_type="movie",
+        media_id=99,
+        requested_language="en",
     )
     assert e["attributes"]["foreign_parts_only"] is True
 
@@ -67,14 +87,25 @@ def test_local_to_os_entry_subtitle_id_unique_per_file():
     + media must produce different subtitle_id values, otherwise clients
     that de-dupe on subtitle_id collapse them. Codex P2."""
     from compat.response_mapper import local_to_os_entry
+
     e1 = local_to_os_entry(
-        file_id=42, lang="en", modifier=None, filename="alt1.srt",
-        upload_mtime=0, media_type="movie", media_id=99,
+        file_id=42,
+        lang="en",
+        modifier=None,
+        filename="alt1.srt",
+        upload_mtime=0,
+        media_type="movie",
+        media_id=99,
         requested_language="en",
     )
     e2 = local_to_os_entry(
-        file_id=43, lang="en", modifier=None, filename="alt2.srt",
-        upload_mtime=0, media_type="movie", media_id=99,
+        file_id=43,
+        lang="en",
+        modifier=None,
+        filename="alt2.srt",
+        upload_mtime=0,
+        media_type="movie",
+        media_id=99,
         requested_language="en",
     )
     sid1 = e1["attributes"]["subtitle_id"]
@@ -86,9 +117,15 @@ def test_local_to_os_entry_subtitle_id_unique_per_file():
 
 def test_local_to_os_entry_preserves_request_region():
     from compat.response_mapper import local_to_os_entry
+
     e = local_to_os_entry(
-        file_id=45, lang="pt-BR", modifier=None, filename="m.pt-BR.srt",
-        upload_mtime=0, media_type="movie", media_id=99,
+        file_id=45,
+        lang="pt-BR",
+        modifier=None,
+        filename="m.pt-BR.srt",
+        upload_mtime=0,
+        media_type="movie",
+        media_id=99,
         requested_language="pt-BR",
     )
     assert e["attributes"]["language"] == "pt-BR"

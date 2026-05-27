@@ -3,6 +3,7 @@ already-mounted compat blueprint must refuse traffic. The blueprint is
 registered at boot based on the startup value, so without the
 before_request guard the endpoint keeps serving with the old token until
 restart."""
+
 from flask import Flask
 
 
@@ -17,9 +18,7 @@ def test_runtime_disable_returns_503(monkeypatch):
     app = Flask(__name__)
     app.register_blueprint(compat_bp, url_prefix="/api/v1")
 
-    response = app.test_client().get(
-        "/api/v1/subtitles", headers={"Api-Key": "a" * 32}
-    )
+    response = app.test_client().get("/api/v1/subtitles", headers={"Api-Key": "a" * 32})
     assert response.status_code == 503
     assert response.json == {"error": "compat endpoint disabled"}
 
@@ -53,9 +52,7 @@ def test_runtime_enable_lets_traffic_through(monkeypatch):
     app = Flask(__name__)
     app.register_blueprint(compat_bp, url_prefix="/api/v1")
 
-    response = app.test_client().get(
-        "/api/v1/subtitles", headers={"Api-Key": "a" * 32}
-    )
+    response = app.test_client().get("/api/v1/subtitles", headers={"Api-Key": "a" * 32})
     # Whatever the endpoint returns, it MUST NOT be the runtime-disable
     # 503 from this guard. (400 missing-languages, 200 with results, etc.
     # are all fine outcomes for "guard did not block".)

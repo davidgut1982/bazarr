@@ -182,7 +182,7 @@ class SubsourceProvider(ProviderRetryMixin, Provider, ProviderSubtitleArchiveMix
 
         if imdb_id and not results_dict:
             logger.debug(f'No results for IMDb ID {imdb_id}. Falling back to text search for: {title}')
-            
+
             parameters = {
                 'api_key': self.api_key,
                 'searchType': 'text',
@@ -196,7 +196,7 @@ class SubsourceProvider(ProviderRetryMixin, Provider, ProviderSubtitleArchiveMix
                 amount=retry_amount,
                 retry_timeout=retry_timeout
             )
-            
+
             self._status_raiser(results)
             results_dict = results.json()['data']
 
@@ -215,12 +215,12 @@ class SubsourceProvider(ProviderRetryMixin, Provider, ProviderSubtitleArchiveMix
 
         alternative_titles = get_alternative_titles(self.video)
         logger.debug(f"alternative titles: {alternative_titles}")
-        
+
         # loop over results
         for result in results_dict:
             if 'title' not in result or 'releaseYear' not in result:
                 continue
-            
+
             sub_titles = {result['title'].lower()}
             logger.debug(f"Subsource titles: {sub_titles}")
 

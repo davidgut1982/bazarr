@@ -26,9 +26,13 @@ _RELEASE_QUALITY_RE = re.compile(
 # Providers whose subtitles are considered trusted when the provider
 # object doesn't set sub.from_trusted itself. Curated: these providers
 # are the historical OS.com-tier uploaders.
-_TRUSTED_PROVIDERS = frozenset({
-    "opensubtitlescom", "opensubtitles", "addic7ed",
-})
+_TRUSTED_PROVIDERS = frozenset(
+    {
+        "opensubtitlescom",
+        "opensubtitles",
+        "addic7ed",
+    }
+)
 
 # Release-string markers that mean "HD". Narrower than _RELEASE_QUALITY_RE:
 # only resolution and source markers count, not codec or audio.
@@ -65,9 +69,11 @@ def _normalize_release(raw) -> str:
         return s  # whatever it was, return the stripped original
     if len(parts) == 1:
         return parts[0]
+
     # Score: (count of quality markers, length). Prefer specific over long.
     def _score(p: str):
         return (len(_RELEASE_QUALITY_RE.findall(p)), len(p))
+
     parts.sort(key=_score, reverse=True)
     return parts[0]
 
@@ -162,11 +168,18 @@ def _derive_ratings(score_tuple) -> float:
         return 0.0
 
 
-def subtitle_to_os_entry(sub, file_id: int, media_type: str, imdb_id: str,
-                         season=None, episode=None, video=None,
-                         hash_matched: bool | None = None,
-                         score: tuple[int, int] | None = None,
-                         requested_language: str | None = None) -> dict:
+def subtitle_to_os_entry(
+    sub,
+    file_id: int,
+    media_type: str,
+    imdb_id: str,
+    season=None,
+    episode=None,
+    video=None,
+    hash_matched: bool | None = None,
+    score: tuple[int, int] | None = None,
+    requested_language: str | None = None,
+) -> dict:
     """Map a Subtitle to an OS.com `data[].attributes` shape.
 
     Optional kwargs:
@@ -237,9 +250,11 @@ def subtitle_to_os_entry(sub, file_id: int, media_type: str, imdb_id: str,
         # Ratings precedence: provider's own ratings (OSCom, YIFY) if > 0,
         # else project ComputeScore into 0-10 so the field is meaningful
         # for providers that don't expose a community rating.
-        "ratings": (float(getattr(sub, "ratings", 0) or 0)
-                    if float(getattr(sub, "ratings", 0) or 0) > 0
-                    else (_derive_ratings(score) if score is not None else 0.0)),
+        "ratings": (
+            float(getattr(sub, "ratings", 0) or 0)
+            if float(getattr(sub, "ratings", 0) or 0) > 0
+            else (_derive_ratings(score) if score is not None else 0.0)
+        ),
         "votes": 0,
         "from_trusted": _derive_from_trusted(sub),
         "hd": _derive_hd(raw_release),
@@ -248,9 +263,15 @@ def subtitle_to_os_entry(sub, file_id: int, media_type: str, imdb_id: str,
         "ai_translated": bool(getattr(sub, "ai_translated", False)),
         "machine_translated": bool(getattr(sub, "machine_translated", False)),
         "foreign_parts_only": bool(getattr(sub, "foreign_parts_only", False)),
-        "fps": float(getattr(sub, "fps", 0.0) or getattr(sub, "frame_rate", 0.0) or 0.0),
+        "fps": float(
+            getattr(sub, "fps", 0.0) or getattr(sub, "frame_rate", 0.0) or 0.0
+        ),
         "upload_date": _format_upload_date(getattr(sub, "upload_date", None)),
-        "uploader": {"name": f"{provider_name}:{uploader_name}" if provider_name else str(uploader_name)},
+        "uploader": {
+            "name": f"{provider_name}:{uploader_name}"
+            if provider_name
+            else str(uploader_name)
+        },
         "feature_details": {
             "feature_type": feat_type,
             "imdb_id": imdb_id_int,
@@ -261,10 +282,12 @@ def subtitle_to_os_entry(sub, file_id: int, media_type: str, imdb_id: str,
             "year": v_year,
         },
         "url": getattr(sub, "page_link", None) or "",
-        "files": [{
-            "file_id": int(file_id),
-            "file_name": _emit_file_name(sub, file_id, lang_alpha2 or "und"),
-        }],
+        "files": [
+            {
+                "file_id": int(file_id),
+                "file_name": _emit_file_name(sub, file_id, lang_alpha2 or "und"),
+            }
+        ],
     }
     return {"id": str(file_id), "type": "subtitle", "attributes": attributes}
 
@@ -327,25 +350,61 @@ def languages_response() -> dict:
     response readable.
     """
     codes = [
-        "en", "es", "fr", "de", "it", "pt-BR", "pt-PT", "nl", "pl",
-        "ru", "zh-CN", "zh-TW", "ja", "ko", "ar", "hu", "tr", "cs",
-        "da", "no", "sv", "fi", "el", "he", "th", "vi", "ro", "sk",
-        "bg", "uk", "hr", "sr", "id",
+        "en",
+        "es",
+        "fr",
+        "de",
+        "it",
+        "pt-BR",
+        "pt-PT",
+        "nl",
+        "pl",
+        "ru",
+        "zh-CN",
+        "zh-TW",
+        "ja",
+        "ko",
+        "ar",
+        "hu",
+        "tr",
+        "cs",
+        "da",
+        "no",
+        "sv",
+        "fi",
+        "el",
+        "he",
+        "th",
+        "vi",
+        "ro",
+        "sk",
+        "bg",
+        "uk",
+        "hr",
+        "sr",
+        "id",
     ]
-    return {"data": [{"language_code": c, "language_name": c.upper()}
-                     for c in codes]}
+    return {"data": [{"language_code": c, "language_name": c.upper()} for c in codes]}
 
 
-def local_to_os_entry(*, file_id: int, lang: str, modifier: str | None,
-                      filename: str, upload_mtime: float,
-                      media_type: str, media_id: int,
-                      requested_language: str | None,
-                      imdb_id: str = "", title: str = "",
-                      year: int = 0,
-                      season: int | None = None,
-                      episode: int | None = None,
-                      episode_title: str = "",
-                      hash_matched: bool = False) -> dict:
+def local_to_os_entry(
+    *,
+    file_id: int,
+    lang: str,
+    modifier: str | None,
+    filename: str,
+    upload_mtime: float,
+    media_type: str,
+    media_id: int,
+    requested_language: str | None,
+    imdb_id: str = "",
+    title: str = "",
+    year: int = 0,
+    season: int | None = None,
+    episode: int | None = None,
+    episode_title: str = "",
+    hash_matched: bool = False,
+) -> dict:
     """OS.com-shaped entry for a locally-stored subtitle.
 
     Schema parity with `subtitle_to_os_entry` is required: the Jellyfin
@@ -353,9 +412,11 @@ def local_to_os_entry(*, file_id: int, lang: str, modifier: str | None,
     expected fields like `feature_details`, `uploader`, `fps`, etc.
     """
     upload_iso = (
-        dt.datetime.fromtimestamp(int(upload_mtime), dt.timezone.utc)
-          .strftime("%Y-%m-%dT%H:%M:%SZ")
-        if upload_mtime else _EPOCH_ISO
+        dt.datetime.fromtimestamp(int(upload_mtime), dt.timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+        if upload_mtime
+        else _EPOCH_ISO
     )
     language_out = requested_language or lang
     subtitle_id = f"local-{media_type}-{int(media_id)}-{lang}"

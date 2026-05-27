@@ -5,7 +5,16 @@ import logging
 import re
 from urllib.parse import quote
 
-from .database import TableSettingsNotifier, TableEpisodes, TableShows, TableMovies, database, insert, delete, select
+from .database import (
+    TableSettingsNotifier,
+    TableEpisodes,
+    TableShows,
+    TableMovies,
+    database,
+    insert,
+    delete,
+    select,
+)
 
 
 # Notifier providers that accept `{bazarr_*}` placeholders in the URL and
@@ -27,9 +36,9 @@ def _format_year_suffix(year):
     """Render a `(year)` suffix only when the year is actually populated.
     Tracks the existing notification body shape so behaviour stays
     identical to the pre-refactor code."""
-    if year in (None, '', '0'):
-        return ''
-    return f' ({year})'
+    if year in (None, "", "0"):
+        return ""
+    return f" ({year})"
 
 
 def update_notifier():
@@ -42,39 +51,38 @@ def update_notifier():
     notifiers_added = []
     notifiers_kept = []
 
-    notifiers_in_db = [row.name for row in
-                       database.execute(
-                           select(TableSettingsNotifier.name))
-                       .all()]
+    notifiers_in_db = [
+        row.name for row in database.execute(select(TableSettingsNotifier.name)).all()
+    ]
 
-    for x in results['schemas']:
-        if x['service_name'] not in notifiers_in_db:
-            notifiers_added.append({'name': str(x['service_name']), 'enabled': 0})
-            logging.debug(f'Adding new notifier agent: {x["service_name"]}')  # noqa: G004
+    for x in results["schemas"]:
+        if x["service_name"] not in notifiers_in_db:
+            notifiers_added.append({"name": str(x["service_name"]), "enabled": 0})
+            logging.debug(f"Adding new notifier agent: {x['service_name']}")  # noqa: G004
         else:
-            notifiers_kept.append(x['service_name'])
+            notifiers_kept.append(x["service_name"])
 
-    notifiers_to_delete = [item for item in notifiers_in_db if item not in notifiers_kept]
+    notifiers_to_delete = [
+        item for item in notifiers_in_db if item not in notifiers_kept
+    ]
 
     for item in notifiers_to_delete:
         database.execute(
-            delete(TableSettingsNotifier)
-            .where(TableSettingsNotifier.name == item))
+            delete(TableSettingsNotifier).where(TableSettingsNotifier.name == item)
+        )
 
     database.execute(
-        insert(TableSettingsNotifier)
-        .values(notifiers_added)
-        .on_conflict_do_nothing())
+        insert(TableSettingsNotifier).values(notifiers_added).on_conflict_do_nothing()
+    )
 
 
 def get_notifier_providers():
     return database.execute(
-        select(TableSettingsNotifier.name, TableSettingsNotifier.url)
-        .where(
+        select(TableSettingsNotifier.name, TableSettingsNotifier.url).where(
             TableSettingsNotifier.enabled == 1,
             TableSettingsNotifier.url.is_not(None),
-        ))\
-        .all()
+        )
+    ).all()
 
 
 def send_notifications(sonarr_series_id, sonarr_episode_id, message):
@@ -90,40 +98,48 @@ def send_notifications(sonarr_series_id, sonarr_episode_id, message):
     custom_notifier_used = _has_custom_notifier(providers)
 
     if custom_notifier_used:
-        series = database.execute(
-            select(TableShows)
-            .where(TableShows.sonarrSeriesId == sonarr_series_id))\
-            .scalars()\
+        series = (
+            database.execute(
+                select(TableShows).where(TableShows.sonarrSeriesId == sonarr_series_id)
+            )
+            .scalars()
             .first()
+        )
         if not series:
             return
         series_title = series.title
         series_year = series.year
-        episode = database.execute(
-            select(TableEpisodes)
-            .where(TableEpisodes.sonarrEpisodeId == sonarr_episode_id))\
-            .scalars()\
+        episode = (
+            database.execute(
+                select(TableEpisodes).where(
+                    TableEpisodes.sonarrEpisodeId == sonarr_episode_id
+                )
+            )
+            .scalars()
             .first()
+        )
         if not episode:
             return
         episode_season = episode.season
         episode_number = episode.episode
         episode_title = episode.title
         media_variables = {}
-        media_variables.update(_build_media_variables(series, 'series'))
-        media_variables.update(_build_media_variables(episode, 'episode'))
+        media_variables.update(_build_media_variables(series, "series"))
+        media_variables.update(_build_media_variables(episode, "episode"))
     else:
         series_row = database.execute(
-            select(TableShows.title, TableShows.year)
-            .where(TableShows.sonarrSeriesId == sonarr_series_id))\
-            .first()
+            select(TableShows.title, TableShows.year).where(
+                TableShows.sonarrSeriesId == sonarr_series_id
+            )
+        ).first()
         if not series_row:
             return
         series_title, series_year = series_row
         episode_row = database.execute(
-            select(TableEpisodes.season, TableEpisodes.episode, TableEpisodes.title)
-            .where(TableEpisodes.sonarrEpisodeId == sonarr_episode_id))\
-            .first()
+            select(
+                TableEpisodes.season, TableEpisodes.episode, TableEpisodes.title
+            ).where(TableEpisodes.sonarrEpisodeId == sonarr_episode_id)
+        ).first()
         if not episode_row:
             return
         episode_season, episode_number, episode_title = episode_row
@@ -142,7 +158,7 @@ def send_notifications(sonarr_series_id, sonarr_episode_id, message):
             apobj.add(provider.url)
 
     apobj.notify(
-        title='Bazarr notification',
+        title="Bazarr notification",
         body=f"{series_title}{series_year_suffix} - S{episode_season:02d}E{episode_number:02d} - {episode_title} : {message}",
     )
 
@@ -155,21 +171,24 @@ def send_notifications_movie(radarr_id, message):
     custom_notifier_used = _has_custom_notifier(providers)
 
     if custom_notifier_used:
-        movie = database.execute(
-            select(TableMovies)
-            .where(TableMovies.radarrId == radarr_id))\
-            .scalars()\
+        movie = (
+            database.execute(
+                select(TableMovies).where(TableMovies.radarrId == radarr_id)
+            )
+            .scalars()
             .first()
+        )
         if not movie:
             return
         movie_title = movie.title
         movie_year = movie.year
-        media_variables = _build_media_variables(movie, 'movie')
+        media_variables = _build_media_variables(movie, "movie")
     else:
         movie_row = database.execute(
-            select(TableMovies.title, TableMovies.year)
-            .where(TableMovies.radarrId == radarr_id))\
-            .first()
+            select(TableMovies.title, TableMovies.year).where(
+                TableMovies.radarrId == radarr_id
+            )
+        ).first()
         if not movie_row:
             return
         movie_title, movie_year = movie_row
@@ -188,7 +207,7 @@ def send_notifications_movie(radarr_id, message):
             apobj.add(provider.url)
 
     apobj.notify(
-        title='Bazarr notification',
+        title="Bazarr notification",
         body=f"{movie_title}{movie_year_suffix} : {message}",
     )
 
@@ -197,7 +216,7 @@ def _build_media_variables(record, prefix):
     if record is None or not prefix:
         return {}
 
-    return {f'bazarr_{prefix}_{key}': value for key, value in record.to_dict().items()}
+    return {f"bazarr_{prefix}_{key}": value for key, value in record.to_dict().items()}
 
 
 def _expand_notifier_url(url, media_variables):
@@ -205,17 +224,17 @@ def _expand_notifier_url(url, media_variables):
         return url
 
     # Looks for {bazarr_*} placeholders in the URL string
-    placeholder_pattern = re.compile(r'\{(bazarr_[A-Za-z0-9_]+)\}')
+    placeholder_pattern = re.compile(r"\{(bazarr_[A-Za-z0-9_]+)\}")
 
     def replace(match):
         key = match.group(1)
         if key not in media_variables:
-            return ''
+            return ""
 
         value = media_variables[key]
         if value is None:
-            return ''
+            return ""
 
-        return quote(str(value), safe='')
+        return quote(str(value), safe="")
 
     return placeholder_pattern.sub(replace, url)

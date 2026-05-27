@@ -19,6 +19,7 @@ These are higher-cost tests that exercise crypto + registry + migration
 together; the simpler unit suites already prove each piece in
 isolation.
 """
+
 from unittest.mock import MagicMock, patch  # noqa: F401
 
 import pytest
@@ -63,12 +64,35 @@ class _FakeSettings:
     on each section, with a `get` that returns the section if present."""
 
     _sections = (
-        "general", "auth", "compat_endpoint", "sonarr", "radarr", "plex",
-        "jellyfin", "translator", "proxy", "postgresql", "opensubtitles",
-        "opensubtitlescom", "addic7ed", "legendasdivx", "legendasnet",
-        "xsubs", "deathbycaptcha", "napisy24", "titlovi", "titulky",
-        "karagarga", "assrt", "betaseries", "jimaku", "subdl", "subsource",
-        "subx", "subsro", "omdb",
+        "general",
+        "auth",
+        "compat_endpoint",
+        "sonarr",
+        "radarr",
+        "plex",
+        "jellyfin",
+        "translator",
+        "proxy",
+        "postgresql",
+        "opensubtitles",
+        "opensubtitlescom",
+        "addic7ed",
+        "legendasdivx",
+        "legendasnet",
+        "xsubs",
+        "deathbycaptcha",
+        "napisy24",
+        "titlovi",
+        "titulky",
+        "karagarga",
+        "assrt",
+        "betaseries",
+        "jimaku",
+        "subdl",
+        "subsource",
+        "subx",
+        "subsro",
+        "omdb",
     )
 
     def __init__(self, data):
@@ -150,6 +174,7 @@ def test_e2e_first_save_persists_master_key_alongside_ciphertext():
     # That same master must successfully decrypt the ciphertext we
     # produced (otherwise the disk file is unrecoverable).
     from secret_store.crypto import decrypt_secret
+
     decrypted = decrypt_secret(
         encrypted["sonarr"]["apikey"],
         master_key=persisted_master,
@@ -166,17 +191,21 @@ def test_has_plaintext_secrets_on_disk_detects_clear_text_credential():
     from secret_store.migration import has_plaintext_secrets_on_disk
 
     # Mixed shape: one clear-text password, one already-encrypted token.
-    settings = _FakeSettings({
-        "sonarr": {"apikey": "still-clear-text-from-an-edit"},
-        "compat_endpoint": {"token": SECRET_MARKER_PREFIX + "ignored"},
-    })
+    settings = _FakeSettings(
+        {
+            "sonarr": {"apikey": "still-clear-text-from-an-edit"},
+            "compat_endpoint": {"token": SECRET_MARKER_PREFIX + "ignored"},
+        }
+    )
     assert has_plaintext_secrets_on_disk(settings) is True
 
     # All ciphertext / empty -> nothing to migrate.
-    fully_encrypted = _FakeSettings({
-        "sonarr": {"apikey": encrypt_secret("real-apikey")},
-        "compat_endpoint": {"token": encrypt_secret("real-token")},
-    })
+    fully_encrypted = _FakeSettings(
+        {
+            "sonarr": {"apikey": encrypt_secret("real-apikey")},
+            "compat_endpoint": {"token": encrypt_secret("real-token")},
+        }
+    )
     assert has_plaintext_secrets_on_disk(fully_encrypted) is False
 
     # Empty values are not flagged - empty stays empty, no migration.
@@ -188,9 +217,12 @@ def test_has_plaintext_secrets_on_disk_detects_clear_text_in_list():
     """Same trigger for USER_VISIBLE_SECRET_LISTS - a single plaintext
     list element flips the bit."""
     from secret_store.migration import has_plaintext_secrets_on_disk
-    settings = _FakeSettings({
-        "translator": {"gemini_keys": [encrypt_secret("g1"), "still-plain"]},
-    })
+
+    settings = _FakeSettings(
+        {
+            "translator": {"gemini_keys": [encrypt_secret("g1"), "still-plain"]},
+        }
+    )
     assert has_plaintext_secrets_on_disk(settings) is True
 
 
@@ -229,10 +261,12 @@ def test_e2e_master_key_change_is_detected_and_isolates_failure():
     encrypted_apikey = encrypt_secret("real-sonarr-key")
     encrypted_radarr = encrypt_secret("real-radarr-key")
 
-    settings = _FakeSettings({
-        "sonarr": {"apikey": encrypted_apikey},
-        "radarr": {"apikey": encrypted_radarr},
-    })
+    settings = _FakeSettings(
+        {
+            "sonarr": {"apikey": encrypted_apikey},
+            "radarr": {"apikey": encrypted_radarr},
+        }
+    )
 
     # Simulate boot under a different master key by patching get_master_key
     # to return something else.
@@ -253,10 +287,12 @@ def test_e2e_partial_corruption_isolated_to_one_field():
     good = encrypt_secret("good-sonarr")
     bad = SECRET_MARKER_PREFIX + "tampered-payload-here"
 
-    settings = _FakeSettings({
-        "sonarr": {"apikey": bad},
-        "radarr": {"apikey": good},
-    })
+    settings = _FakeSettings(
+        {
+            "sonarr": {"apikey": bad},
+            "radarr": {"apikey": good},
+        }
+    )
     decrypt_settings_in_place(settings)
 
     assert settings.sonarr.apikey == bad  # left alone, operator can rotate
@@ -277,8 +313,8 @@ def test_e2e_api_serializer_masks_only_system_secrets():
         "sonarr": {"apikey": "user-can-see-this-too"},
         "compat_endpoint": {
             "token": "user-pastes-this-into-vlsub",  # USER_VISIBLE
-            "jwt_secret": "internal-signing-key",     # SYSTEM
-            "file_id_secret": "",                      # SYSTEM, empty
+            "jwt_secret": "internal-signing-key",  # SYSTEM
+            "file_id_secret": "",  # SYSTEM, empty
         },
         "general": {
             "flask_secret_key": "session-signing",
@@ -319,11 +355,13 @@ def test_e2e_api_serializer_masks_only_system_secrets():
 def _legacy_plex_encrypt(plaintext: str, legacy_key: str) -> str:
     """Reproduces the legacy api/plex/security.py:TokenManager.encrypt
     output shape: URLSafeSerializer.dumps of a dict, NO marker prefix."""
-    return URLSafeSerializer(legacy_key).dumps({
-        "token": plaintext,
-        "salt": "deterministic-salt-for-tests",
-        "timestamp": 1700000000,
-    })
+    return URLSafeSerializer(legacy_key).dumps(
+        {
+            "token": plaintext,
+            "salt": "deterministic-salt-for-tests",
+            "timestamp": 1700000000,
+        }
+    )
 
 
 def test_legacy_plex_migration_recovers_plaintext():
@@ -339,14 +377,16 @@ def test_legacy_plex_migration_recovers_plaintext():
     legacy_apikey = _legacy_plex_encrypt(plaintext_apikey, legacy_key)
     legacy_token = _legacy_plex_encrypt(plaintext_token, legacy_key)
 
-    settings = _FakeSettings({
-        "plex": {
-            "apikey": legacy_apikey,
-            "token": legacy_token,
-            "encryption_key": legacy_key,
-            "apikey_encrypted": True,
-        },
-    })
+    settings = _FakeSettings(
+        {
+            "plex": {
+                "apikey": legacy_apikey,
+                "token": legacy_token,
+                "encryption_key": legacy_key,
+                "apikey_encrypted": True,
+            },
+        }
+    )
 
     migrate_legacy_plex_encryption(settings)
 
@@ -365,9 +405,11 @@ def test_legacy_plex_migration_skips_when_flag_unset():
     migration must not try to legacy-decrypt plaintext - that would
     URLSafeSerializer.loads() a non-payload and raise, replacing real
     creds with garbage."""
-    settings = _FakeSettings({
-        "plex": {"apikey": "fresh-install-plaintext", "apikey_encrypted": False},
-    })
+    settings = _FakeSettings(
+        {
+            "plex": {"apikey": "fresh-install-plaintext", "apikey_encrypted": False},
+        }
+    )
     migrate_legacy_plex_encryption(settings)
     assert settings.plex.apikey == "fresh-install-plaintext"
 
@@ -387,18 +429,20 @@ def test_legacy_plex_migration_recovers_oauth_token_without_apikey_flag():
     plaintext_token = "real-plex-oauth-token-from-myplex-account"
     legacy_token = _legacy_plex_encrypt(plaintext_token, legacy_key)
 
-    settings = _FakeSettings({
-        "plex": {
-            # apikey path NOT used by this OAuth install
-            "apikey": "",
-            # OAuth token IS encrypted under the legacy scheme
-            "token": legacy_token,
-            "encryption_key": legacy_key,
-            # Critically: NO apikey_encrypted=True flag, because OAuth
-            # never wrote it.
-            "apikey_encrypted": False,
-        },
-    })
+    settings = _FakeSettings(
+        {
+            "plex": {
+                # apikey path NOT used by this OAuth install
+                "apikey": "",
+                # OAuth token IS encrypted under the legacy scheme
+                "token": legacy_token,
+                "encryption_key": legacy_key,
+                # Critically: NO apikey_encrypted=True flag, because OAuth
+                # never wrote it.
+                "apikey_encrypted": False,
+            },
+        }
+    )
 
     migrate_legacy_plex_encryption(settings)
 
@@ -411,13 +455,15 @@ def test_legacy_plex_migration_handles_missing_encryption_key():
     an inconsistent state. The migration must clear the flag (so it
     doesn't retry forever) and surface a warning, leaving the bytes
     alone so the operator can fix from Settings."""
-    settings = _FakeSettings({
-        "plex": {
-            "apikey": "<unreadable-without-key>",
-            "apikey_encrypted": True,
-            "encryption_key": "",
-        },
-    })
+    settings = _FakeSettings(
+        {
+            "plex": {
+                "apikey": "<unreadable-without-key>",
+                "apikey_encrypted": True,
+                "encryption_key": "",
+            },
+        }
+    )
     migrate_legacy_plex_encryption(settings)
     # Flag cleared, value left for operator to manually rotate.
     assert settings.plex.apikey_encrypted is False
@@ -430,13 +476,15 @@ def test_legacy_plex_migration_already_unified_is_passthrough():
     legacy migration must NOT try to legacy-decrypt unified ciphertext
     - that would corrupt it."""
     unified_cipher = encrypt_secret("real-plex-key")
-    settings = _FakeSettings({
-        "plex": {
-            "apikey": unified_cipher,
-            "apikey_encrypted": True,  # somehow stuck
-            "encryption_key": "irrelevant",
-        },
-    })
+    settings = _FakeSettings(
+        {
+            "plex": {
+                "apikey": unified_cipher,
+                "apikey_encrypted": True,  # somehow stuck
+                "encryption_key": "irrelevant",
+            },
+        }
+    )
     migrate_legacy_plex_encryption(settings)
     assert settings.plex.apikey == unified_cipher  # left unchanged
     assert settings.plex.apikey_encrypted is False  # flag cleared

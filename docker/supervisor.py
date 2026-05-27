@@ -38,6 +38,7 @@ def print(*args, **kwargs):
     kwargs.setdefault("flush", True)
     _print(*args, **kwargs)
 
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -47,7 +48,13 @@ BACKEND_PORT = 6768  # internal port for bazarr backend
 DEFAULT_PORT = 6767  # external port users connect to
 
 # Paths that get proxied to the backend
-PROXY_PREFIXES = ("/api/", "/images/", "/test/", "/system/backup/download/", "/bazarr.log")
+PROXY_PREFIXES = (
+    "/api/",
+    "/images/",
+    "/test/",
+    "/system/backup/download/",
+    "/bazarr.log",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -73,12 +80,12 @@ class BackendManager:
 
     # Map log fragments to stage index (only markers that ACTUALLY appear in stdout)
     _STAGE_MARKERS = [
-        ("starting child process", 0),                  # Launching process
-        ("check_update", 1),                            # Checking for updates
-        ("Scheduler will use this timezone", 2),        # Starting scheduler
-        ("jobs queue started", 3),                      # Starting jobs queue
-        ("waiting for requests on", 4),                 # Starting HTTP server
-        ("SignalR client for", 5),                      # Connecting to Sonarr/Radarr
+        ("starting child process", 0),  # Launching process
+        ("check_update", 1),  # Checking for updates
+        ("Scheduler will use this timezone", 2),  # Starting scheduler
+        ("jobs queue started", 3),  # Starting jobs queue
+        ("waiting for requests on", 4),  # Starting HTTP server
+        ("SignalR client for", 5),  # Connecting to Sonarr/Radarr
     ]
 
     def __init__(self, bazarr_args: list[str]):
@@ -97,11 +104,17 @@ class BackendManager:
         while self._should_run:
             self.state = self.STATE_STARTING
             self._stage_index = 0
-            cmd = [sys.executable, bazarr_py, "--port", str(BACKEND_PORT)] + self.bazarr_args
+            cmd = [
+                sys.executable,
+                bazarr_py,
+                "--port",
+                str(BACKEND_PORT),
+            ] + self.bazarr_args
             print(f"[supervisor] Starting backend: {' '.join(cmd)}")
             try:
                 self.process = await asyncio.create_subprocess_exec(
-                    *cmd, env=env,
+                    *cmd,
+                    env=env,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.STDOUT,
                 )
@@ -167,11 +180,15 @@ class BackendManager:
         """Return status dict for the /_supervisor/status endpoint."""
         return {
             "state": self.state,
-            "stage": self.STAGES[self._stage_index] if self._stage_index < len(self.STAGES) else "Ready",
+            "stage": self.STAGES[self._stage_index]
+            if self._stage_index < len(self.STAGES)
+            else "Ready",
             "stage_index": self._stage_index,
             "stage_total": len(self.STAGES),
             "stages": self.STAGES,
-            "pid": self.process.pid if self.process and self.process.returncode is None else None,
+            "pid": self.process.pid
+            if self.process and self.process.returncode is None
+            else None,
             "last_exit_code": self._last_exit_code,
         }
 
@@ -210,10 +227,17 @@ async def proxy_handler(request: web.Request) -> web.StreamResponse:
             # never come - waitress then hangs waiting for the trailer.
             # This manifested as silent 100s+ hangs on any POST from clients
             # like .NET's HttpClient that default to chunked request bodies.
-            _drop = {"host", "content-length", "transfer-encoding",
-                     "connection", "keep-alive", "expect"}
-            forwarded_headers = {k: v for k, v in request.headers.items()
-                                 if k.lower() not in _drop}
+            _drop = {
+                "host",
+                "content-length",
+                "transfer-encoding",
+                "connection",
+                "keep-alive",
+                "expect",
+            }
+            forwarded_headers = {
+                k: v for k, v in request.headers.items() if k.lower() not in _drop
+            }
             # Advertise the CLIENT-facing URL to the backend. Without
             # these, Flask's request.host is the internal 127.0.0.1:6768
             # and any absolute URL it builds (download links, base_url,
@@ -246,8 +270,16 @@ async def proxy_handler(request: web.Request) -> web.StreamResponse:
             ) as resp:
                 response = web.StreamResponse(
                     status=resp.status,
-                    headers={k: v for k, v in resp.headers.items()
-                             if k.lower() not in ("transfer-encoding", "content-encoding", "content-length")},
+                    headers={
+                        k: v
+                        for k, v in resp.headers.items()
+                        if k.lower()
+                        not in (
+                            "transfer-encoding",
+                            "content-encoding",
+                            "content-length",
+                        )
+                    },
                 )
                 await response.prepare(request)
                 async for chunk in resp.content.iter_any():
@@ -261,7 +293,9 @@ async def proxy_handler(request: web.Request) -> web.StreamResponse:
         )
 
 
-async def _proxy_websocket(request: web.Request, target_url: str) -> web.WebSocketResponse:
+async def _proxy_websocket(
+    request: web.Request, target_url: str
+) -> web.WebSocketResponse:
     """Proxy WebSocket connections to the backend."""
     ws_client = web.WebSocketResponse()
     await ws_client.prepare(request)
@@ -320,7 +354,7 @@ def _get_index_html(config_dir: str) -> str:
     # Replace Jinja templates with actual config values
     content = content.replace("{{baseUrl}}", base_url)
     content = content.replace(
-        '`{{BAZARR_SERVER_INJECT | tojson | safe}}`',
+        "`{{BAZARR_SERVER_INJECT | tojson | safe}}`",
         f"'{inject}'",
     )
     content = content.replace(
@@ -377,143 +411,158 @@ def _get_startup_html(status: dict, base_url: str = "/") -> str:
     logo_attr = f' src="{html.escape(logo, quote=True)}"' if logo else ""
 
     return (
-        '<!doctype html>\n'
+        "<!doctype html>\n"
         '<html lang="en">\n'
-        '<head>\n'
+        "<head>\n"
         '<meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-        '<title>Bazarr+ is starting up</title>\n'
-        '<style>\n'
-        ':root {\n'
-        '  --bg: #121125;\n'
-        '  --text-primary: #f5f5f7;\n'
-        '  --text-tertiary: #8b8b9a;\n'
-        '  --text-disabled: #4a4a59;\n'
-        '  --accent: #f59f00;\n'
-        '  --done: #2f9e44;\n'
-        '  --crashed: #e03131;\n'
-        '}\n'
-        '* { box-sizing: border-box; }\n'
-        'html, body { height: 100%; }\n'
-        'body {\n'
-        '  margin: 0;\n'
-        '  display: grid;\n'
-        '  place-items: center;\n'
-        '  background: var(--bg);\n'
-        '  color: var(--text-primary);\n'
+        "<title>Bazarr+ is starting up</title>\n"
+        "<style>\n"
+        ":root {\n"
+        "  --bg: #121125;\n"
+        "  --text-primary: #f5f5f7;\n"
+        "  --text-tertiary: #8b8b9a;\n"
+        "  --text-disabled: #4a4a59;\n"
+        "  --accent: #f59f00;\n"
+        "  --done: #2f9e44;\n"
+        "  --crashed: #e03131;\n"
+        "}\n"
+        "* { box-sizing: border-box; }\n"
+        "html, body { height: 100%; }\n"
+        "body {\n"
+        "  margin: 0;\n"
+        "  display: grid;\n"
+        "  place-items: center;\n"
+        "  background: var(--bg);\n"
+        "  color: var(--text-primary);\n"
         '  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;\n'
-        '}\n'
-        'main {\n'
-        '  display: flex;\n'
-        '  flex-direction: column;\n'
-        '  align-items: center;\n'
-        '  gap: 1.5rem;\n'
-        '}\n'
-        '.logo { width: 64px; height: 64px; opacity: 0.8; }\n'
-        '.title { font-size: 1.125rem; font-weight: 600; margin: 0; }\n'
-        '.stages { display: flex; flex-direction: column; gap: 4px; min-width: 220px; }\n'
-        '.stage { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; line-height: 1.4; }\n'
-        '.stage svg { width: 14px; height: 14px; flex-shrink: 0; }\n'
+        "}\n"
+        "main {\n"
+        "  display: flex;\n"
+        "  flex-direction: column;\n"
+        "  align-items: center;\n"
+        "  gap: 1.5rem;\n"
+        "}\n"
+        ".logo { width: 64px; height: 64px; opacity: 0.8; }\n"
+        ".title { font-size: 1.125rem; font-weight: 600; margin: 0; }\n"
+        ".stages { display: flex; flex-direction: column; gap: 4px; min-width: 220px; }\n"
+        ".stage { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; line-height: 1.4; }\n"
+        ".stage svg { width: 14px; height: 14px; flex-shrink: 0; }\n"
         '.stage[data-state="done"] svg { color: var(--done); }\n'
         '.stage[data-state="done"] .label { color: var(--text-tertiary); }\n'
         '.stage[data-state="active"] svg { color: var(--accent); }\n'
         '.stage[data-state="active"] .label { color: var(--text-primary); font-weight: 500; }\n'
         '.stage[data-state="pending"] svg { color: var(--text-disabled); }\n'
         '.stage[data-state="pending"] .label { color: var(--text-disabled); }\n'
-        '.spin { transform-origin: 50% 50%; animation: bz-spin 1s linear infinite; }\n'
-        '@keyframes bz-spin { to { transform: rotate(360deg); } }\n'
-        '.loader { width: 22px; height: 22px; border: 2px solid rgba(245, 159, 0, 0.18); border-top-color: var(--accent); border-radius: 50%; animation: bz-spin 0.75s linear infinite; }\n'
-        '.crashed-msg { color: var(--crashed); font-size: 0.875rem; text-align: center; max-width: 320px; }\n'
-        '.crashed .loader { border-color: rgba(224, 49, 49, 0.18); border-top-color: var(--crashed); }\n'
-        '</style>\n'
-        '</head>\n'
-        '<body>\n'
-        '<main>\n'
+        ".spin { transform-origin: 50% 50%; animation: bz-spin 1s linear infinite; }\n"
+        "@keyframes bz-spin { to { transform: rotate(360deg); } }\n"
+        ".loader { width: 22px; height: 22px; border: 2px solid rgba(245, 159, 0, 0.18); border-top-color: var(--accent); border-radius: 50%; animation: bz-spin 0.75s linear infinite; }\n"
+        ".crashed-msg { color: var(--crashed); font-size: 0.875rem; text-align: center; max-width: 320px; }\n"
+        ".crashed .loader { border-color: rgba(224, 49, 49, 0.18); border-top-color: var(--crashed); }\n"
+        "</style>\n"
+        "</head>\n"
+        "<body>\n"
+        "<main>\n"
         f'<img class="logo" alt="Bazarr+"{logo_attr}>\n'
         '<h1 class="title">Bazarr+ is starting up</h1>\n'
         '<div class="stages" id="bz-stages"></div>\n'
         '<div class="loader" id="bz-loader"></div>\n'
-        '</main>\n'
+        "</main>\n"
         '<template id="bz-icon-check"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M13.485 4.515a1 1 0 0 1 0 1.414l-6 6a1 1 0 0 1-1.414 0l-3-3a1 1 0 0 1 1.414-1.414L6.778 9.808l5.293-5.293a1 1 0 0 1 1.414 0z"/></svg></template>\n'
         '<template id="bz-icon-spinner"><svg viewBox="0 0 16 16" class="spin" aria-hidden="true"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-dasharray="20" stroke-dashoffset="10"/></svg></template>\n'
         '<template id="bz-icon-circle"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3" fill="currentColor"/></svg></template>\n'
-        '<script>\n'
-        '(function () {\n'
-        f'  var INITIAL = {initial_json};\n'
-        f'  var SSE_URL = {sse_json};\n'
-        '  var iconTpl = {\n'
+        "<script>\n"
+        "(function () {\n"
+        f"  var INITIAL = {initial_json};\n"
+        f"  var SSE_URL = {sse_json};\n"
+        "  var iconTpl = {\n"
         '    done: document.getElementById("bz-icon-check"),\n'
         '    active: document.getElementById("bz-icon-spinner"),\n'
         '    pending: document.getElementById("bz-icon-circle")\n'
-        '  };\n'
-        '  function deriveStages(status) {\n'
-        '    var raw = (status.stages || []).slice();\n'
-        '    if (raw.length === 0) return [];\n'
+        "  };\n"
+        "  function deriveStages(status) {\n"
+        "    var raw = (status.stages || []).slice();\n"
+        "    if (raw.length === 0) return [];\n"
         '    return raw.slice(0, -1).concat(["Loading configuration"]);\n'
-        '  }\n'
-        '  function clearChildren(node) {\n'
-        '    while (node.firstChild) node.removeChild(node.firstChild);\n'
-        '  }\n'
-        '  function render(status) {\n'
-        '    var body = document.body;\n'
+        "  }\n"
+        "  function clearChildren(node) {\n"
+        "    while (node.firstChild) node.removeChild(node.firstChild);\n"
+        "  }\n"
+        "  function render(status) {\n"
+        "    var body = document.body;\n"
         '    var stagesEl = document.getElementById("bz-stages");\n'
-        '    clearChildren(stagesEl);\n'
+        "    clearChildren(stagesEl);\n"
         '    if (status.state === "crashed") {\n'
         '      body.classList.add("crashed");\n'
         '      var msg = document.createElement("div");\n'
         '      msg.className = "crashed-msg";\n'
         '      msg.textContent = "Backend process crashed. Restarting...";\n'
-        '      stagesEl.appendChild(msg);\n'
-        '      return;\n'
-        '    }\n'
+        "      stagesEl.appendChild(msg);\n"
+        "      return;\n"
+        "    }\n"
         '    body.classList.remove("crashed");\n'
-        '    var stages = deriveStages(status);\n'
+        "    var stages = deriveStages(status);\n"
         '    var idx = status.state === "running" ? stages.length - 1 : (status.stage_index == null ? -1 : status.stage_index);\n'
-        '    for (var i = 0; i < stages.length; i++) {\n'
+        "    for (var i = 0; i < stages.length; i++) {\n"
         '      var s = i < idx ? "done" : i === idx ? "active" : "pending";\n'
         '      var row = document.createElement("div");\n'
         '      row.className = "stage";\n'
         '      row.setAttribute("data-state", s);\n'
-        '      var tpl = iconTpl[s];\n'
-        '      if (tpl && tpl.content) row.appendChild(tpl.content.cloneNode(true));\n'
+        "      var tpl = iconTpl[s];\n"
+        "      if (tpl && tpl.content) row.appendChild(tpl.content.cloneNode(true));\n"
         '      var label = document.createElement("span");\n'
         '      label.className = "label";\n'
-        '      label.textContent = stages[i];\n'
-        '      row.appendChild(label);\n'
-        '      stagesEl.appendChild(row);\n'
-        '    }\n'
-        '  }\n'
-        '  render(INITIAL);\n'
-        '  var fallbackTimer = null;\n'
-        '  function scheduleReloadFallback() {\n'
-        '    if (fallbackTimer) return;\n'
-        '    fallbackTimer = setTimeout(function () { window.location.reload(); }, 4000);\n'
-        '  }\n'
-        '  try {\n'
-        '    var es = new EventSource(SSE_URL);\n'
-        '    es.onmessage = function (ev) {\n'
-        '      try {\n'
-        '        var data = JSON.parse(ev.data);\n'
+        "      label.textContent = stages[i];\n"
+        "      row.appendChild(label);\n"
+        "      stagesEl.appendChild(row);\n"
+        "    }\n"
+        "  }\n"
+        "  render(INITIAL);\n"
+        "  var fallbackTimer = null;\n"
+        "  function scheduleReloadFallback() {\n"
+        "    if (fallbackTimer) return;\n"
+        "    fallbackTimer = setTimeout(function () { window.location.reload(); }, 4000);\n"
+        "  }\n"
+        "  try {\n"
+        "    var es = new EventSource(SSE_URL);\n"
+        "    es.onmessage = function (ev) {\n"
+        "      try {\n"
+        "        var data = JSON.parse(ev.data);\n"
         '        if (data.state === "running") { es.close(); window.location.reload(); return; }\n'
-        '        render(data);\n'
-        '      } catch (e) {}\n'
-        '    };\n'
-        '    es.onerror = function () { scheduleReloadFallback(); };\n'
-        '  } catch (e) {\n'
-        '    scheduleReloadFallback();\n'
-        '  }\n'
-        '})();\n'
-        '</script>\n'
-        '</body>\n'
-        '</html>\n'
+        "        render(data);\n"
+        "      } catch (e) {}\n"
+        "    };\n"
+        "    es.onerror = function () { scheduleReloadFallback(); };\n"
+        "  } catch (e) {\n"
+        "    scheduleReloadFallback();\n"
+        "  }\n"
+        "})();\n"
+        "</script>\n"
+        "</body>\n"
+        "</html>\n"
     )
 
 
 STATIC_FILE_EXTENSIONS = {
-    ".js", ".css", ".map", ".json", ".webmanifest",
-    ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp",
-    ".woff", ".woff2", ".ttf", ".eot",
-    ".mp3", ".wav", ".ogg",
+    ".js",
+    ".css",
+    ".map",
+    ".json",
+    ".webmanifest",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".svg",
+    ".ico",
+    ".webp",
+    ".woff",
+    ".woff2",
+    ".ttf",
+    ".eot",
+    ".mp3",
+    ".wav",
+    ".ogg",
 }
 
 
@@ -556,8 +605,12 @@ def create_static_handler(config_dir: str, backend: BackendManager | None = None
         if path and path != "index.html":
             safe_path = ALLOWED_ASSETS.get(path)
             if safe_path is not None:
-                content_type = mimetypes.guess_type(safe_path)[0] or "application/octet-stream"
-                return web.FileResponse(safe_path, headers={"Content-Type": content_type})
+                content_type = (
+                    mimetypes.guess_type(safe_path)[0] or "application/octet-stream"
+                )
+                return web.FileResponse(
+                    safe_path, headers={"Content-Type": content_type}
+                )
 
         # If the request looks like a static file (has a known extension), return 404
         # instead of the SPA fallback. This prevents serving index.html as JavaScript
@@ -586,6 +639,7 @@ def create_static_handler(config_dir: str, backend: BackendManager | None = None
             content_type="text/html",
             headers={"Cache-Control": "no-store"},
         )
+
     return static_handler
 
 
@@ -593,6 +647,7 @@ def create_supervisor_status_handler(backend: BackendManager):
     async def supervisor_status_handler(request: web.Request) -> web.Response:
         """Return backend process state without proxying."""
         return web.json_response(backend.get_status())
+
     return supervisor_status_handler
 
 
@@ -627,6 +682,7 @@ def create_supervisor_sse_handler(backend: BackendManager):
         except (ConnectionResetError, asyncio.CancelledError):
             pass
         return response
+
     return supervisor_sse_handler
 
 
@@ -653,7 +709,9 @@ def create_app(config_dir: str, backend: BackendManager) -> web.Application:
             app.router.add_route("*", f"/{base}{prefix}" + "{path:.*}", proxy_handler)
 
     # Static file catch-all
-    app.router.add_route("GET", "/{path:.*}", create_static_handler(config_dir, backend))
+    app.router.add_route(
+        "GET", "/{path:.*}", create_static_handler(config_dir, backend)
+    )
 
     return app
 

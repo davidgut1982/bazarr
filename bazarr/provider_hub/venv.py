@@ -37,7 +37,13 @@ class PluginEnvironment:
         return digest.hexdigest()[:16]
 
     def path_for(self, manifest: ValidatedManifest) -> Path:
-        return self.root / "envs" / manifest.provider_id / manifest.version / self._fingerprint(manifest)
+        return (
+            self.root
+            / "envs"
+            / manifest.provider_id
+            / manifest.version
+            / self._fingerprint(manifest)
+        )
 
     def install(self, manifest: ValidatedManifest) -> Path:
         env_path = self.path_for(manifest)
@@ -53,7 +59,11 @@ class PluginEnvironment:
         if manifest.dependency_requirements:
             requirements_path = env_path / "requirements.txt"
             requirements_path.write_text(
-                "\n".join(requirement.pip_line for requirement in manifest.dependency_requirements) + "\n",
+                "\n".join(
+                    requirement.pip_line
+                    for requirement in manifest.dependency_requirements
+                )
+                + "\n",
                 encoding="utf-8",
             )
             cmd = [

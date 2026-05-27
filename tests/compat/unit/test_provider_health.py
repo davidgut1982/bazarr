@@ -2,6 +2,7 @@
 
 Covers the timeout+retry discard policy in subliminal_patch.provider_health.
 """
+
 import time  # noqa: F401
 
 import pytest
@@ -10,6 +11,7 @@ import pytest
 @pytest.fixture(autouse=True)
 def _fresh_tracker():
     from subliminal_patch import provider_health
+
     provider_health.reset_tracker()
     yield
     provider_health.reset_tracker()
@@ -17,6 +19,7 @@ def _fresh_tracker():
 
 def test_ok_leaves_provider_active():
     from subliminal_patch.provider_health import get_tracker
+
     t = get_tracker()
     for _ in range(10):
         t.record("os", "ok", 100)
@@ -26,6 +29,7 @@ def test_ok_leaves_provider_active():
 
 def test_exception_below_threshold_does_not_discard():
     from subliminal_patch.provider_health import get_tracker, FAILURES_TO_DISCARD
+
     t = get_tracker()
     for _ in range(FAILURES_TO_DISCARD - 1):
         t.record("os", "exception")
@@ -34,6 +38,7 @@ def test_exception_below_threshold_does_not_discard():
 
 def test_exception_at_threshold_discards():
     from subliminal_patch.provider_health import get_tracker, FAILURES_TO_DISCARD
+
     t = get_tracker()
     for _ in range(FAILURES_TO_DISCARD):
         t.record("os", "exception")
@@ -46,6 +51,7 @@ def test_abandoned_counts_same_as_exception():
     it the same as a raised exception to avoid one stuck provider dragging
     every request to the wall."""
     from subliminal_patch.provider_health import get_tracker, FAILURES_TO_DISCARD
+
     t = get_tracker()
     for _ in range(FAILURES_TO_DISCARD):
         t.record("slow_provider", "abandoned")
@@ -54,6 +60,7 @@ def test_abandoned_counts_same_as_exception():
 
 def test_timeout_and_abandoned_mix():
     from subliminal_patch.provider_health import get_tracker, FAILURES_TO_DISCARD
+
     t = get_tracker()
     outcomes = ["timeout", "abandoned", "exception"][:FAILURES_TO_DISCARD]
     for o in outcomes:
@@ -64,6 +71,7 @@ def test_timeout_and_abandoned_mix():
 def test_ok_resets_failure_counter():
     """A single success fully rehabilitates the provider."""
     from subliminal_patch.provider_health import get_tracker, FAILURES_TO_DISCARD
+
     t = get_tracker()
     for _ in range(FAILURES_TO_DISCARD - 1):
         t.record("os", "exception")
@@ -76,6 +84,7 @@ def test_ok_resets_failure_counter():
 def test_slow_outcome_also_resets():
     """A slow-but-successful response is still a success for health."""
     from subliminal_patch.provider_health import get_tracker, FAILURES_TO_DISCARD
+
     t = get_tracker()
     for _ in range(FAILURES_TO_DISCARD - 1):
         t.record("addic7ed", "timeout")
@@ -88,6 +97,7 @@ def test_cooldown_expires_allows_retry(monkeypatch):
     """After the cooldown window, the provider is given another chance."""
     from subliminal_patch import provider_health
     from subliminal_patch.provider_health import get_tracker
+
     t = get_tracker()
 
     now = [1_000_000.0]
@@ -106,6 +116,7 @@ def test_exponential_backoff(monkeypatch):
     """Re-discards apply doubled cooldowns until the cap."""
     from subliminal_patch import provider_health
     from subliminal_patch.provider_health import get_tracker
+
     t = get_tracker()
     now = [1_000_000.0]
     monkeypatch.setattr(provider_health.time, "monotonic", lambda: now[0])
@@ -139,6 +150,7 @@ def test_backoff_capped_at_max(monkeypatch):
     """Backoff never exceeds COOLDOWN_MAX_SECONDS even after many cycles."""
     from subliminal_patch import provider_health
     from subliminal_patch.provider_health import get_tracker
+
     t = get_tracker()
     now = [1_000_000.0]
     monkeypatch.setattr(provider_health.time, "monotonic", lambda: now[0])
@@ -153,6 +165,7 @@ def test_backoff_capped_at_max(monkeypatch):
 
 def test_unknown_outcome_ignored():
     from subliminal_patch.provider_health import get_tracker, FAILURES_TO_DISCARD
+
     t = get_tracker()
     for _ in range(FAILURES_TO_DISCARD):
         t.record("p", "weird_unknown_outcome")
@@ -161,6 +174,7 @@ def test_unknown_outcome_ignored():
 
 def test_currently_discarded_snapshot():
     from subliminal_patch.provider_health import get_tracker, FAILURES_TO_DISCARD
+
     t = get_tracker()
     for _ in range(FAILURES_TO_DISCARD):
         t.record("a", "exception")

@@ -37,7 +37,7 @@ This is the Bazarr web interface with live reloading. The frontend automatically
 - **Autopulse**: Username: `admin`, Password: `password`
 - API Key: `bazarr` (for API access)
 
-**Important**: 
+**Important**:
 - Port 5173: Frontend development server with hot module replacement
 - Port 6767: Backend API server (not meant for direct browser access)
 - Port 2875: Autopulse service (when enabled with `--profile autopulse`)
@@ -109,7 +109,7 @@ docker compose logs -f
 # Access backend container shell for debugging
 docker compose exec bazarr-backend sh
 
-# Access frontend container shell for debugging  
+# Access frontend container shell for debugging
 docker compose exec bazarr-frontend sh
 
 # Stop the environment
@@ -276,7 +276,7 @@ docker compose logs -f
 # Follow only backend logs
 docker compose logs -f bazarr-backend
 
-# Follow only frontend logs  
+# Follow only frontend logs
 docker compose logs -f bazarr-frontend
 ```
 
@@ -292,7 +292,7 @@ docker compose logs -f bazarr-frontend
 Host Machine
 ├── bazarr/ (your code)
 │   ├── bazarr/ → mounted in backend container
-│   ├── frontend/ → mounted in frontend container  
+│   ├── frontend/ → mounted in frontend container
 │   ├── custom_libs/ → mounted in backend container
 │   └── libs/ → mounted in backend container
 └── dev-setup/ (all dev environment files in one place)

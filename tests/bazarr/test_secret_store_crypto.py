@@ -5,6 +5,7 @@ Comprehensive end-to-end coverage (migration paths, masking, key rotation,
 bad-cipher diagnostics) lives in commit 5's test_secrets_e2e.py. This file
 covers just the crypto primitives.
 """
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -101,8 +102,10 @@ def test_encrypt_rejects_non_string(master_key):
 def test_decrypt_passes_plaintext_through(master_key):
     """A plaintext value (no marker) is returned as-is. The migrator
     rewrites it; the read path must not raise on first boot."""
-    assert decrypt_secret("plaintext-not-yet-migrated", master_key=master_key) \
+    assert (
+        decrypt_secret("plaintext-not-yet-migrated", master_key=master_key)
         == "plaintext-not-yet-migrated"
+    )
 
 
 def test_decrypt_passes_empty_through(master_key):

@@ -242,13 +242,13 @@ class TitulkyProvider(Provider, ProviderSubtitleArchiveMixin):
             # Dont bother doing anything if we do not want to redirect. Just return the original response..
             if allow_redirects is False:
                 return res
-            
+
             location_qs = parse_qs(urlparse(res.headers['Location']).query)
 
             # If the redirect url does not contain an error message, we follow the redirect right away
             if 'msg_type' not in location_qs or ('msg_type' in location_qs and (location_qs['msg_type'][0]).lower() != 'e'):
                 return self.get_request(urljoin(res.headers['Origin'] or self.server_url, res.headers['Location']), ref=url, allow_redirects=True, _recursion=(_recursion + 1))
-            
+
             # We got redirected to a page with an error message:
             error_message = location_qs['msg'][0].lower()
 
@@ -262,10 +262,10 @@ class TitulkyProvider(Provider, ProviderSubtitleArchiveMixin):
             if "omezené" in error_message:
                 raise AuthenticationError("V.I.P. status expired.");
 
-            # TODO: We don't know why we got redirected to an error page. 
+            # TODO: We don't know why we got redirected to an error page.
             # What should we do? I am not aware if there is a use case where we want to return such response anway.
             raise ProviderError(f"Got redirected from {url} to an error page with message: \"{location_qs['msg'][0]}\"");
-        
+
         return res
 
     def fetch_page(self, url, ref=server_url, allow_redirects=False):
@@ -336,12 +336,12 @@ class TitulkyProvider(Provider, ProviderSubtitleArchiveMixin):
             return None
 
 
-    """ 
-        There are multiple ways to find substitles on Titulky.com, however we are 
+    """
+        There are multiple ways to find substitles on Titulky.com, however we are
         going to utilize a page that lists all available subtitles for all episodes in a season
-        
+
         To my surprise, the server in this case treats movies as a tv series with a "0" season and "0" episode
-        
+
         BROWSE subtitles by IMDB ID:
            - Subtitles are here categorised by seasons and episodes
            - URL: https://premium.titulky.com/?action=serial&step=<SEASON>&id=<IMDB ID>
@@ -398,23 +398,23 @@ class TitulkyProvider(Provider, ProviderSubtitleArchiveMixin):
                 # The container contains link to details page
                 if last_ep_num is None:
                     raise ProviderError("Previous episode number missing, can't parse.")
-                
+
                 release_info = anchor.get_text(strip=True)
                 if release_info == '???':
                     release_info = ''
-                
+
                 details_link = f"{self.server_url}{anchor.get('href')[1:]}"
-                
+
                 id_match = re.findall(r'id=(\d+)', details_link)
                 sub_id = id_match[0] if len(id_match) > 0 else None
-                
+
                 download_link = f"{self.download_url}{sub_id}"
-                
+
                 # Approved subtitles have a pbl1 class for their row, others have a pbl0 class
                 approved = True if 'pbl1' in row.get('class') else False
 
                 uploader = row.contents[5].get_text(strip=True)
-                
+
                 # Parse language to filter out subtitles that are not in the desired language
                 sub_language = None
                 czech_flag = row.select('img[src*=\'flag-CZ\']')
@@ -427,12 +427,12 @@ class TitulkyProvider(Provider, ProviderSubtitleArchiveMixin):
                 else:
                     logger.debug("Titulky.com: Unknown language while parsing subtitles!")
                     continue
-                
+
                 # If the subtitles language is not requested
                 if sub_language not in languages:
                     logger.debug("Titulky.com: Language not in desired languages, skipping...")
                     continue
-                
+
                 # Skip unapproved subtitles if turned on in settings
                 if self.approved_only and not approved:
                     logger.debug("Titulky.com: Approved only, skipping...")
@@ -455,11 +455,11 @@ class TitulkyProvider(Provider, ProviderSubtitleArchiveMixin):
                     episodes_dict[last_ep_num] = []
 
                 episodes_dict[last_ep_num].append(result)
-        
+
         # Clean up
         browse_page_soup.decompose()
         browse_page_soup = None
-        
+
         # Rows parsed into episodes_dict, now lets read what we got.
         if not episode in episodes_dict:
             # well, we got nothing, that happens!

@@ -5,13 +5,14 @@ Revises: c00d40af333c
 Create Date: 2026-03-30 21:47:35.596074
 
 """
+
 from alembic import op
 import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '309dc062d2e4'
-down_revision = 'c00d40af333c'
+revision = "309dc062d2e4"
+down_revision = "c00d40af333c"
 branch_labels = None
 depends_on = None
 
@@ -25,9 +26,9 @@ def column_exists(table_name, column_name):
 
 
 def upgrade():
-    if not column_exists('table_episodes', 'tvdbId'):
-        with op.batch_alter_table('table_episodes', schema=None) as batch_op:
-            batch_op.add_column(sa.Column('tvdbId', sa.Integer(), nullable=True))
+    if not column_exists("table_episodes", "tvdbId"):
+        with op.batch_alter_table("table_episodes", schema=None) as batch_op:
+            batch_op.add_column(sa.Column("tvdbId", sa.Integer(), nullable=True))
 
 
 def downgrade():

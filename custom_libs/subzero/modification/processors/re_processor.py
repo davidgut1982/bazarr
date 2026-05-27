@@ -56,4 +56,3 @@ class MultipleWordReProcessor(ReProcessor):
             return content
 
         return self.snr_dict["pattern"].sub(lambda x: self.snr_dict["data"][x.group(0)], content)
-

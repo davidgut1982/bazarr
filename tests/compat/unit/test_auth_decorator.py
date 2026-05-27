@@ -35,10 +35,9 @@ def test_jwt_failures_still_use_401(monkeypatch):
     retry with a fresh login."""
     from flask import Flask
     from compat.auth import compat_auth
-    monkeypatch.setattr("compat.auth.settings.compat_endpoint.token",
-                        "a" * 32)
-    monkeypatch.setattr("compat.auth.settings.compat_endpoint.jwt_secret",
-                        "b" * 32)
+
+    monkeypatch.setattr("compat.auth.settings.compat_endpoint.token", "a" * 32)
+    monkeypatch.setattr("compat.auth.settings.compat_endpoint.jwt_secret", "b" * 32)
     app = Flask(__name__)
 
     @app.route("/protected-jwt")
@@ -47,14 +46,14 @@ def test_jwt_failures_still_use_401(monkeypatch):
         return "ok", 200
 
     # Valid Api-Key but missing Bearer -> 401 (JWT-expiry signal)
-    r = app.test_client().get("/protected-jwt",
-                              headers={"Api-Key": "a" * 32})
+    r = app.test_client().get("/protected-jwt", headers={"Api-Key": "a" * 32})
     assert r.status_code == 401 and r.headers["x-reason"] == "auth"
 
     # Valid Api-Key but invalid Bearer -> 401
-    r = app.test_client().get("/protected-jwt",
-                              headers={"Api-Key": "a" * 32,
-                                       "Authorization": "Bearer not-a-jwt"})
+    r = app.test_client().get(
+        "/protected-jwt",
+        headers={"Api-Key": "a" * 32, "Authorization": "Bearer not-a-jwt"},
+    )
     assert r.status_code == 401 and r.headers["x-reason"] == "auth"
 
 

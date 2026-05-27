@@ -129,7 +129,7 @@ class TitrariProvider(Provider, ProviderSubtitleArchiveMixin):
     api_url = 'https://www.titrari.ro/'
 
     query_advanced_search = "numaicautamcaneiesepenas"  # fallback default
-    
+
     # Cache for advanced search page parameter (24 hours)
     _cached_page_param = None
     _cache_timestamp = None
@@ -150,26 +150,26 @@ class TitrariProvider(Provider, ProviderSubtitleArchiveMixin):
 
     def _get_advanced_search_page_param(self):
         """Get the advanced search page parameter from the website.
-        
+
         Caches the value for 24 hours. Automatically refreshes if cache is expired.
         """
         current_time = time()
-        
+
         # Check if cache is valid (exists and not expired)
-        if (self._cached_page_param is not None and 
+        if (self._cached_page_param is not None and
             self._cache_timestamp is not None and
             current_time - self._cache_timestamp < self._cache_ttl):
             logger.debug('Using cached advanced search page parameter: %s', self._cached_page_param)
             return self._cached_page_param
-        
+
         # Cache expired or doesn't exist, fetch from website
         logger.debug('Fetching advanced search page parameter from website...')
         try:
             response = self.session.get(self.api_url, timeout=15)
             response.raise_for_status()
-            
+
             soup = ParserBeautifulSoup(response.content.decode('utf-8', 'ignore'), ['lxml', 'html.parser'])
-            
+
             # Find the "Cautare Avansata" link (case-insensitive)
             advanced_search_link = None
             for link in soup.find_all('a', href=True):
@@ -177,11 +177,11 @@ class TitrariProvider(Provider, ProviderSubtitleArchiveMixin):
                 if 'cautare avansata' in link_text or 'cautare avansată' in link_text:
                     advanced_search_link = link.get('href')
                     break
-            
+
             if not advanced_search_link:
                 logger.warning('Could not find "Cautare Avansata" link on page, using fallback')
                 return self.query_advanced_search
-            
+
             # Extract page parameter from href (e.g., "index.php?page=numaicautamcaneiesepenas")
             match = re.search(r'[?&]page=([^&]+)', advanced_search_link)
             if match:
@@ -193,7 +193,7 @@ class TitrariProvider(Provider, ProviderSubtitleArchiveMixin):
             else:
                 logger.warning('Could not extract page parameter from link: %s, using fallback', advanced_search_link)
                 return self.query_advanced_search
-                
+
         except Exception as e:
             logger.error('Error fetching advanced search page parameter: %s, using fallback', str(e))
             return self.query_advanced_search

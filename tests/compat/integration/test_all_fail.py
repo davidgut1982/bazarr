@@ -9,8 +9,10 @@ def test_all_providers_return_empty_returns_empty_data(monkeypatch):
     when needed; service.search itself returns the empty-data shape."""
     monkeypatch.setattr("compat.auth.settings.compat_endpoint.file_id_secret", "f" * 32)
     C.invalidate_all()
-    with patch("compat.service._get_compat_pool") as gp, \
-         patch("compat.service.list_all_subtitles_parallel") as lf:
+    with (
+        patch("compat.service._get_compat_pool") as gp,
+        patch("compat.service.list_all_subtitles_parallel") as lf,
+    ):
         lf.return_value = {}  # no results at all
         gp.return_value.providers = ["p1", "p2"]
         gp.return_value.discarded_providers = set()

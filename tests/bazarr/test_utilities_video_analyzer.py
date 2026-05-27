@@ -220,12 +220,42 @@ def mediainfo_data():
     """
     return {
         "subtitle": [
-            {"language": Language("spa", "MX"), "format": "SubRip", "forced": False, "hearing_impaired": False},
-            {"language": Language("spa", "ES"), "format": "SubRip", "forced": False, "hearing_impaired": False},
-            {"language": Language("fra", "CA"), "format": "SubRip", "forced": False, "hearing_impaired": False},
-            {"language": Language("por", "BR"), "format": "SubRip", "forced": False, "hearing_impaired": False},
-            {"language": Language.fromietf("zh-Hans"), "format": "SubRip", "forced": False, "hearing_impaired": False},
-            {"language": Language.fromietf("zh-Hant"), "format": "SubRip", "forced": False, "hearing_impaired": False},
+            {
+                "language": Language("spa", "MX"),
+                "format": "SubRip",
+                "forced": False,
+                "hearing_impaired": False,
+            },
+            {
+                "language": Language("spa", "ES"),
+                "format": "SubRip",
+                "forced": False,
+                "hearing_impaired": False,
+            },
+            {
+                "language": Language("fra", "CA"),
+                "format": "SubRip",
+                "forced": False,
+                "hearing_impaired": False,
+            },
+            {
+                "language": Language("por", "BR"),
+                "format": "SubRip",
+                "forced": False,
+                "hearing_impaired": False,
+            },
+            {
+                "language": Language.fromietf("zh-Hans"),
+                "format": "SubRip",
+                "forced": False,
+                "hearing_impaired": False,
+            },
+            {
+                "language": Language.fromietf("zh-Hant"),
+                "format": "SubRip",
+                "forced": False,
+                "hearing_impaired": False,
+            },
         ],
         "audio": [
             {"language": Language("por", "BR"), "format": "E-AC-3"},
@@ -236,11 +266,13 @@ def mediainfo_data():
 
 def test_embedded_subs_reader(mediainfo_data, video_file):
     from unittest.mock import patch
-    with patch(
-        "utilities.video_analyzer.parse_video_metadata",
-        return_value={"mediainfo": mediainfo_data},
-    ), patch(
-        "utilities.video_analyzer.alpha3_from_alpha2", return_value=None
+
+    with (
+        patch(
+            "utilities.video_analyzer.parse_video_metadata",
+            return_value={"mediainfo": mediainfo_data},
+        ),
+        patch("utilities.video_analyzer.alpha3_from_alpha2", return_value=None),
     ):
         result = video_analyzer.embedded_subs_reader(video_file, 1e6)
         assert ["spl", False, False, "SubRip"] in result
@@ -250,11 +282,16 @@ def test_embedded_subs_reader(mediainfo_data, video_file):
 
 def test_embedded_audio_reader(mediainfo_data, video_file):
     from unittest.mock import patch
-    with patch(
-        "utilities.video_analyzer.parse_video_metadata",
-        return_value={"mediainfo": mediainfo_data},
-    ), patch(
-        "utilities.video_analyzer.language_from_alpha3", side_effect=lambda alpha3: alpha3
+
+    with (
+        patch(
+            "utilities.video_analyzer.parse_video_metadata",
+            return_value={"mediainfo": mediainfo_data},
+        ),
+        patch(
+            "utilities.video_analyzer.language_from_alpha3",
+            side_effect=lambda alpha3: alpha3,
+        ),
     ):
         result = video_analyzer.embedded_audio_reader(video_file, 1e6)
         assert {"pob", "por"} == set(result)

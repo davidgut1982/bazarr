@@ -4,22 +4,22 @@
 # for other derived values, use constants.py
 
 # bazarr environment variable names
-ENV_STOPFILE = 'STOPFILE'
-ENV_RESTARTFILE = 'RESTARTFILE'
-ENV_BAZARR_ROOT_DIR = 'BAZARR_ROOT'
+ENV_STOPFILE = "STOPFILE"
+ENV_RESTARTFILE = "RESTARTFILE"
+ENV_BAZARR_ROOT_DIR = "BAZARR_ROOT"
 
 # bazarr subdirectories
-DIR_BACKUP = 'backup'
-DIR_CACHE = 'cache'
-DIR_CONFIG = 'config'
-DIR_DB = 'db'
-DIR_LOG = 'log'
-DIR_RESTORE = 'restore'
+DIR_BACKUP = "backup"
+DIR_CACHE = "cache"
+DIR_CONFIG = "config"
+DIR_DB = "db"
+DIR_LOG = "log"
+DIR_RESTORE = "restore"
 
 # bazarr special files
-FILE_LOG = 'bazarr.log'
-FILE_RESTART = 'bazarr.restart'
-FILE_STOP = 'bazarr.stop'
+FILE_LOG = "bazarr.log"
+FILE_RESTART = "bazarr.restart"
+FILE_STOP = "bazarr.stop"
 
 # bazarr exit codes
 EXIT_NORMAL = 0

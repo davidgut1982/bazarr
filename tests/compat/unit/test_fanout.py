@@ -22,7 +22,9 @@ def test_list_all_subtitles_parallel_as_completed_short_circuits_slow():
     video = MagicMock()
     t0 = time.time()
     results = list_all_subtitles_parallel(
-        [video], set(), pool,
+        [video],
+        set(),
+        pool,
         per_provider_timeout=1,
         wall_timeout=2,
     )
@@ -49,8 +51,11 @@ def test_wall_timeout_strictly_honored_even_with_many_slow():
     video = MagicMock()
     t0 = time.time()
     list_all_subtitles_parallel(
-        [video], set(), pool,
-        per_provider_timeout=1, wall_timeout=1,
+        [video],
+        set(),
+        pool,
+        per_provider_timeout=1,
+        wall_timeout=1,
     )
     elapsed = time.time() - t0
     # Must be well under the 5s-per-provider wait; tolerate a bit of
@@ -81,13 +86,17 @@ def test_on_result_callback_fired_for_every_provider():
     pool.list_subtitles_provider.side_effect = list_fn
 
     calls = []
+
     def on_result(name, outcome, latency_ms):
         calls.append((name, outcome, latency_ms))
 
     video = MagicMock()
     list_all_subtitles_parallel(
-        [video], set(), pool,
-        per_provider_timeout=1, wall_timeout=3,
+        [video],
+        set(),
+        pool,
+        per_provider_timeout=1,
+        wall_timeout=3,
         on_result=on_result,
     )
     outcomes = {name: outcome for name, outcome, _ in calls}
@@ -115,13 +124,17 @@ def test_provider_exception_recorded_as_exception():
     pool.list_subtitles_provider.side_effect = list_fn
 
     calls = {}
+
     def on_result(name, outcome, latency_ms):
         calls[name] = outcome
 
     video = MagicMock()
     results = list_all_subtitles_parallel(
-        [video], set(), pool,
-        per_provider_timeout=5, wall_timeout=10,
+        [video],
+        set(),
+        pool,
+        per_provider_timeout=5,
+        wall_timeout=10,
         on_result=on_result,
     )
     assert calls["boom"] == "exception"
@@ -146,13 +159,17 @@ def test_excluded_providers_are_skipped_entirely():
     pool.list_subtitles_provider.side_effect = list_fn
 
     calls = {}
+
     def on_result(name, outcome, latency_ms):
         calls[name] = outcome
 
     video = MagicMock()
     list_all_subtitles_parallel(
-        [video], set(), pool,
-        per_provider_timeout=2, wall_timeout=3,
+        [video],
+        set(),
+        pool,
+        per_provider_timeout=2,
+        wall_timeout=3,
         exclude_providers={"skip"},
         on_result=on_result,
     )
@@ -173,8 +190,11 @@ def test_async_pool_tuple_shape_handled():
 
     video = MagicMock()
     results = list_all_subtitles_parallel(
-        [video], set(), pool,
-        per_provider_timeout=1, wall_timeout=2,
+        [video],
+        set(),
+        pool,
+        per_provider_timeout=1,
+        wall_timeout=2,
     )
     assert results[video] == [sub]
 
@@ -198,8 +218,11 @@ def test_pool_discarded_providers_respected():
 
     video = MagicMock()
     list_all_subtitles_parallel(
-        [video], set(), pool,
-        per_provider_timeout=1, wall_timeout=2,
+        [video],
+        set(),
+        pool,
+        per_provider_timeout=1,
+        wall_timeout=2,
     )
     assert invocations == ["live"]
 
@@ -213,8 +236,11 @@ def test_empty_providers_returns_empty_result():
 
     video = MagicMock()
     results = list_all_subtitles_parallel(
-        [video], set(), pool,
-        per_provider_timeout=1, wall_timeout=1,
+        [video],
+        set(),
+        pool,
+        per_provider_timeout=1,
+        wall_timeout=1,
     )
     assert dict(results) == {}
 
@@ -227,8 +253,11 @@ def test_empty_videos_returns_empty_result():
     pool.discarded_providers = set()
 
     results = list_all_subtitles_parallel(
-        [], set(), pool,
-        per_provider_timeout=1, wall_timeout=1,
+        [],
+        set(),
+        pool,
+        per_provider_timeout=1,
+        wall_timeout=1,
     )
     assert dict(results) == {}
     pool.list_subtitles_provider.assert_not_called()

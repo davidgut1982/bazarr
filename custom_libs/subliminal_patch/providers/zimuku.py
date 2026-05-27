@@ -184,7 +184,7 @@ class ZimukuProvider(Provider):
                         and "hongkong" in img.attrs["src"]
                 ):
                     logger.debug("language:" + str(language))
-                    
+
                     language = Language("zho").add(Language('zho', 'TW', None))
                     language_list.append(language)
                 elif (

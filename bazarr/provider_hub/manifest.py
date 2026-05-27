@@ -79,15 +79,21 @@ def _validate_sha256(value: str, field: str) -> str:
 
 def _validate_provider_id(value: str, built_in_provider_ids: set[str]) -> str:
     if not _PROVIDER_ID_RE.match(value):
-        raise ManifestValidationError("provider_id must use lowercase provider id syntax")
+        raise ManifestValidationError(
+            "provider_id must use lowercase provider id syntax"
+        )
     if value in built_in_provider_ids:
-        raise ManifestValidationError(f"provider_id {value!r} shadows a built-in provider")
+        raise ManifestValidationError(
+            f"provider_id {value!r} shadows a built-in provider"
+        )
     return value
 
 
 def _validate_file_path(path: str) -> str:
     if not isinstance(path, str) or not path:
-        raise ManifestValidationError("manifest files must use non-empty relative paths")
+        raise ManifestValidationError(
+            "manifest files must use non-empty relative paths"
+        )
     if path.startswith("/") or "\\" in path:
         raise ManifestValidationError(f"unsafe file path: {path}")
 
@@ -113,18 +119,24 @@ def _validate_source_path(path: Any) -> str:
     return parsed.as_posix()
 
 
-def _validate_config_schema(config_schema: dict[str, Any], secret_fields: list[str]) -> None:
+def _validate_config_schema(
+    config_schema: dict[str, Any], secret_fields: list[str]
+) -> None:
     if config_schema.get("type") != "object":
         raise ManifestValidationError("config_schema.type must be object")
     if any(key in config_schema for key in _DISALLOWED_SCHEMA_KEYS):
-        raise ManifestValidationError("config_schema contains unsupported composition keys")
+        raise ManifestValidationError(
+            "config_schema contains unsupported composition keys"
+        )
 
     properties = config_schema.get("properties", {})
     if not isinstance(properties, dict):
         raise ManifestValidationError("config_schema.properties must be an object")
 
     required = config_schema.get("required", [])
-    if not isinstance(required, list) or any(not isinstance(item, str) for item in required):
+    if not isinstance(required, list) or any(
+        not isinstance(item, str) for item in required
+    ):
         raise ManifestValidationError("config_schema.required must be a string list")
 
     for key, field in properties.items():
@@ -133,29 +145,41 @@ def _validate_config_schema(config_schema: dict[str, Any], secret_fields: list[s
         if not isinstance(field, dict):
             raise ManifestValidationError(f"config field {key} must be an object")
         if any(item in field for item in _DISALLOWED_SCHEMA_KEYS | {"properties"}):
-            raise ManifestValidationError(f"config field {key} contains unsupported nested schema")
+            raise ManifestValidationError(
+                f"config field {key} contains unsupported nested schema"
+            )
         if field.get("type") not in _SUPPORTED_CONFIG_TYPES:
             raise ManifestValidationError(f"config field {key} has unsupported type")
         enum = field.get("enum")
         if enum is not None:
             if not isinstance(enum, list) or not enum:
-                raise ManifestValidationError(f"config field {key} enum must be a non-empty list")
+                raise ManifestValidationError(
+                    f"config field {key} enum must be a non-empty list"
+                )
             if any(not isinstance(item, (str, int, float, bool)) for item in enum):
-                raise ManifestValidationError(f"config field {key} enum must use scalar values")
+                raise ManifestValidationError(
+                    f"config field {key} enum must use scalar values"
+                )
 
     for key in required:
         if key not in properties:
-            raise ManifestValidationError(f"required config field is not declared: {key}")
+            raise ManifestValidationError(
+                f"required config field is not declared: {key}"
+            )
 
     for key in secret_fields:
         field = properties.get(key)
         if field is None:
-            raise ManifestValidationError(f"secret field is not declared in config_schema: {key}")
+            raise ManifestValidationError(
+                f"secret field is not declared in config_schema: {key}"
+            )
         if field.get("type") != "string":
             raise ManifestValidationError(f"secret field must be a string: {key}")
 
 
-def _validate_dependencies(dependencies: dict[str, Any]) -> tuple[DependencyRequirement, ...]:
+def _validate_dependencies(
+    dependencies: dict[str, Any],
+) -> tuple[DependencyRequirement, ...]:
     requirements = dependencies.get("requirements", [])
     if requirements is None:
         requirements = []
@@ -175,10 +199,16 @@ def _validate_dependencies(dependencies: dict[str, Any]) -> tuple[DependencyRequ
             raise ManifestValidationError(f"unsafe dependency name: {name}")
         if not _PACKAGE_RE.match(name):
             raise ManifestValidationError(f"unsafe dependency name: {name}")
-        if not _EXACT_VERSION_RE.match(version) or any(op in version for op in ("<", ">", "=", "*")):
-            raise ManifestValidationError(f"dependency {name} must be pinned to an exact version")
+        if not _EXACT_VERSION_RE.match(version) or any(
+            op in version for op in ("<", ">", "=", "*")
+        ):
+            raise ManifestValidationError(
+                f"dependency {name} must be pinned to an exact version"
+            )
         if not isinstance(hashes, list) or not hashes:
-            raise ManifestValidationError(f"dependency {name} must include at least one SHA256 hash")
+            raise ManifestValidationError(
+                f"dependency {name} must include at least one SHA256 hash"
+            )
 
         normalized_hashes = []
         for digest in hashes:
@@ -198,7 +228,9 @@ def _validate_dependencies(dependencies: dict[str, Any]) -> tuple[DependencyRequ
     return tuple(validated)
 
 
-def validate_manifest(manifest: dict[str, Any], built_in_provider_ids: set[str] | None = None) -> ValidatedManifest:
+def validate_manifest(
+    manifest: dict[str, Any], built_in_provider_ids: set[str] | None = None
+) -> ValidatedManifest:
     built_in_provider_ids = built_in_provider_ids or set()
     manifest = _require_mapping(manifest, "manifest")
 
@@ -225,16 +257,22 @@ def validate_manifest(manifest: dict[str, Any], built_in_provider_ids: set[str] 
         )
     api_version = _require_text(manifest.get("api_version"), "api_version")
     if api_version != PROVIDER_HUB_API_VERSION:
-        raise ManifestValidationError(f"unsupported Provider Hub API version: {api_version}")
+        raise ManifestValidationError(
+            f"unsupported Provider Hub API version: {api_version}"
+        )
 
     entry_module = _require_text(manifest.get("entry_module"), "entry_module")
     if not _ENTRY_MODULE_RE.match(entry_module):
-        raise ManifestValidationError("entry_module must be a simple Python module name")
+        raise ManifestValidationError(
+            "entry_module must be a simple Python module name"
+        )
     entry_class = _require_text(manifest.get("entry_class"), "entry_class")
     config_schema = _require_mapping(manifest.get("config_schema"), "config_schema")
 
     secret_fields = manifest.get("secret_fields", [])
-    if not isinstance(secret_fields, list) or not all(isinstance(item, str) for item in secret_fields):
+    if not isinstance(secret_fields, list) or not all(
+        isinstance(item, str) for item in secret_fields
+    ):
         raise ManifestValidationError("secret_fields must be a string list")
     _validate_config_schema(config_schema, secret_fields)
 
@@ -245,19 +283,25 @@ def validate_manifest(manifest: dict[str, Any], built_in_provider_ids: set[str] 
         raise ManifestValidationError("supported_media contains unsupported media type")
 
     languages = manifest.get("languages", [])
-    if not isinstance(languages, list) or not all(isinstance(item, str) for item in languages):
+    if not isinstance(languages, list) or not all(
+        isinstance(item, str) for item in languages
+    ):
         raise ManifestValidationError("languages must be a string list")
 
     raw_files = _require_mapping(manifest.get("files"), "files")
     files = {}
     for path, digest in raw_files.items():
         safe_path = _validate_file_path(path)
-        files[safe_path] = _validate_sha256(_require_text(digest, f"files.{path}"), f"files.{path}")
+        files[safe_path] = _validate_sha256(
+            _require_text(digest, f"files.{path}"), f"files.{path}"
+        )
     if not files:
         raise ManifestValidationError("files must not be empty")
     entry_file = _validate_file_path(f"{entry_module}.py")
     if entry_file not in files:
-        raise ManifestValidationError(f"entry_module must resolve to a declared file: {entry_file}")
+        raise ManifestValidationError(
+            f"entry_module must resolve to a declared file: {entry_file}"
+        )
 
     bundle_sha256 = _validate_sha256(
         _require_text(manifest.get("bundle_sha256"), "bundle_sha256"),
@@ -275,7 +319,9 @@ def validate_manifest(manifest: dict[str, Any], built_in_provider_ids: set[str] 
     source_commit = _require_text(source.get("commit"), "source.commit")
     if not _HEX_COMMIT_RE.match(source_commit):
         raise ManifestValidationError("source.commit must be an immutable commit SHA")
-    source_path = _validate_source_path(source.get("path") or source.get("bundle_path") or "")
+    source_path = _validate_source_path(
+        source.get("path") or source.get("bundle_path") or ""
+    )
     trusted = bool(source.get("trusted", False))
 
     dependencies = _require_mapping(manifest.get("dependencies", {}), "dependencies")

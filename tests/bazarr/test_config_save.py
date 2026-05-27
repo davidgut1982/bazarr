@@ -21,7 +21,9 @@ def test_save_settings_creates_missing_provider_section_for_hub_config(monkeypat
         sys.modules,
         "app.database",
         SimpleNamespace(
-            database=SimpleNamespace(execute=lambda statement: executed.append(statement)),
+            database=SimpleNamespace(
+                execute=lambda statement: executed.append(statement)
+            ),
             update=lambda _model: _FakeUpdate(),
             System=object,
         ),

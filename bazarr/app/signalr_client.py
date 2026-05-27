@@ -67,8 +67,8 @@ class SonarrSignalrClient:
         supports_signalr, sonarr_version = _sonarr_signalr_core_support_state()
         if supports_signalr is None:
             logging.warning(
-                'BAZARR cannot confirm Sonarr version yet. '
-                'Retrying before starting the Sonarr SignalR feed.'
+                "BAZARR cannot confirm Sonarr version yet. "
+                "Retrying before starting the Sonarr SignalR feed."
             )
         while supports_signalr is None:
             time.sleep(5)
@@ -76,16 +76,16 @@ class SonarrSignalrClient:
 
         if not supports_signalr:
             logging.warning(
-                'BAZARR requires Sonarr v4 or newer for the SignalR feed. '
-                'Current Sonarr version is %s, Sonarr live updates are disabled.',
+                "BAZARR requires Sonarr v4 or newer for the SignalR feed. "
+                "Current Sonarr version is %s, Sonarr live updates are disabled.",
                 sonarr_version,
             )
             self.connected = False
-            event_stream(type='badges')
+            event_stream(type="badges")
             return
 
         self.configure()
-        logging.info('BAZARR trying to connect to Sonarr SignalR feed...')
+        logging.info("BAZARR trying to connect to Sonarr SignalR feed...")
         while not _signalr_connection_active(self.connection):
             try:
                 started = self.connection.start()
@@ -96,7 +96,7 @@ class SonarrSignalrClient:
                 time.sleep(5)
 
     def stop(self):
-        logging.info('BAZARR SignalR client for Sonarr is now disconnected.')
+        logging.info("BAZARR SignalR client for Sonarr is now disconnected.")
         self.connection.stop()
 
     def restart(self):
@@ -109,21 +109,27 @@ class SonarrSignalrClient:
     def exception_handler(self):
         sonarr_queue.clear()
         self.connected = False
-        event_stream(type='badges')
-        logging.error("BAZARR connection to Sonarr SignalR feed has failed. We'll try to reconnect.")
+        event_stream(type="badges")
+        logging.error(
+            "BAZARR connection to Sonarr SignalR feed has failed. We'll try to reconnect."
+        )
         self.restart()
 
     def on_connect_handler(self):
         self.connected = True
-        event_stream(type='badges')
-        logging.info('BAZARR SignalR client for Sonarr is connected and waiting for events.')
+        event_stream(type="badges")
+        logging.info(
+            "BAZARR SignalR client for Sonarr is connected and waiting for events."
+        )
         if settings.sonarr.series_sync_on_live:
             scheduler.execute_job_now(taskid="update_series")
 
     def on_reconnect_handler(self):
         self.connected = False
-        event_stream(type='badges')
-        logging.error('BAZARR SignalR client for Sonarr connection as been lost. Trying to reconnect...')
+        event_stream(type="badges")
+        logging.error(
+            "BAZARR SignalR client for Sonarr connection as been lost. Trying to reconnect..."
+        )
 
     def configure(self):
         self.apikey_sonarr = settings.sonarr.apikey
@@ -133,7 +139,9 @@ class SonarrSignalrClient:
         )
         self.connection.on_open(self.on_connect_handler)
         self.connection.on_reconnect(self.on_reconnect_handler)
-        self.connection.on_close(lambda: logging.debug('BAZARR SignalR client for Sonarr is disconnected.'))
+        self.connection.on_close(
+            lambda: logging.debug("BAZARR SignalR client for Sonarr is disconnected.")
+        )
         self.connection.on_error(self.exception_handler)
         self.connection.on("receiveMessage", feed_queue)
 
@@ -147,7 +155,7 @@ class RadarrSignalrClient:
 
     def start(self):
         self.configure()
-        logging.info('BAZARR trying to connect to Radarr SignalR feed...')
+        logging.info("BAZARR trying to connect to Radarr SignalR feed...")
         while not _signalr_connection_active(self.connection):
             try:
                 started = self.connection.start()
@@ -158,7 +166,7 @@ class RadarrSignalrClient:
                 time.sleep(5)
 
     def stop(self):
-        logging.info('BAZARR SignalR client for Radarr is now disconnected.')
+        logging.info("BAZARR SignalR client for Radarr is now disconnected.")
         self.connection.stop()
 
     def restart(self):
@@ -171,21 +179,27 @@ class RadarrSignalrClient:
     def exception_handler(self):
         radarr_queue.clear()
         self.connected = False
-        event_stream(type='badges')
-        logging.error("BAZARR connection to Radarr SignalR feed has failed. We'll try to reconnect.")
+        event_stream(type="badges")
+        logging.error(
+            "BAZARR connection to Radarr SignalR feed has failed. We'll try to reconnect."
+        )
         self.restart()
 
     def on_connect_handler(self):
         self.connected = True
-        event_stream(type='badges')
-        logging.info('BAZARR SignalR client for Radarr is connected and waiting for events.')
+        event_stream(type="badges")
+        logging.info(
+            "BAZARR SignalR client for Radarr is connected and waiting for events."
+        )
         if settings.radarr.movies_sync_on_live:
             scheduler.execute_job_now(taskid="update_movies")
 
     def on_reconnect_handler(self):
         self.connected = False
-        event_stream(type='badges')
-        logging.error('BAZARR SignalR client for Radarr connection as been lost. Trying to reconnect...')
+        event_stream(type="badges")
+        logging.error(
+            "BAZARR SignalR client for Radarr connection as been lost. Trying to reconnect..."
+        )
 
     def configure(self):
         self.apikey_radarr = settings.radarr.apikey
@@ -195,78 +209,105 @@ class RadarrSignalrClient:
         )
         self.connection.on_open(self.on_connect_handler)
         self.connection.on_reconnect(self.on_reconnect_handler)
-        self.connection.on_close(lambda: logging.debug('BAZARR SignalR client for Radarr is disconnected.'))
+        self.connection.on_close(
+            lambda: logging.debug("BAZARR SignalR client for Radarr is disconnected.")
+        )
         self.connection.on_error(self.exception_handler)
         self.connection.on("receiveMessage", feed_queue)
 
 
 def dispatcher(data):
     try:
-        series_title = series_year = episode_title = season_number = episode_number = movie_title = movie_year = None
+        series_title = series_year = episode_title = season_number = episode_number = (
+            movie_title
+        ) = movie_year = None
 
         #
         try:
             episodesChanged = False
-            topic = data['name']
+            topic = data["name"]
 
-            media_id = data['body']['resource']['id']
-            action = data['body']['action']
-            if topic == 'series':
-                if 'episodesChanged' in data['body']['resource']:
-                    episodesChanged = data['body']['resource']['episodesChanged']
-                series_title = data['body']['resource']['title']
-                series_year = data['body']['resource']['year']
-            elif topic == 'episode':
-                if 'series' in data['body']['resource']:
-                    series_title = data['body']['resource']['series']['title']
-                    series_year = data['body']['resource']['series']['year']
+            media_id = data["body"]["resource"]["id"]
+            action = data["body"]["action"]
+            if topic == "series":
+                if "episodesChanged" in data["body"]["resource"]:
+                    episodesChanged = data["body"]["resource"]["episodesChanged"]
+                series_title = data["body"]["resource"]["title"]
+                series_year = data["body"]["resource"]["year"]
+            elif topic == "episode":
+                if "series" in data["body"]["resource"]:
+                    series_title = data["body"]["resource"]["series"]["title"]
+                    series_year = data["body"]["resource"]["series"]["year"]
                 else:
                     series_metadata = database.execute(
-                        select(TableShows.title, TableShows.year)
-                        .where(TableShows.sonarrSeriesId == data['body']['resource']['seriesId'])) \
-                        .first()
+                        select(TableShows.title, TableShows.year).where(
+                            TableShows.sonarrSeriesId
+                            == data["body"]["resource"]["seriesId"]
+                        )
+                    ).first()
                     if series_metadata:
                         series_title = series_metadata.title
                         series_year = series_metadata.year
-                episode_title = data['body']['resource']['title']
-                season_number = data['body']['resource']['seasonNumber']
-                episode_number = data['body']['resource']['episodeNumber']
-            elif topic == 'movie':
-                if action == 'deleted':
+                episode_title = data["body"]["resource"]["title"]
+                season_number = data["body"]["resource"]["seasonNumber"]
+                episode_number = data["body"]["resource"]["episodeNumber"]
+            elif topic == "movie":
+                if action == "deleted":
                     existing_movie_details = database.execute(
-                        select(TableMovies.title, TableMovies.year)
-                        .where(TableMovies.radarrId == media_id)) \
-                        .first()
+                        select(TableMovies.title, TableMovies.year).where(
+                            TableMovies.radarrId == media_id
+                        )
+                    ).first()
                     if existing_movie_details:
                         movie_title = existing_movie_details.title
                         movie_year = existing_movie_details.year
                     else:
                         return
                 else:
-                    movie_title = data['body']['resource']['title']
-                    movie_year = data['body']['resource']['year']
+                    movie_title = data["body"]["resource"]["title"]
+                    movie_year = data["body"]["resource"]["year"]
         except KeyError:
             return
 
-        if topic == 'series':
-            logging.debug(f'Event received from Sonarr for series: {series_title} ({series_year})')  # noqa: G004
+        if topic == "series":
+            logging.debug(
+                f"Event received from Sonarr for series: {series_title} ({series_year})"  # noqa: G004
+            )
             if episodesChanged:
                 # this will happen if a season's monitored status is changed.
-                sync_episodes(series_id=media_id, defer_search=settings.sonarr.defer_search_signalr, is_signalr=True)
+                sync_episodes(
+                    series_id=media_id,
+                    defer_search=settings.sonarr.defer_search_signalr,
+                    is_signalr=True,
+                )
             else:
                 update_one_series(series_id=media_id, action=action, is_signalr=True)
-        elif topic == 'episode':
-            logging.debug(f'Event received from Sonarr for episode: {series_title} ({series_year}) - '  # noqa: G004
-                          f'S{season_number:0>2}E{episode_number:0>2} - {episode_title}')
-            sync_one_episode(episode_id=media_id, defer_search=settings.sonarr.defer_search_signalr, is_signalr=True)
-        elif topic == 'movie':
-            logging.debug(f'Event received from Radarr for movie: {movie_title} ({movie_year})')  # noqa: G004
-            update_one_movie(movie_id=media_id, action=action, defer_search=settings.radarr.defer_search_signalr,
-                             is_signalr=True)
+        elif topic == "episode":
+            logging.debug(
+                f"Event received from Sonarr for episode: {series_title} ({series_year}) - "  # noqa: G004
+                f"S{season_number:0>2}E{episode_number:0>2} - {episode_title}"
+            )
+            sync_one_episode(
+                episode_id=media_id,
+                defer_search=settings.sonarr.defer_search_signalr,
+                is_signalr=True,
+            )
+        elif topic == "movie":
+            logging.debug(
+                f"Event received from Radarr for movie: {movie_title} ({movie_year})"  # noqa: G004
+            )
+            update_one_movie(
+                movie_id=media_id,
+                action=action,
+                defer_search=settings.radarr.defer_search_signalr,
+                is_signalr=True,
+            )
     except Exception as e:
-        logging.debug(f'BAZARR an exception occurred while parsing SignalR feed: {repr(e)}')  # noqa: G004
+        logging.debug(
+            f"BAZARR an exception occurred while parsing SignalR feed: {repr(e)}"  # noqa: G004
+        )
     finally:
-        event_stream(type='badges')
+        event_stream(type="badges")
         return
 
 
@@ -289,7 +330,7 @@ def filter_nested_dict(data: dict) -> dict:
              nested dictionaries or dictionaries within lists.
     :rtype: dict
     """
-    keys_to_remove = ['statistics']
+    keys_to_remove = ["statistics"]
 
     filtered_data = {}
 
@@ -316,25 +357,29 @@ def feed_queue(data):
     if isinstance(data, list) and len(data):
         data = data[0]
 
-    if isinstance(data, dict) and 'name' in data and data['name'] in ['series', 'episode', 'movie']:
+    if (
+        isinstance(data, dict)
+        and "name" in data
+        and data["name"] in ["series", "episode", "movie"]
+    ):
         # filter out some keys to reduce the size of the event data dictionary and prevent similar events from being
         # added to the queue
         data = filter_nested_dict(data)
 
         # check if event is duplicate from the previous one
-        if data['name'] == 'series':
+        if data["name"] == "series":
             global last_series_event_data
             if data == last_series_event_data:
                 return
             else:
                 last_series_event_data = data
-        elif data['name'] == 'episode':
+        elif data["name"] == "episode":
             global last_episode_event_data
             if data == last_episode_event_data:
                 return
             else:
                 last_episode_event_data = data
-        elif data['name'] == 'movie':
+        elif data["name"] == "movie":
             global last_movie_event_data
             if data == last_movie_event_data:
                 return
@@ -342,10 +387,10 @@ def feed_queue(data):
                 last_movie_event_data = data
 
         # if data is a dict and contain an event for series, episode or movie, we add it to the event queue
-        if isinstance(data, dict) and 'name' in data:
-            if data['name'] in ['series', 'episode']:
+        if isinstance(data, dict) and "name" in data:
+            if data["name"] in ["series", "episode"]:
                 sonarr_queue.append(data)
-            elif data['name'] == 'movie':
+            elif data["name"] == "movie":
                 radarr_queue.append(data)
 
 

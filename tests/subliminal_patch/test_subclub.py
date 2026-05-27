@@ -19,7 +19,12 @@ from subzero.language import Language
         ),
         (
             "Game of Thrones (2011) [01x02]",
-            {"title": "Game of Thrones", "year": "2011", "season": "01", "episode": "02"},
+            {
+                "title": "Game of Thrones",
+                "year": "2011",
+                "season": "01",
+                "episode": "02",
+            },
         ),
         (
             "House M.D. (2004) [03x12]",
@@ -27,7 +32,12 @@ from subzero.language import Language
         ),
         (
             "The Simpsons Movie (2007)",
-            {"title": "The Simpsons Movie", "year": "2007", "season": None, "episode": None},
+            {
+                "title": "The Simpsons Movie",
+                "year": "2007",
+                "season": None,
+                "episode": None,
+            },
         ),
     ],
 )

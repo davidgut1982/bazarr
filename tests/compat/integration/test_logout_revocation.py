@@ -11,6 +11,7 @@ FID_SECRET = "f" * 32
 def _secrets():
     from app.config import settings
     from compat import jwt_denylist
+
     settings["compat_endpoint"]["token"] = API_KEY
     settings["compat_endpoint"]["jwt_secret"] = JWT_SECRET
     settings["compat_endpoint"]["file_id_secret"] = FID_SECRET
@@ -22,6 +23,7 @@ def _secrets():
 
 def _app():
     from compat.routes import compat_bp
+
     app = Flask(__name__)
     app.register_blueprint(compat_bp, url_prefix="/api/v1")
     return app
@@ -29,26 +31,31 @@ def _app():
 
 def test_logout_revokes_jwt():
     from compat import auth
+
     c = _app().test_client()
     tok = auth.mint_jwt()
 
     # JWT works initially on a require_jwt route.
-    r = c.post("/api/v1/download",
-               headers={"Api-Key": API_KEY, "Authorization": f"Bearer {tok}"},
-               json={"file_id": 999})
+    r = c.post(
+        "/api/v1/download",
+        headers={"Api-Key": API_KEY, "Authorization": f"Bearer {tok}"},
+        json={"file_id": 999},
+    )
     # Any status except 401 means auth passed (404 is expected for unknown fid).
     assert r.status_code != 401
 
     # Logout revokes it.
-    r = c.delete("/api/v1/logout",
-                 headers={"Api-Key": API_KEY,
-                          "Authorization": f"Bearer {tok}"})
+    r = c.delete(
+        "/api/v1/logout", headers={"Api-Key": API_KEY, "Authorization": f"Bearer {tok}"}
+    )
     assert 200 <= r.status_code < 300
 
     # Same JWT is now rejected.
-    r = c.post("/api/v1/download",
-               headers={"Api-Key": API_KEY, "Authorization": f"Bearer {tok}"},
-               json={"file_id": 1})
+    r = c.post(
+        "/api/v1/download",
+        headers={"Api-Key": API_KEY, "Authorization": f"Bearer {tok}"},
+        json={"file_id": 1},
+    )
     assert r.status_code == 401
 
 

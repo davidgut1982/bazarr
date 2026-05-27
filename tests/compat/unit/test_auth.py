@@ -11,10 +11,17 @@ def _reset_compat_secrets():
     Setting and restoring directly on the live DynaBox is deterministic.
     """
     from app.config import settings
+
     original = {
         name: getattr(settings.compat_endpoint, name, "")
-        for name in ("token", "jwt_secret", "file_id_secret",
-                     "jwt_ttl_seconds", "file_id_ttl_seconds", "stream_token_ttl_seconds")
+        for name in (
+            "token",
+            "jwt_secret",
+            "file_id_secret",
+            "jwt_ttl_seconds",
+            "file_id_ttl_seconds",
+            "stream_token_ttl_seconds",
+        )
     }
     # Use dict-assignment (not setattr on the DynaBox wrapper) because the
     # wrapper doesn't reliably propagate into Dynaconf's layered storage
@@ -49,6 +56,7 @@ def test_validate_compat_token_empty_returns_false(monkeypatch):
 def test_validate_compat_token_uses_constant_time():
     """Fails if `==` is used instead of hmac.compare_digest."""
     import hmac
+
     # Sanity: hmac.compare_digest accepts bytes and str
     assert hmac.compare_digest("a" * 32, "a" * 32) is True
 
@@ -100,6 +108,7 @@ def test_file_id_roundtrip(monkeypatch):
     """mint_file_id now returns an int (OS.com wire contract); parse resolves
     via the in-memory store."""
     from compat.file_id_store import reset_store
+
     reset_store()
     monkeypatch.setattr("compat.auth.settings.compat_endpoint.file_id_ttl_seconds", 60)
     fid = A.mint_file_id(
@@ -119,6 +128,7 @@ def test_file_id_roundtrip(monkeypatch):
 def test_file_id_unknown_rejected(monkeypatch):
     """An int that was never minted must return (False, {})."""
     from compat.file_id_store import reset_store
+
     reset_store()
     monkeypatch.setattr("compat.auth.settings.compat_endpoint.file_id_ttl_seconds", 60)
     ok, _ = A.parse_file_id(999999999)
@@ -131,6 +141,7 @@ def test_file_id_unknown_rejected(monkeypatch):
 
 def test_file_id_expired_rejected(monkeypatch):
     from compat.file_id_store import reset_store
+
     reset_store()
     monkeypatch.setattr("compat.auth.settings.compat_endpoint.file_id_ttl_seconds", 1)
     fid = A.mint_file_id("p", "i", "eng", "")
@@ -141,6 +152,7 @@ def test_file_id_expired_rejected(monkeypatch):
 
 def test_stream_token_roundtrip():
     from app.config import settings
+
     settings["compat_endpoint"]["file_id_secret"] = "f" * 32
     settings["compat_endpoint"]["stream_token_ttl_seconds"] = 60
     tok = A.mint_stream_token("p", "i")
@@ -155,6 +167,7 @@ def test_stream_token_roundtrip_all_byte_values_in_sig():
     1000 iterations with varying payloads should exercise a signature
     whose last byte is b'.' (0x2e) many times over."""
     from app.config import settings
+
     settings["compat_endpoint"]["file_id_secret"] = "f" * 32
     settings["compat_endpoint"]["stream_token_ttl_seconds"] = 60
     for i in range(1000):
@@ -168,6 +181,7 @@ def test_stream_token_roundtrip_all_byte_values_in_sig():
 def test_stream_token_expiry():
     """Expiry path: TTL=1, sleep 2s, parse must reject."""
     from app.config import settings
+
     settings["compat_endpoint"]["file_id_secret"] = "f" * 32
     settings["compat_endpoint"]["stream_token_ttl_seconds"] = 1
     tok = A.mint_stream_token("p", "i")
@@ -180,6 +194,7 @@ def test_mint_jwt_includes_jti_claim():
     import jwt as pyjwt
     from compat import auth
     from app.config import settings
+
     settings["compat_endpoint"]["jwt_secret"] = "j" * 32
     tok = auth.mint_jwt()
     claims = pyjwt.decode(tok, "j" * 32, algorithms=["HS256"])
@@ -189,10 +204,12 @@ def test_mint_jwt_includes_jti_claim():
 def test_validate_jwt_rejects_revoked_jti():
     from compat import auth, jwt_denylist
     from app.config import settings
+
     settings["compat_endpoint"]["jwt_secret"] = "j" * 32
     jwt_denylist.reset()
     tok = auth.mint_jwt()
     import jwt as pyjwt
+
     claims = pyjwt.decode(tok, "j" * 32, algorithms=["HS256"])
     ok, _ = auth.validate_jwt(tok)
     assert ok is True
@@ -204,4 +221,5 @@ def test_validate_jwt_rejects_revoked_jti():
 
 def test_revoke_jwt_is_noop_for_empty_jti():
     from compat import auth
+
     auth.revoke_jwt("", 9999999999)  # must not raise

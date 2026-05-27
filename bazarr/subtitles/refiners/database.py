@@ -95,7 +95,7 @@ def refine_from_db(path, video):
                 video.imdb_id = data.imdbId
             if data.tmdbId and not video.tmdb_id:
                 video.tmdb_id = data.tmdbId
- 
+
             video.alternative_titles = ast.literal_eval(data.alternativeTitles)
             if not video.source:
                 if data.format:

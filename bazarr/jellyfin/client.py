@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 # separated UUIDs in older installs. Anything else (slashes, dots, querystring
 # characters) means a malicious or corrupt response and must not be substituted
 # into a URL path.
-_JELLYFIN_ID_RE = re.compile(r'\A[0-9a-fA-F]{32}\Z|\A[0-9a-fA-F\-]{36}\Z')
+_JELLYFIN_ID_RE = re.compile(r"\A[0-9a-fA-F]{32}\Z|\A[0-9a-fA-F\-]{36}\Z")
 
 # Cap response size to defend against a hostile / MITM'd Jellyfin returning
 # pathologically large payloads. 16 MiB is generous for the largest Items
@@ -43,7 +43,7 @@ def _redact_secret(text: str, secret: str) -> str:
     if not text:
         return text
     if isinstance(secret, str) and secret:
-        text = text.replace(secret, '***')
+        text = text.replace(secret, "***")
     text = re.sub(r'Token="[^"]*"', 'Token="***"', text)
     return text
 
@@ -59,18 +59,16 @@ def _bounded_body(response: requests.Response) -> bytes:
             continue
         total += len(chunk)
         if total > _MAX_RESPONSE_BYTES:
-            raise ValueError(
-                f"Jellyfin response exceeded {_MAX_RESPONSE_BYTES} bytes"
-            )
+            raise ValueError(f"Jellyfin response exceeded {_MAX_RESPONSE_BYTES} bytes")
         chunks.append(chunk)
-    return b''.join(chunks)
+    return b"".join(chunks)
 
 
 class JellyfinClient:
     """Thin HTTP client for the Jellyfin REST API."""
 
     def __init__(self, url: str, api_key: str, verify_ssl: bool | None = None):
-        self.base_url = url.rstrip('/')
+        self.base_url = url.rstrip("/")
         self.api_key = api_key
         self.session = requests.Session()
         # Default to verifying TLS. Users with self-signed certs flip the
@@ -80,27 +78,31 @@ class JellyfinClient:
         if verify_ssl is None:
             try:
                 from app.config import settings
+
                 verify_ssl = bool(settings.jellyfin.verify_ssl)
             except Exception:
                 verify_ssl = True
         self.session.verify = verify_ssl
 
-        bazarr_version = os.environ.get('BAZARR_VERSION', 'unknown')
-        self.session.headers.update({
-            'Authorization': (
-                f'MediaBrowser Client="Bazarr", Device="Bazarr", '
-                f'DeviceId="bazarr", Version="{bazarr_version}", '
-                f'Token="{api_key}"'
-            ),
-            'Content-Type': 'application/json',
-        })
+        bazarr_version = os.environ.get("BAZARR_VERSION", "unknown")
+        self.session.headers.update(
+            {
+                "Authorization": (
+                    f'MediaBrowser Client="Bazarr", Device="Bazarr", '
+                    f'DeviceId="bazarr", Version="{bazarr_version}", '
+                    f'Token="{api_key}"'
+                ),
+                "Content-Type": "application/json",
+            }
+        )
 
     def _url(self, path: str) -> str:
-        return f'{self.base_url}{path}'
+        return f"{self.base_url}{path}"
 
     def get(self, path: str, params: dict = None) -> requests.Response:
-        response = self.session.get(self._url(path), params=params,
-                                    timeout=_DEFAULT_TIMEOUT, stream=True)
+        response = self.session.get(
+            self._url(path), params=params, timeout=_DEFAULT_TIMEOUT, stream=True
+        )
         # `stream=True` keeps the underlying connection open until the body
         # is fully consumed. If raise_for_status() (4xx/5xx) or _bounded_body
         # (>16 MiB hostile payload) raises, the connection would leak back
@@ -116,47 +118,59 @@ class JellyfinClient:
             raise
         return response
 
-    def post(self, path: str, json: dict = None, params: dict = None) -> requests.Response:
-        response = self.session.post(self._url(path), json=json, params=params,
-                                     timeout=_DEFAULT_TIMEOUT)
+    def post(
+        self, path: str, json: dict = None, params: dict = None
+    ) -> requests.Response:
+        response = self.session.post(
+            self._url(path), json=json, params=params, timeout=_DEFAULT_TIMEOUT
+        )
         response.raise_for_status()
         return response
 
     def get_system_info(self) -> dict:
         """GET /System/Info — returns server name, version, id."""
-        return self.get('/System/Info').json()
+        return self.get("/System/Info").json()
 
     def get_libraries(self) -> list:
         """GET /Library/VirtualFolders — returns all library folders."""
-        return self.get('/Library/VirtualFolders').json()
+        return self.get("/Library/VirtualFolders").json()
 
     def get_items(self, params: dict) -> list:
         """GET /Items — search/browse items with query parameters."""
-        data = self.get('/Items', params=params).json()
-        return data.get('Items', [])
+        data = self.get("/Items", params=params).json()
+        return data.get("Items", [])
 
     def get_episodes(self, series_id: str, season: int) -> list:
         """GET /Shows/{seriesId}/Episodes — list episodes for a season."""
-        data = self.get(f'/Shows/{_validate_id(series_id)}/Episodes', params={
-            'season': season,
-            'fields': 'ProviderIds',
-        }).json()
-        return data.get('Items', [])
+        data = self.get(
+            f"/Shows/{_validate_id(series_id)}/Episodes",
+            params={
+                "season": season,
+                "fields": "ProviderIds",
+            },
+        ).json()
+        return data.get("Items", [])
 
     def refresh_item(self, item_id: str) -> None:
         """POST /Items/{itemId}/Refresh — trigger metadata refresh for a specific item."""
-        self.post(f'/Items/{_validate_id(item_id)}/Refresh', params={
-            'metadataRefreshMode': 'ValidationOnly',
-            'imageRefreshMode': 'None',
-            'replaceAllMetadata': 'false',
-            'replaceAllImages': 'false',
-        })
+        self.post(
+            f"/Items/{_validate_id(item_id)}/Refresh",
+            params={
+                "metadataRefreshMode": "ValidationOnly",
+                "imageRefreshMode": "None",
+                "replaceAllMetadata": "false",
+                "replaceAllImages": "false",
+            },
+        )
 
     def report_media_updated(self, path: str) -> None:
         """POST /Library/Media/Updated — notify Jellyfin of filesystem changes.
 
         Triggers filesystem change detection for the given path.
         """
-        self.post('/Library/Media/Updated', json={
-            'Updates': [{'Path': path, 'UpdateType': 'Modified'}],
-        })
+        self.post(
+            "/Library/Media/Updated",
+            json={
+                "Updates": [{"Path": path, "UpdateType": "Modified"}],
+            },
+        )

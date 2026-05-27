@@ -13,6 +13,7 @@ These tests pin the new contract:
     completion
   - thread count returns to baseline after timed-out fanouts complete
 """
+
 import threading
 import time
 from unittest.mock import MagicMock
@@ -22,8 +23,11 @@ import pytest
 
 def _baseline_compat_threads() -> int:
     """Count live threads whose name starts with the compat-fanout prefix."""
-    return sum(1 for t in threading.enumerate()
-               if t.is_alive() and t.name.startswith("compat-fanout"))
+    return sum(
+        1
+        for t in threading.enumerate()
+        if t.is_alive() and t.name.startswith("compat-fanout")
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -31,6 +35,7 @@ def _reset_fanout_pool():
     """Each test starts and ends with a fresh pool so other tests are
     isolated and the abandoned counter is accurate per-test."""
     from subliminal_patch.core_persistent import reset_pool
+
     reset_pool()
     yield
     reset_pool()
@@ -40,7 +45,8 @@ def test_max_workers_cap_respected_under_repeated_timeouts():
     """Even with many fanouts that all abandon their workers, the live
     compat-fanout thread count must not exceed max_workers."""
     from subliminal_patch.core_persistent import (
-        list_all_subtitles_parallel, fanout_stats,
+        list_all_subtitles_parallel,
+        fanout_stats,
     )
 
     pool = MagicMock()
@@ -61,8 +67,11 @@ def test_max_workers_cap_respected_under_repeated_timeouts():
     def _drive():
         v = MagicMock()
         list_all_subtitles_parallel(
-            [v], set(), pool,
-            per_provider_timeout=1, wall_timeout=1,
+            [v],
+            set(),
+            pool,
+            per_provider_timeout=1,
+            wall_timeout=1,
         )
 
     drivers = [threading.Thread(target=_drive) for _ in range(10)]
@@ -76,8 +85,7 @@ def test_max_workers_cap_respected_under_repeated_timeouts():
     # Hard ceiling: never more than max_workers compat-fanout threads,
     # regardless of how many fanouts were issued.
     assert live <= stats["max_workers"], (
-        f"compat-fanout threads={live} exceeded max_workers="
-        f"{stats['max_workers']}"
+        f"compat-fanout threads={live} exceeded max_workers={stats['max_workers']}"
     )
 
 
@@ -85,7 +93,8 @@ def test_threads_return_to_baseline_after_workers_finish():
     """Once provider workers return, all abandoned threads should be
     reusable / reaped, not leaking forever."""
     from subliminal_patch.core_persistent import (
-        list_all_subtitles_parallel, fanout_stats,
+        list_all_subtitles_parallel,
+        fanout_stats,
     )
 
     pool = MagicMock()
@@ -102,8 +111,11 @@ def test_threads_return_to_baseline_after_workers_finish():
 
     v = MagicMock()
     list_all_subtitles_parallel(
-        [v], set(), pool,
-        per_provider_timeout=1, wall_timeout=1,
+        [v],
+        set(),
+        pool,
+        per_provider_timeout=1,
+        wall_timeout=1,
     )
 
     # Right after the wall fires, abandoned futures should still be in
@@ -160,8 +172,11 @@ def test_concurrent_fanout_cap_blocks_extra_callers():
     def _drive():
         v = MagicMock()
         list_all_subtitles_parallel(
-            [v], set(), pool,
-            per_provider_timeout=10, wall_timeout=10,
+            [v],
+            set(),
+            pool,
+            per_provider_timeout=10,
+            wall_timeout=10,
         )
 
     drivers = [threading.Thread(target=_drive) for _ in range(cap + 3)]
@@ -174,9 +189,7 @@ def test_concurrent_fanout_cap_blocks_extra_callers():
     while entered < cap and time.monotonic() < deadline:
         if enter_count.acquire(timeout=0.2):
             entered += 1
-    assert entered == cap, (
-        f"expected {cap} concurrent workers, got {entered}"
-    )
+    assert entered == cap, f"expected {cap} concurrent workers, got {entered}"
 
     # The remaining drivers must still be blocked on the semaphore.
     # No more workers should have entered list_fn.
@@ -200,16 +213,21 @@ def test_queued_futures_cancelled_after_wall_timeout(monkeypatch):
     repeated timed-out searches when provider count exceeds workers."""
     from app.config import settings
     from subliminal_patch.core_persistent import (
-        list_all_subtitles_parallel, reset_pool,
+        list_all_subtitles_parallel,
+        reset_pool,
     )
 
     # Force a tiny pool so queueing is guaranteed.
     monkeypatch.setattr(
-        settings.compat_endpoint, "fanout_max_workers", 4,
+        settings.compat_endpoint,
+        "fanout_max_workers",
+        4,
         raising=False,
     )
     monkeypatch.setattr(
-        settings.compat_endpoint, "max_concurrent_fanouts", 1,
+        settings.compat_endpoint,
+        "max_concurrent_fanouts",
+        1,
         raising=False,
     )
     reset_pool()
@@ -232,8 +250,11 @@ def test_queued_futures_cancelled_after_wall_timeout(monkeypatch):
 
     v = MagicMock()
     list_all_subtitles_parallel(
-        [v], set(), pool,
-        per_provider_timeout=1, wall_timeout=1,
+        [v],
+        set(),
+        pool,
+        per_provider_timeout=1,
+        wall_timeout=1,
     )
 
     # Right after the wall fires, the 4 running providers haven't
@@ -261,11 +282,14 @@ def test_wall_timeout_includes_semaphore_wait(monkeypatch):
     cannot cause the request to spend nearly 2 * wall_timeout."""
     from app.config import settings
     from subliminal_patch.core_persistent import (
-        list_all_subtitles_parallel, reset_pool,
+        list_all_subtitles_parallel,
+        reset_pool,
     )
 
     monkeypatch.setattr(
-        settings.compat_endpoint, "max_concurrent_fanouts", 1,
+        settings.compat_endpoint,
+        "max_concurrent_fanouts",
+        1,
         raising=False,
     )
     reset_pool()
@@ -286,8 +310,11 @@ def test_wall_timeout_includes_semaphore_wait(monkeypatch):
     def _holder():
         v = MagicMock()
         list_all_subtitles_parallel(
-            [v], set(), pool,
-            per_provider_timeout=10, wall_timeout=2,
+            [v],
+            set(),
+            pool,
+            per_provider_timeout=10,
+            wall_timeout=2,
         )
 
     holder = threading.Thread(target=_holder)
@@ -310,8 +337,11 @@ def test_wall_timeout_includes_semaphore_wait(monkeypatch):
     t0 = time.monotonic()
     v2 = MagicMock()
     list_all_subtitles_parallel(
-        [v2], set(), pool2,
-        per_provider_timeout=1, wall_timeout=2,
+        [v2],
+        set(),
+        pool2,
+        per_provider_timeout=1,
+        wall_timeout=2,
     )
     elapsed = time.monotonic() - t0
 
@@ -332,7 +362,9 @@ def test_concurrent_reset_does_not_break_in_flight_fanout(monkeypatch):
     fanout's submit loop must not turn the search into a 500.
     _safe_submit transparently swaps to a fresh pool on RuntimeError."""
     from subliminal_patch.core_persistent import (
-        list_all_subtitles_parallel, reset_pool, _get_pool,
+        list_all_subtitles_parallel,
+        reset_pool,
+        _get_pool,
     )
 
     pool = MagicMock()
@@ -373,8 +405,11 @@ def test_concurrent_reset_does_not_break_in_flight_fanout(monkeypatch):
     # the rest on the fresh one. Either way, the fanout must complete
     # and return collected results, not a RuntimeError.
     results = list_all_subtitles_parallel(
-        [v], set(), pool,
-        per_provider_timeout=2, wall_timeout=3,
+        [v],
+        set(),
+        pool,
+        per_provider_timeout=2,
+        wall_timeout=3,
     )
     assert reset_done.is_set(), "reset_pool was supposed to fire mid-fanout"
     flat = [s for subs in results.values() for s in subs]
@@ -405,8 +440,11 @@ def test_existing_short_circuit_behavior_preserved():
     v = MagicMock()
     t0 = time.time()
     results = list_all_subtitles_parallel(
-        [v], set(), pool,
-        per_provider_timeout=1, wall_timeout=2,
+        [v],
+        set(),
+        pool,
+        per_provider_timeout=1,
+        wall_timeout=2,
     )
     elapsed = time.time() - t0
     assert elapsed < 3

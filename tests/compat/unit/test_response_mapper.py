@@ -5,13 +5,18 @@ from compat import response_mapper as M
 
 def make_sub():
     s = MagicMock(
-        provider_name="opensubtitlescom", id="12345",
+        provider_name="opensubtitlescom",
+        id="12345",
         language=Language("eng"),
         release_info="Movie.2020.1080p.BluRay.x264-GROUP",
-        download_count=500, hearing_impaired=False,
-        uploader="Anon", matches={"hash", "release_group"},
-        ai_translated=False, machine_translated=False,
-        foreign_parts_only=False, fps=0.0,
+        download_count=500,
+        hearing_impaired=False,
+        uploader="Anon",
+        matches={"hash", "release_group"},
+        ai_translated=False,
+        machine_translated=False,
+        foreign_parts_only=False,
+        fps=0.0,
     )
     return s
 
@@ -20,8 +25,17 @@ def test_subtitle_entry_has_all_fields_jellyfin_reads():
     entry = M.subtitle_to_os_entry(make_sub(), 42, "episode", "tt12345", 1, 2)
     a = entry["attributes"]
     # Jellyfin requires these exact field names and types
-    for k in ("language", "release", "download_count", "ratings", "from_trusted",
-              "hearing_impaired", "uploader", "feature_details", "files"):
+    for k in (
+        "language",
+        "release",
+        "download_count",
+        "ratings",
+        "from_trusted",
+        "hearing_impaired",
+        "uploader",
+        "feature_details",
+        "files",
+    ):
         assert k in a, f"{k} missing"
     assert a["feature_details"]["feature_type"] in ("Movie", "Episode")  # B12
     # OS.com wire contract: file_id is int, entry-level id is numeric string
@@ -59,11 +73,12 @@ def test_search_envelope_paginates_total_pages():
 
 def test_download_response_emits_remaining_and_reset():
     from compat import response_mapper as M
-    r = M.download_response("https://example/link",
-                             remaining=42,
-                             reset_iso="2099-01-01T00:00:00Z")
+
+    r = M.download_response(
+        "https://example/link", remaining=42, reset_iso="2099-01-01T00:00:00Z"
+    )
     assert r["link"] == "https://example/link"
-    assert r["remaining"] == 42            # VLSub
+    assert r["remaining"] == 42  # VLSub
     assert r["remaining_downloads"] == 42  # Jellyfin
     assert r["reset_time_utc"] == "2099-01-01T00:00:00Z"
     # Deprecated duplicates removed.
@@ -73,8 +88,10 @@ def test_download_response_emits_remaining_and_reset():
 
 def test_user_info_response_takes_real_counters():
     from compat import response_mapper as M
-    r = M.user_info_response(remaining=17, allowed=1000,
-                              reset_iso="2099-01-01T00:00:00Z")
+
+    r = M.user_info_response(
+        remaining=17, allowed=1000, reset_iso="2099-01-01T00:00:00Z"
+    )
     d = r["data"]
     assert d["remaining_downloads"] == 17
     assert d["allowed_downloads"] == 1000
@@ -95,9 +112,11 @@ def test_feature_details_imdb_id_is_int():
 def test_feature_details_populates_from_video_movie():
     """Movie: title from video.title, movie_name as 'YYYY - Title'."""
     from unittest.mock import MagicMock
+
     video = MagicMock(title="The Shawshank Redemption", year=1994)
-    e = M.subtitle_to_os_entry(make_sub(), 1, "movie", "tt111161", None, None,
-                                video=video)
+    e = M.subtitle_to_os_entry(
+        make_sub(), 1, "movie", "tt111161", None, None, video=video
+    )
     fd = e["attributes"]["feature_details"]
     assert fd["title"] == "The Shawshank Redemption"
     assert fd["year"] == 1994
@@ -107,10 +126,10 @@ def test_feature_details_populates_from_video_movie():
 def test_feature_details_populates_from_video_episode():
     """Episode: title is the series name, movie_name is the episode title."""
     from unittest.mock import MagicMock
+
     # Episode video has .series (show name) and .title (episode title)
     video = MagicMock(series="Game of Thrones", title="Winter Is Coming", year=2011)
-    e = M.subtitle_to_os_entry(make_sub(), 1, "episode", "tt0944947", 1, 1,
-                                video=video)
+    e = M.subtitle_to_os_entry(make_sub(), 1, "episode", "tt0944947", 1, 1, video=video)
     fd = e["attributes"]["feature_details"]
     assert fd["feature_type"] == "Episode"
     assert fd["title"] == "Game of Thrones"
@@ -134,11 +153,19 @@ def test_upload_date_tz_aware_does_not_double_suffix():
     from datetime import datetime, timezone
     from unittest.mock import MagicMock
     from compat import response_mapper as M
+
     aware = datetime(2023, 1, 15, 12, 34, 56, tzinfo=timezone.utc)
-    sub = MagicMock(upload_date=aware, id="1",
-                    language=MagicMock(alpha2="en"),
-                    download_count=0, ratings=0.0, release_info="",
-                    uploader=None, provider_name="os", matches=set())
+    sub = MagicMock(
+        upload_date=aware,
+        id="1",
+        language=MagicMock(alpha2="en"),
+        download_count=0,
+        ratings=0.0,
+        release_info="",
+        uploader=None,
+        provider_name="os",
+        matches=set(),
+    )
     e = M.subtitle_to_os_entry(sub, 1, "movie", "tt1")
     d = e["attributes"]["upload_date"]
     assert d == "2023-01-15T12:34:56Z"
@@ -149,11 +176,19 @@ def test_upload_date_naive_gets_z_suffix():
     from datetime import datetime
     from unittest.mock import MagicMock
     from compat import response_mapper as M
+
     naive = datetime(2023, 1, 15, 12, 34, 56)
-    sub = MagicMock(upload_date=naive, id="1",
-                    language=MagicMock(alpha2="en"),
-                    download_count=0, ratings=0.0, release_info="",
-                    uploader=None, provider_name="os", matches=set())
+    sub = MagicMock(
+        upload_date=naive,
+        id="1",
+        language=MagicMock(alpha2="en"),
+        download_count=0,
+        ratings=0.0,
+        release_info="",
+        uploader=None,
+        provider_name="os",
+        matches=set(),
+    )
     e = M.subtitle_to_os_entry(sub, 1, "movie", "tt1")
     assert e["attributes"]["upload_date"].endswith("Z")
     assert "+00:00" not in e["attributes"]["upload_date"]
@@ -164,12 +199,21 @@ def test_provider_attributes_pass_through():
     longer hardcoded."""
     from unittest.mock import MagicMock
     from compat import response_mapper as M
+
     sub = MagicMock(
-        upload_date=None, id="1", language=MagicMock(alpha2="en"),
-        download_count=0, ratings=0.0, release_info="Movie.2020.1080p.WEB-DL",
-        uploader=None, provider_name="os",
-        ai_translated=True, machine_translated=True,
-        foreign_parts_only=True, fps=23.976, matches=set(),
+        upload_date=None,
+        id="1",
+        language=MagicMock(alpha2="en"),
+        download_count=0,
+        ratings=0.0,
+        release_info="Movie.2020.1080p.WEB-DL",
+        uploader=None,
+        provider_name="os",
+        ai_translated=True,
+        machine_translated=True,
+        foreign_parts_only=True,
+        fps=23.976,
+        matches=set(),
     )
     a = M.subtitle_to_os_entry(sub, 1, "movie", "tt1")["attributes"]
     assert a["ai_translated"] is True
@@ -184,25 +228,58 @@ def test_hd_derived_from_release_info():
 
     def mk(release):
         return MagicMock(
-            upload_date=None, id="1", language=MagicMock(alpha2="en"),
-            download_count=0, ratings=0.0, release_info=release,
-            uploader=None, provider_name="os", matches=set(),
+            upload_date=None,
+            id="1",
+            language=MagicMock(alpha2="en"),
+            download_count=0,
+            ratings=0.0,
+            release_info=release,
+            uploader=None,
+            provider_name="os",
+            matches=set(),
         )
-    assert M.subtitle_to_os_entry(mk("Movie.2020.1080p.WEB-DL"), 1, "movie", "tt1")["attributes"]["hd"] is True
-    assert M.subtitle_to_os_entry(mk("Movie.2020.720p.HDTV"), 1, "movie", "tt1")["attributes"]["hd"] is True
-    assert M.subtitle_to_os_entry(mk("Movie.2020.2160p.BluRay"), 1, "movie", "tt1")["attributes"]["hd"] is True
-    assert M.subtitle_to_os_entry(mk("Movie.2020.DVDRip"), 1, "movie", "tt1")["attributes"]["hd"] is False
+
+    assert (
+        M.subtitle_to_os_entry(mk("Movie.2020.1080p.WEB-DL"), 1, "movie", "tt1")[
+            "attributes"
+        ]["hd"]
+        is True
+    )
+    assert (
+        M.subtitle_to_os_entry(mk("Movie.2020.720p.HDTV"), 1, "movie", "tt1")[
+            "attributes"
+        ]["hd"]
+        is True
+    )
+    assert (
+        M.subtitle_to_os_entry(mk("Movie.2020.2160p.BluRay"), 1, "movie", "tt1")[
+            "attributes"
+        ]["hd"]
+        is True
+    )
+    assert (
+        M.subtitle_to_os_entry(mk("Movie.2020.DVDRip"), 1, "movie", "tt1")[
+            "attributes"
+        ]["hd"]
+        is False
+    )
 
 
 def test_comments_field_populated_from_release_info():
     """Plugin reads attributes.comments; used to be dropped."""
     from unittest.mock import MagicMock
     from compat import response_mapper as M
+
     sub = MagicMock(
-        upload_date=None, id="1", language=MagicMock(alpha2="en"),
-        download_count=0, ratings=0.0,
+        upload_date=None,
+        id="1",
+        language=MagicMock(alpha2="en"),
+        download_count=0,
+        ratings=0.0,
         release_info="Release.group.note",
-        uploader=None, provider_name="os", matches=set(),
+        uploader=None,
+        provider_name="os",
+        matches=set(),
     )
     a = M.subtitle_to_os_entry(sub, 1, "movie", "tt1")["attributes"]
     assert a["comments"] == "Release.group.note"
@@ -211,37 +288,56 @@ def test_comments_field_populated_from_release_info():
 def test_moviehash_match_reflects_hash_in_matches():
     from unittest.mock import MagicMock
     from compat import response_mapper as M
+
     sub = MagicMock(
-        upload_date=None, id="1", language=MagicMock(alpha2="en"),
-        download_count=0, ratings=0.0, release_info="",
-        uploader=None, provider_name="os", matches={"hash", "release_group"},
+        upload_date=None,
+        id="1",
+        language=MagicMock(alpha2="en"),
+        download_count=0,
+        ratings=0.0,
+        release_info="",
+        uploader=None,
+        provider_name="os",
+        matches={"hash", "release_group"},
     )
-    a = M.subtitle_to_os_entry(sub, 1, "movie", "tt1",
-                                hash_matched=True)["attributes"]
+    a = M.subtitle_to_os_entry(sub, 1, "movie", "tt1", hash_matched=True)["attributes"]
     assert a["moviehash_match"] is True
 
 
 def test_moviehash_match_false_when_hash_missing():
     from unittest.mock import MagicMock
     from compat import response_mapper as M
+
     sub = MagicMock(
-        upload_date=None, id="1", language=MagicMock(alpha2="en"),
-        download_count=0, ratings=0.0, release_info="",
-        uploader=None, provider_name="os", matches={"series"},
+        upload_date=None,
+        id="1",
+        language=MagicMock(alpha2="en"),
+        download_count=0,
+        ratings=0.0,
+        release_info="",
+        uploader=None,
+        provider_name="os",
+        matches={"series"},
     )
-    a = M.subtitle_to_os_entry(sub, 1, "movie", "tt1",
-                                hash_matched=False)["attributes"]
+    a = M.subtitle_to_os_entry(sub, 1, "movie", "tt1", hash_matched=False)["attributes"]
     assert a["moviehash_match"] is False
 
 
 def test_file_name_uses_provider_filename_when_available():
     from unittest.mock import MagicMock
     from compat import response_mapper as M
+
     sub = MagicMock(
-        upload_date=None, id="1", language=MagicMock(alpha2="en"),
-        download_count=0, ratings=0.0, release_info="",
-        uploader=None, provider_name="os",
-        filename="Movie.2020.1080p.WEB-DL.en.srt", matches=set(),
+        upload_date=None,
+        id="1",
+        language=MagicMock(alpha2="en"),
+        download_count=0,
+        ratings=0.0,
+        release_info="",
+        uploader=None,
+        provider_name="os",
+        filename="Movie.2020.1080p.WEB-DL.en.srt",
+        matches=set(),
     )
     a = M.subtitle_to_os_entry(sub, 42, "movie", "tt1")["attributes"]
     assert a["files"][0]["file_name"] == "Movie.2020.1080p.WEB-DL.en.srt"
@@ -250,10 +346,17 @@ def test_file_name_uses_provider_filename_when_available():
 def test_file_name_never_starts_with_dot_when_imdb_empty():
     from unittest.mock import MagicMock
     from compat import response_mapper as M
+
     sub = MagicMock(
-        upload_date=None, id="1", language=MagicMock(alpha2="en"),
-        download_count=0, ratings=0.0, release_info="",
-        uploader=None, provider_name="os", matches=set(),
+        upload_date=None,
+        id="1",
+        language=MagicMock(alpha2="en"),
+        download_count=0,
+        ratings=0.0,
+        release_info="",
+        uploader=None,
+        provider_name="os",
+        matches=set(),
     )
     # Query-only search: imdb is ""
     a = M.subtitle_to_os_entry(sub, 42, "movie", "")["attributes"]
@@ -266,27 +369,40 @@ def test_ratings_derived_from_score_tuple():
     """When caller threads (score, max_score), ratings is 0.0-10.0."""
     from unittest.mock import MagicMock
     from compat import response_mapper as M
+
     sub = MagicMock(
-        upload_date=None, id="1", language=MagicMock(alpha2="en"),
-        download_count=0, ratings=0.0, release_info="",
-        uploader=None, provider_name="os", matches=set(),
+        upload_date=None,
+        id="1",
+        language=MagicMock(alpha2="en"),
+        download_count=0,
+        ratings=0.0,
+        release_info="",
+        uploader=None,
+        provider_name="os",
+        matches=set(),
     )
-    a = M.subtitle_to_os_entry(sub, 1, "movie", "tt1",
-                                score=(168, 336))["attributes"]
+    a = M.subtitle_to_os_entry(sub, 1, "movie", "tt1", score=(168, 336))["attributes"]
     assert a["ratings"] == 5.0
 
 
 def test_requested_language_is_preserved_for_region_subtag():
     from unittest.mock import MagicMock
     from compat import response_mapper as M
+
     sub = MagicMock(
-        upload_date=None, id="1",
+        upload_date=None,
+        id="1",
         language=MagicMock(alpha2="zh"),
-        download_count=0, ratings=0.0, release_info="",
-        uploader=None, provider_name="os", matches=set(),
+        download_count=0,
+        ratings=0.0,
+        release_info="",
+        uploader=None,
+        provider_name="os",
+        matches=set(),
     )
-    a = M.subtitle_to_os_entry(sub, 1, "movie", "tt1",
-                                requested_language="zh-CN")["attributes"]
+    a = M.subtitle_to_os_entry(sub, 1, "movie", "tt1", requested_language="zh-CN")[
+        "attributes"
+    ]
     assert a["language"] == "zh-CN"
 
 
@@ -297,12 +413,18 @@ def test_provider_rating_wins_over_score_derived():
     native rating."""
     from unittest.mock import MagicMock
     from compat import response_mapper as M
+
     sub = MagicMock(
-        upload_date=None, id="1", language=MagicMock(alpha2="en"),
-        download_count=1000, ratings=8.5, release_info="",
-        uploader=None, provider_name="opensubtitlescom", matches=set(),
+        upload_date=None,
+        id="1",
+        language=MagicMock(alpha2="en"),
+        download_count=1000,
+        ratings=8.5,
+        release_info="",
+        uploader=None,
+        provider_name="opensubtitlescom",
+        matches=set(),
     )
-    a = M.subtitle_to_os_entry(sub, 1, "movie", "tt1",
-                                score=(168, 336))["attributes"]
+    a = M.subtitle_to_os_entry(sub, 1, "movie", "tt1", score=(168, 336))["attributes"]
     # score would derive 5.0; provider says 8.5 - provider wins.
     assert a["ratings"] == 8.5

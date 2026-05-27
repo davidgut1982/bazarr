@@ -8,6 +8,7 @@ confirming the contract itself has changed.
 These tests use Flask test_client, not the live server, so they run in
 CI with no external dependencies.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -23,11 +24,17 @@ FID_SECRET = "f" * 32
 def _compat_secrets():
     from app.config import settings
     from compat.file_id_store import reset_store
+
     originals = {
         n: getattr(settings.compat_endpoint, n, "")
-        for n in ("token", "jwt_secret", "file_id_secret",
-                  "jwt_ttl_seconds", "file_id_ttl_seconds",
-                  "stream_token_ttl_seconds")
+        for n in (
+            "token",
+            "jwt_secret",
+            "file_id_secret",
+            "jwt_ttl_seconds",
+            "file_id_ttl_seconds",
+            "stream_token_ttl_seconds",
+        )
     }
     settings["compat_endpoint"]["token"] = API_KEY
     settings["compat_endpoint"]["jwt_secret"] = JWT_SECRET
@@ -44,6 +51,7 @@ def _compat_secrets():
 
 def _app():
     from compat.routes import compat_bp
+
     app = Flask(__name__)
     app.register_blueprint(compat_bp, url_prefix="/api/v1")
     return app
@@ -53,13 +61,18 @@ def _app():
 # 1. POST /login
 # ---------------------------------------------------------------------------
 
+
 def test_login_ignores_placeholder_body_if_api_key_valid():
     """Plugin sends username=bazarr / password=bazarr-placeholder; Api-Key
     is the real auth."""
-    r = _app().test_client().post(
-        "/api/v1/login",
-        headers={"Api-Key": API_KEY},
-        json={"username": "bazarr", "password": "bazarr-placeholder"},
+    r = (
+        _app()
+        .test_client()
+        .post(
+            "/api/v1/login",
+            headers={"Api-Key": API_KEY},
+            json={"username": "bazarr", "password": "bazarr-placeholder"},
+        )
     )
     assert r.status_code == 200
 
@@ -68,10 +81,15 @@ def test_login_returns_jwt_with_exp_claim():
     """Plugin decodes JWT locally and re-logs in when exp is in the past.
     Without exp, plugin treats token as already expired on every call."""
     import jwt as pyjwt
-    r = _app().test_client().post(
-        "/api/v1/login",
-        headers={"Api-Key": API_KEY},
-        json={},
+
+    r = (
+        _app()
+        .test_client()
+        .post(
+            "/api/v1/login",
+            headers={"Api-Key": API_KEY},
+            json={},
+        )
     )
     assert r.status_code == 200
     token = r.get_json()["token"]
@@ -85,10 +103,14 @@ def test_login_returns_jwt_with_exp_claim():
 def test_login_user_block_has_iso_reset_time_utc():
     """Contract: if `user` is included, reset_time_utc is STRICT (non-nullable
     in the plugin's System.DateTime model; empty string 500s)."""
-    r = _app().test_client().post(
-        "/api/v1/login",
-        headers={"Api-Key": API_KEY},
-        json={},
+    r = (
+        _app()
+        .test_client()
+        .post(
+            "/api/v1/login",
+            headers={"Api-Key": API_KEY},
+            json={},
+        )
     )
     body = r.get_json()
     if "user" in body:
@@ -96,12 +118,14 @@ def test_login_user_block_has_iso_reset_time_utc():
         assert isinstance(rt, str) and rt.endswith("Z")
         # parseable as ISO
         from datetime import datetime
+
         datetime.fromisoformat(rt.replace("Z", "+00:00"))
 
 
 # ---------------------------------------------------------------------------
 # 2. DELETE /logout
 # ---------------------------------------------------------------------------
+
 
 def test_logout_requires_bearer_to_revoke():
     """Revocation needs the jti. Logout without Bearer is 401 so the
@@ -113,11 +137,16 @@ def test_logout_requires_bearer_to_revoke():
 
 def test_logout_with_bearer_returns_2xx_and_revokes():
     from compat import auth, jwt_denylist
+
     jwt_denylist.reset()
     tok = auth.mint_jwt()
-    r = _app().test_client().delete(
-        "/api/v1/logout",
-        headers={"Api-Key": API_KEY, "Authorization": f"Bearer {tok}"},
+    r = (
+        _app()
+        .test_client()
+        .delete(
+            "/api/v1/logout",
+            headers={"Api-Key": API_KEY, "Authorization": f"Bearer {tok}"},
+        )
     )
     assert 200 <= r.status_code < 300
     ok, _ = auth.validate_jwt(tok)
@@ -129,10 +158,15 @@ def test_logout_with_bearer_returns_2xx_and_revokes():
 # 3. GET /infos/user
 # ---------------------------------------------------------------------------
 
+
 def test_infos_user_envelope_has_strict_reset_time_utc():
-    r = _app().test_client().get(
-        "/api/v1/infos/user",
-        headers={"Api-Key": API_KEY},
+    r = (
+        _app()
+        .test_client()
+        .get(
+            "/api/v1/infos/user",
+            headers={"Api-Key": API_KEY},
+        )
     )
     assert r.status_code == 200
     body = r.get_json()
@@ -144,6 +178,7 @@ def test_infos_user_envelope_has_strict_reset_time_utc():
 # ---------------------------------------------------------------------------
 # 4. GET /infos/languages
 # ---------------------------------------------------------------------------
+
 
 def test_languages_envelope_uses_language_code_key():
     """Historical bug: was {code, name}. Must be {language_code, language_name}."""
@@ -171,14 +206,23 @@ def test_languages_includes_zh_CN_and_pt_PT():
 # 5. GET /subtitles - envelope + attribute shapes
 # ---------------------------------------------------------------------------
 
+
 def _fake_search_result(attrs_override=None):
     """A minimal envelope matching service.search() return shape."""
     base_attrs = {
-        "language": "en", "subtitle_id": "s1", "release": "rel",
-        "download_count": 0, "ratings": 0.0, "votes": 0,
-        "from_trusted": False, "hd": False, "hearing_impaired": False,
-        "moviehash_match": False, "ai_translated": False,
-        "machine_translated": False, "foreign_parts_only": False,
+        "language": "en",
+        "subtitle_id": "s1",
+        "release": "rel",
+        "download_count": 0,
+        "ratings": 0.0,
+        "votes": 0,
+        "from_trusted": False,
+        "hd": False,
+        "hearing_impaired": False,
+        "moviehash_match": False,
+        "ai_translated": False,
+        "machine_translated": False,
+        "foreign_parts_only": False,
         "fps": 0.0,
         # The one that was broken: must be a non-empty ISO-8601 string.
         "upload_date": "1970-01-01T00:00:00Z",
@@ -186,26 +230,35 @@ def _fake_search_result(attrs_override=None):
         "feature_details": {
             "feature_type": "Movie",
             "imdb_id": 111161,
-            "season_number": 0, "episode_number": 0,
-            "title": "X", "movie_name": "1994 - X", "year": 1994,
+            "season_number": 0,
+            "episode_number": 0,
+            "title": "X",
+            "movie_name": "1994 - X",
+            "year": 1994,
         },
         "files": [{"file_id": 7, "file_name": "111161.en.srt"}],
     }
     if attrs_override:
         base_attrs.update(attrs_override)
     return {
-        "total_pages": 1, "total_count": 1, "per_page": 50, "page": 1,
+        "total_pages": 1,
+        "total_count": 1,
+        "per_page": 50,
+        "page": 1,
         "data": [{"id": "7", "type": "subtitle", "attributes": base_attrs}],
     }
 
 
 def test_subtitles_envelope_has_all_strict_fields():
     """total_pages, total_count, per_page, page are all strict."""
-    with patch("compat.service.search",
-                return_value=_fake_search_result()):
-        r = _app().test_client().get(
-            "/api/v1/subtitles?imdb_id=111161&languages=en&type=movie",
-            headers={"Api-Key": API_KEY},
+    with patch("compat.service.search", return_value=_fake_search_result()):
+        r = (
+            _app()
+            .test_client()
+            .get(
+                "/api/v1/subtitles?imdb_id=111161&languages=en&type=movie",
+                headers={"Api-Key": API_KEY},
+            )
         )
     assert r.status_code == 200
     body = r.get_json()
@@ -222,18 +275,26 @@ def test_subtitles_upload_date_is_never_empty_string():
     datetime, with 1970 epoch as the fallback."""
     # Mock the response_mapper directly so we test the mapper path.
     from compat import response_mapper as M
-    sub = MagicMock(upload_date=None, id="1", language=MagicMock(alpha2="en"),
-                    download_count=0, ratings=0.0, release_info="",
-                    uploader=None, provider_name="os")
-    entry = M.subtitle_to_os_entry(sub, file_id=1, media_type="movie",
-                                    imdb_id="0111161")
+
+    sub = MagicMock(
+        upload_date=None,
+        id="1",
+        language=MagicMock(alpha2="en"),
+        download_count=0,
+        ratings=0.0,
+        release_info="",
+        uploader=None,
+        provider_name="os",
+    )
+    entry = M.subtitle_to_os_entry(
+        sub, file_id=1, media_type="movie", imdb_id="0111161"
+    )
     assert entry["attributes"]["upload_date"] != ""
     assert entry["attributes"]["upload_date"].endswith("Z")
     # Parseable as ISO 8601
     from datetime import datetime
-    datetime.fromisoformat(
-        entry["attributes"]["upload_date"].replace("Z", "+00:00")
-    )
+
+    datetime.fromisoformat(entry["attributes"]["upload_date"].replace("Z", "+00:00"))
 
 
 def test_subtitles_upload_date_from_provider_is_preserved():
@@ -241,24 +302,41 @@ def test_subtitles_upload_date_from_provider_is_preserved():
     not replace it with the epoch fallback."""
     from datetime import datetime
     from compat import response_mapper as M
+
     provider_date = datetime(2023, 1, 15, 12, 34, 56)
-    sub = MagicMock(upload_date=provider_date, id="1",
-                    language=MagicMock(alpha2="en"),
-                    download_count=0, ratings=0.0, release_info="",
-                    uploader=None, provider_name="os")
-    entry = M.subtitle_to_os_entry(sub, file_id=1, media_type="movie",
-                                    imdb_id="0111161")
+    sub = MagicMock(
+        upload_date=provider_date,
+        id="1",
+        language=MagicMock(alpha2="en"),
+        download_count=0,
+        ratings=0.0,
+        release_info="",
+        uploader=None,
+        provider_name="os",
+    )
+    entry = M.subtitle_to_os_entry(
+        sub, file_id=1, media_type="movie", imdb_id="0111161"
+    )
     assert entry["attributes"]["upload_date"].startswith("2023-01-15")
 
 
 def test_subtitles_feature_details_imdb_id_is_int_not_string():
     """Filter-inducing: plugin drops results where imdb_id is a string."""
     from compat import response_mapper as M
-    sub = MagicMock(upload_date=None, id="1", language=MagicMock(alpha2="en"),
-                    download_count=0, ratings=0.0, release_info="",
-                    uploader=None, provider_name="os")
-    entry = M.subtitle_to_os_entry(sub, file_id=1, media_type="movie",
-                                    imdb_id="tt0111161")
+
+    sub = MagicMock(
+        upload_date=None,
+        id="1",
+        language=MagicMock(alpha2="en"),
+        download_count=0,
+        ratings=0.0,
+        release_info="",
+        uploader=None,
+        provider_name="os",
+    )
+    entry = M.subtitle_to_os_entry(
+        sub, file_id=1, media_type="movie", imdb_id="tt0111161"
+    )
     assert isinstance(entry["attributes"]["feature_details"]["imdb_id"], int)
     assert entry["attributes"]["feature_details"]["imdb_id"] == 111161
 
@@ -266,26 +344,45 @@ def test_subtitles_feature_details_imdb_id_is_int_not_string():
 def test_subtitles_feature_details_feature_type_case_exact():
     """'Movie' vs 'movie' matters - plugin does case-SENSITIVE compare."""
     from compat import response_mapper as M
-    sub = MagicMock(upload_date=None, id="1", language=MagicMock(alpha2="en"),
-                    download_count=0, ratings=0.0, release_info="",
-                    uploader=None, provider_name="os")
-    movie_entry = M.subtitle_to_os_entry(sub, file_id=1, media_type="movie",
-                                          imdb_id="0111161")
+
+    sub = MagicMock(
+        upload_date=None,
+        id="1",
+        language=MagicMock(alpha2="en"),
+        download_count=0,
+        ratings=0.0,
+        release_info="",
+        uploader=None,
+        provider_name="os",
+    )
+    movie_entry = M.subtitle_to_os_entry(
+        sub, file_id=1, media_type="movie", imdb_id="0111161"
+    )
     assert movie_entry["attributes"]["feature_details"]["feature_type"] == "Movie"
 
-    ep_entry = M.subtitle_to_os_entry(sub, file_id=1, media_type="episode",
-                                       imdb_id="0903747", season=1, episode=2)
+    ep_entry = M.subtitle_to_os_entry(
+        sub, file_id=1, media_type="episode", imdb_id="0903747", season=1, episode=2
+    )
     assert ep_entry["attributes"]["feature_details"]["feature_type"] == "Episode"
 
 
 def test_subtitles_files_has_positive_int_file_id():
     """String or null file_id → result silently dropped by plugin."""
     from compat import response_mapper as M
-    sub = MagicMock(upload_date=None, id="1", language=MagicMock(alpha2="en"),
-                    download_count=0, ratings=0.0, release_info="",
-                    uploader=None, provider_name="os")
-    entry = M.subtitle_to_os_entry(sub, file_id=42, media_type="movie",
-                                    imdb_id="0111161")
+
+    sub = MagicMock(
+        upload_date=None,
+        id="1",
+        language=MagicMock(alpha2="en"),
+        download_count=0,
+        ratings=0.0,
+        release_info="",
+        uploader=None,
+        provider_name="os",
+    )
+    entry = M.subtitle_to_os_entry(
+        sub, file_id=42, media_type="movie", imdb_id="0111161"
+    )
     assert isinstance(entry["attributes"]["files"], list)
     assert len(entry["attributes"]["files"]) >= 1
     fid = entry["attributes"]["files"][0]["file_id"]
@@ -295,11 +392,20 @@ def test_subtitles_files_has_positive_int_file_id():
 def test_subtitles_episode_season_episode_numbers_are_ints():
     """Filter-inducing: wrong type or 0/0 on an episode search gets dropped."""
     from compat import response_mapper as M
-    sub = MagicMock(upload_date=None, id="1", language=MagicMock(alpha2="en"),
-                    download_count=0, ratings=0.0, release_info="",
-                    uploader=None, provider_name="os")
-    entry = M.subtitle_to_os_entry(sub, file_id=1, media_type="episode",
-                                    imdb_id="0903747", season=1, episode=2)
+
+    sub = MagicMock(
+        upload_date=None,
+        id="1",
+        language=MagicMock(alpha2="en"),
+        download_count=0,
+        ratings=0.0,
+        release_info="",
+        uploader=None,
+        provider_name="os",
+    )
+    entry = M.subtitle_to_os_entry(
+        sub, file_id=1, media_type="episode", imdb_id="0903747", season=1, episode=2
+    )
     fd = entry["attributes"]["feature_details"]
     assert fd["season_number"] == 1 and isinstance(fd["season_number"], int)
     assert fd["episode_number"] == 2 and isinstance(fd["episode_number"], int)
@@ -310,10 +416,14 @@ def test_subtitles_route_accepts_query_only_search():
     must not 400, and must not smuggle the filename into imdb_id."""
     result = _fake_search_result()
     with patch("compat.service.search", return_value=result) as s:
-        r = _app().test_client().get(
-            "/api/v1/subtitles?query=For.All.Mankind.S01E01.mkv"
-            "&languages=en&type=episode&season_number=1&episode_number=1",
-            headers={"Api-Key": API_KEY},
+        r = (
+            _app()
+            .test_client()
+            .get(
+                "/api/v1/subtitles?query=For.All.Mankind.S01E01.mkv"
+                "&languages=en&type=episode&season_number=1&episode_number=1",
+                headers={"Api-Key": API_KEY},
+            )
         )
     assert r.status_code == 200
     # service.search was called with imdb_id='' (empty) and query=filename,
@@ -329,18 +439,23 @@ def test_subtitles_route_accepts_query_only_search():
 # 6. POST /download
 # ---------------------------------------------------------------------------
 
+
 def test_download_link_is_absolute_url():
     """Plugin runs HttpClient.GetAsync(link) - relative URL throws when no
     BaseAddress. Must be scheme://host/path."""
     from compat import auth
+
     fake_sub = MagicMock(provider_name="os", id="1")
     fid = auth.mint_file_id("os", "1", "eng", "", subtitle=fake_sub)
     jwt_tok = auth.mint_jwt()
-    r = _app().test_client().post(
-        "/api/v1/download",
-        headers={"Api-Key": API_KEY,
-                 "Authorization": f"Bearer {jwt_tok}"},
-        json={"file_id": fid, "sub_format": "srt"},
+    r = (
+        _app()
+        .test_client()
+        .post(
+            "/api/v1/download",
+            headers={"Api-Key": API_KEY, "Authorization": f"Bearer {jwt_tok}"},
+            json={"file_id": fid, "sub_format": "srt"},
+        )
     )
     assert r.status_code == 200
     link = r.get_json()["link"]
@@ -350,16 +465,23 @@ def test_download_link_is_absolute_url():
 
 def test_download_link_honors_forwarded_headers():
     from compat import auth
+
     fake_sub = MagicMock(provider_name="os", id="1")
     fid = auth.mint_file_id("os", "1", "eng", "", subtitle=fake_sub)
     jwt_tok = auth.mint_jwt()
-    r = _app().test_client().post(
-        "/api/v1/download",
-        headers={"Api-Key": API_KEY,
-                 "Authorization": f"Bearer {jwt_tok}",
-                 "X-Forwarded-Host": "bazarr.example.com",
-                 "X-Forwarded-Proto": "https"},
-        json={"file_id": fid},
+    r = (
+        _app()
+        .test_client()
+        .post(
+            "/api/v1/download",
+            headers={
+                "Api-Key": API_KEY,
+                "Authorization": f"Bearer {jwt_tok}",
+                "X-Forwarded-Host": "bazarr.example.com",
+                "X-Forwarded-Proto": "https",
+            },
+            json={"file_id": fid},
+        )
     )
     assert r.status_code == 200
     link = r.get_json()["link"]
@@ -370,16 +492,22 @@ def test_download_link_honors_forwarded_headers():
 # 7. GET <stream link> - MUST NOT require auth headers
 # ---------------------------------------------------------------------------
 
+
 def test_download_stream_url_accepts_no_auth_headers():
     """Plugin contract: 'Plugin sends no auth header (OS.com uses signed URLs).'
     The HMAC-signed stream token IS the auth - the route MUST NOT gate on
     Api-Key or Bearer. If it did, the plugin's follow-up GET of the link
     would 403 immediately after every successful download-link mint."""
     from compat import auth
+
     # Patch serve_subtitle_content so we don't need a real provider backend.
-    with patch("compat.service.serve_subtitle_content",
-                return_value=(b"1\n00:00:01,000 --> 00:00:02,000\nhi\n",
-                              "application/x-subrip")):
+    with patch(
+        "compat.service.serve_subtitle_content",
+        return_value=(
+            b"1\n00:00:01,000 --> 00:00:02,000\nhi\n",
+            "application/x-subrip",
+        ),
+    ):
         token = auth.mint_file_stream_token(1)
         r = _app().test_client().get(f"/api/v1/download/stream/{token}")
     assert r.status_code == 200
@@ -389,7 +517,9 @@ def test_download_stream_url_accepts_no_auth_headers():
 def test_download_stream_url_rejects_tampered_token():
     """Unsigned / tampered tokens must not resolve - the HMAC is load-bearing."""
     # Pick any well-formed-looking base64 that won't HMAC-verify.
-    bogus = "eyJmaWQiOjEsImV4cCI6OTk5OTk5OTk5OX0.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    bogus = (
+        "eyJmaWQiOjEsImV4cCI6OTk5OTk5OTk5OX0.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    )
     r = _app().test_client().get(f"/api/v1/download/stream/{bogus}")
     assert r.status_code in (404, 410)
 
@@ -397,6 +527,7 @@ def test_download_stream_url_rejects_tampered_token():
 # ---------------------------------------------------------------------------
 # Status-code contract
 # ---------------------------------------------------------------------------
+
 
 def test_missing_api_key_returns_403_not_401():
     """401 is reserved for JWT expiry. 401 on an Api-Key failure traps the
@@ -408,20 +539,31 @@ def test_missing_api_key_returns_403_not_401():
 def test_missing_jwt_on_download_returns_401():
     """Download requires JWT. Missing Bearer on a require_jwt route is
     the exact signal the plugin uses to re-login."""
-    r = _app().test_client().post(
-        "/api/v1/download",
-        headers={"Api-Key": API_KEY},
-        json={"file_id": 1},
+    r = (
+        _app()
+        .test_client()
+        .post(
+            "/api/v1/download",
+            headers={"Api-Key": API_KEY},
+            json={"file_id": 1},
+        )
     )
     assert r.status_code == 401
 
 
 def test_contract_attributes_include_comments():
     from compat import response_mapper as M
+
     sub = MagicMock(
-        upload_date=None, id="1", language=MagicMock(alpha2="en"),
-        download_count=0, ratings=0.0, release_info="Rel.info",
-        uploader=None, provider_name="os", matches=set(),
+        upload_date=None,
+        id="1",
+        language=MagicMock(alpha2="en"),
+        download_count=0,
+        ratings=0.0,
+        release_info="Rel.info",
+        uploader=None,
+        provider_name="os",
+        matches=set(),
     )
     e = M.subtitle_to_os_entry(sub, 1, "movie", "tt1")
     assert "comments" in e["attributes"]
@@ -429,15 +571,28 @@ def test_contract_attributes_include_comments():
 
 def test_contract_moviehash_match_is_hash_aware():
     from compat import response_mapper as M
+
     sub_with = MagicMock(
-        upload_date=None, id="1", language=MagicMock(alpha2="en"),
-        download_count=0, ratings=0.0, release_info="",
-        uploader=None, provider_name="os", matches={"hash"},
+        upload_date=None,
+        id="1",
+        language=MagicMock(alpha2="en"),
+        download_count=0,
+        ratings=0.0,
+        release_info="",
+        uploader=None,
+        provider_name="os",
+        matches={"hash"},
     )
     sub_without = MagicMock(
-        upload_date=None, id="2", language=MagicMock(alpha2="en"),
-        download_count=0, ratings=0.0, release_info="",
-        uploader=None, provider_name="os", matches={"series"},
+        upload_date=None,
+        id="2",
+        language=MagicMock(alpha2="en"),
+        download_count=0,
+        ratings=0.0,
+        release_info="",
+        uploader=None,
+        provider_name="os",
+        matches={"series"},
     )
     e1 = M.subtitle_to_os_entry(sub_with, 1, "movie", "tt1")
     e2 = M.subtitle_to_os_entry(sub_without, 2, "movie", "tt1")
@@ -447,10 +602,17 @@ def test_contract_moviehash_match_is_hash_aware():
 
 def test_contract_ratings_is_in_0_to_10_range():
     from compat import response_mapper as M
+
     sub = MagicMock(
-        upload_date=None, id="1", language=MagicMock(alpha2="en"),
-        download_count=0, ratings=0.0, release_info="",
-        uploader=None, provider_name="os", matches=set(),
+        upload_date=None,
+        id="1",
+        language=MagicMock(alpha2="en"),
+        download_count=0,
+        ratings=0.0,
+        release_info="",
+        uploader=None,
+        provider_name="os",
+        matches=set(),
     )
     e = M.subtitle_to_os_entry(sub, 1, "movie", "tt1", score=(720, 720))
     assert e["attributes"]["ratings"] == 10.0
@@ -460,10 +622,17 @@ def test_contract_ratings_is_in_0_to_10_range():
 
 def test_contract_file_name_never_leading_dot():
     from compat import response_mapper as M
+
     sub = MagicMock(
-        upload_date=None, id="1", language=MagicMock(alpha2="en"),
-        download_count=0, ratings=0.0, release_info="",
-        uploader=None, provider_name="os", matches=set(),
+        upload_date=None,
+        id="1",
+        language=MagicMock(alpha2="en"),
+        download_count=0,
+        ratings=0.0,
+        release_info="",
+        uploader=None,
+        provider_name="os",
+        matches=set(),
     )
     e = M.subtitle_to_os_entry(sub, 9, "movie", "")
     assert not e["attributes"]["files"][0]["file_name"].startswith(".")
@@ -473,11 +642,18 @@ def test_contract_stream_accepts_api_key_header_too():
     """Plugin actually sends Api-Key on the follow-up even though HMAC
     is the auth. Route must still 200."""
     from compat import auth
-    with patch("compat.service.serve_subtitle_content",
-                return_value=(b"hi", "application/x-subrip")):
+
+    with patch(
+        "compat.service.serve_subtitle_content",
+        return_value=(b"hi", "application/x-subrip"),
+    ):
         token = auth.mint_file_stream_token(1)
-        r = _app().test_client().get(
-            f"/api/v1/download/stream/{token}",
-            headers={"Api-Key": API_KEY},
+        r = (
+            _app()
+            .test_client()
+            .get(
+                f"/api/v1/download/stream/{token}",
+                headers={"Api-Key": API_KEY},
+            )
         )
     assert r.status_code == 200

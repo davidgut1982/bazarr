@@ -1,6 +1,9 @@
 # coding=utf-8
 
-def RadarrFormatAudioCodec(audioFormat, audioCodecID, audioProfile, audioAdditionalFeatures):
+
+def RadarrFormatAudioCodec(
+    audioFormat, audioCodecID, audioProfile, audioAdditionalFeatures
+):
     if type(audioFormat) is not str:
         return audioFormat
     else:
@@ -16,7 +19,11 @@ def RadarrFormatAudioCodec(audioFormat, audioCodecID, audioProfile, audioAdditio
         elif audioFormat.strip() == "mp3":
             return "MP3"
         elif audioFormat == "MPEG Audio":
-            if audioCodecID == "55" or audioCodecID == "A_MPEG/L3" or audioProfile == "Layer 3":
+            if (
+                audioCodecID == "55"
+                or audioCodecID == "A_MPEG/L3"
+                or audioProfile == "Layer 3"
+            ):
                 return "MP3"
             if audioCodecID == "A_MPEG/L2" or audioProfile == "Layer 2":
                 return "MP2"
@@ -37,7 +44,9 @@ def RadarrFormatVideoCodec(videoFormat, videoCodecID, videoCodecLibrary):
             return "h264"
         elif videoFormat == "AVC" or videoFormat == "V.MPEG4/ISO/AVC":
             return "h264"
-        elif videoCodecLibrary and (videoFormat == "HEVC" or videoFormat == "V_MPEGH/ISO/HEVC"):
+        elif videoCodecLibrary and (
+            videoFormat == "HEVC" or videoFormat == "V_MPEGH/ISO/HEVC"
+        ):
             if videoCodecLibrary.startswith("x265"):
                 return "h265"
         elif videoCodecID and videoFormat == "MPEG Video":
@@ -52,8 +61,12 @@ def RadarrFormatVideoCodec(videoFormat, videoCodecID, videoCodecLibrary):
         elif videoCodecLibrary and videoCodecID and videoFormat == "MPEG-4 Visual":
             if videoCodecID.endswith("XVID") or videoCodecLibrary.startswith("XviD"):
                 return "XviD"
-            if videoCodecID.endswith("DIV3") or videoCodecID.endswith("DIVX") or videoCodecID.endswith(
-                    "DX50") or videoCodecLibrary.startswith("DivX"):
+            if (
+                videoCodecID.endswith("DIV3")
+                or videoCodecID.endswith("DIVX")
+                or videoCodecID.endswith("DX50")
+                or videoCodecLibrary.startswith("DivX")
+            ):
                 return "DivX"
         elif videoFormat == "VC-1":
             return "VC1"

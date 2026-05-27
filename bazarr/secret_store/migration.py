@@ -28,8 +28,9 @@ from copy import deepcopy
 from typing import Any, Dict
 
 from . import crypto as _crypto  # module reference so test patches on
-                                  # _crypto.get_master_key apply uniformly
-                                  # across this module's call sites
+
+# _crypto.get_master_key apply uniformly
+# across this module's call sites
 from .crypto import decrypt_secret, encrypt_secret, is_encrypted
 from .registry import USER_VISIBLE_SECRET_LISTS, USER_VISIBLE_SECRETS
 
@@ -102,11 +103,17 @@ def migrate_legacy_plex_encryption(settings_obj) -> None:
     if plex is None:
         return
 
-    legacy_key = plex.get("encryption_key", "") if hasattr(plex, "get") \
+    legacy_key = (
+        plex.get("encryption_key", "")
+        if hasattr(plex, "get")
         else getattr(plex, "encryption_key", "")
+    )
 
-    apikey_encrypted = bool(plex.get("apikey_encrypted", False)) \
-        if hasattr(plex, "get") else bool(getattr(plex, "apikey_encrypted", False))
+    apikey_encrypted = (
+        bool(plex.get("apikey_encrypted", False))
+        if hasattr(plex, "get")
+        else bool(getattr(plex, "apikey_encrypted", False))
+    )
 
     if not legacy_key:
         # Without the key we can't decrypt anything. Clear the flag if it
@@ -134,8 +141,9 @@ def migrate_legacy_plex_encryption(settings_obj) -> None:
     token_manager = TokenManager(legacy_key)
     migrated_any = False
     for field in _PLEX_LEGACY_FIELDS:
-        ciphertext = plex.get(field, "") if hasattr(plex, "get") \
-            else getattr(plex, field, "")
+        ciphertext = (
+            plex.get(field, "") if hasattr(plex, "get") else getattr(plex, field, "")
+        )
         if not ciphertext:
             continue
         if is_encrypted(ciphertext):
@@ -191,8 +199,11 @@ def has_plaintext_secrets_on_disk(settings_obj) -> bool:
             section_obj = getattr(settings_obj, section, None)
             if section_obj is None:
                 continue
-            current = section_obj.get(key) if hasattr(section_obj, "get") \
+            current = (
+                section_obj.get(key)
+                if hasattr(section_obj, "get")
                 else getattr(section_obj, key, None)
+            )
             if isinstance(current, str) and current and not is_encrypted(current):
                 return True
         except Exception:
@@ -204,8 +215,11 @@ def has_plaintext_secrets_on_disk(settings_obj) -> bool:
             section_obj = getattr(settings_obj, section, None)
             if section_obj is None:
                 continue
-            current = section_obj.get(key) if hasattr(section_obj, "get") \
+            current = (
+                section_obj.get(key)
+                if hasattr(section_obj, "get")
                 else getattr(section_obj, key, None)
+            )
             if isinstance(current, list):
                 for item in current:
                     if isinstance(item, str) and item and not is_encrypted(item):
@@ -235,8 +249,11 @@ def decrypt_settings_in_place(settings_obj) -> None:
             section_obj = getattr(settings_obj, section, None)
             if section_obj is None:
                 continue
-            current = section_obj.get(key) if hasattr(section_obj, "get") \
+            current = (
+                section_obj.get(key)
+                if hasattr(section_obj, "get")
                 else getattr(section_obj, key, None)
+            )
             if isinstance(current, str) and is_encrypted(current):
                 decrypted = decrypt_secret(current)
                 section_obj[key] = decrypted
@@ -255,8 +272,11 @@ def decrypt_settings_in_place(settings_obj) -> None:
             section_obj = getattr(settings_obj, section, None)
             if section_obj is None:
                 continue
-            current = section_obj.get(key) if hasattr(section_obj, "get") \
+            current = (
+                section_obj.get(key)
+                if hasattr(section_obj, "get")
                 else getattr(section_obj, key, None)
+            )
             if not isinstance(current, list):
                 continue
             new_items = []
@@ -319,7 +339,9 @@ def encrypt_settings_dict(plaintext_dict: Dict[str, Any]) -> Dict[str, Any]:
             section_key, attr, value = _read_section_key(out, path)
             if isinstance(value, list):
                 out[section_key][attr] = [
-                    encrypt_secret(v, master_key=master_key) if isinstance(v, str) and v else v
+                    encrypt_secret(v, master_key=master_key)
+                    if isinstance(v, str) and v
+                    else v
                     for v in value
                 ]
         except KeyError:

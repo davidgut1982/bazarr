@@ -310,7 +310,7 @@ class OpenSubtitlesProvider(ProviderRetryMixin, OpenSubtitlesScraperMixin, Provi
         # Web scraper mode configuration
         self.use_web_scraper = use_web_scraper
         self.scraper_service_url = scraper_service_url
-        
+
         if self.use_web_scraper:
             logger.info("Using web scraper mode - bypassing authentication")
             # Initialize minimal configuration for scraper mode
@@ -418,7 +418,7 @@ class OpenSubtitlesProvider(ProviderRetryMixin, OpenSubtitlesScraperMixin, Provi
             self.server = None
             self.token = None
             return
-            
+
         # Traditional API mode initialization
         token_cache = region.get("os_token")
         url_cache = region.get("os_server_url")
@@ -434,7 +434,7 @@ class OpenSubtitlesProvider(ProviderRetryMixin, OpenSubtitlesScraperMixin, Provi
     def terminate(self):
         self.server = None
         self.token = None
-    
+
     def list_subtitles(self, video, languages):
         """
         :param video:

@@ -6,6 +6,7 @@ decrypter. Auto-migration end-to-end (load plaintext config -> live
 plaintext memory -> persist as ciphertext -> reload -> decrypt back) is
 covered in commit 5's test_secret_store_e2e.py.
 """
+
 from unittest.mock import patch  # noqa: F401
 
 import pytest
@@ -151,37 +152,39 @@ class _FakeSettings:
 
 def test_decrypt_settings_in_place_decrypts_encrypted_values():
     encrypted_apikey = encrypt_secret("real-sonarr-key")
-    settings = _FakeSettings({
-        "sonarr": {"apikey": encrypted_apikey, "url": "http://x"},
-        "radarr": {"apikey": "radarr-plain-already"},
-        "translator": {"gemini_keys": [encrypt_secret("g1"), "g2-plain"]},
-        "general": {},
-        "auth": {},
-        "compat_endpoint": {},
-        "plex": {},
-        "jellyfin": {},
-        "proxy": {},
-        "postgresql": {},
-        "opensubtitles": {},
-        "opensubtitlescom": {},
-        "addic7ed": {},
-        "legendasdivx": {},
-        "legendasnet": {},
-        "xsubs": {},
-        "deathbycaptcha": {},
-        "napisy24": {},
-        "titlovi": {},
-        "titulky": {},
-        "karagarga": {},
-        "assrt": {},
-        "betaseries": {},
-        "jimaku": {},
-        "subdl": {},
-        "subsource": {},
-        "subx": {},
-        "subsro": {},
-        "omdb": {},
-    })
+    settings = _FakeSettings(
+        {
+            "sonarr": {"apikey": encrypted_apikey, "url": "http://x"},
+            "radarr": {"apikey": "radarr-plain-already"},
+            "translator": {"gemini_keys": [encrypt_secret("g1"), "g2-plain"]},
+            "general": {},
+            "auth": {},
+            "compat_endpoint": {},
+            "plex": {},
+            "jellyfin": {},
+            "proxy": {},
+            "postgresql": {},
+            "opensubtitles": {},
+            "opensubtitlescom": {},
+            "addic7ed": {},
+            "legendasdivx": {},
+            "legendasnet": {},
+            "xsubs": {},
+            "deathbycaptcha": {},
+            "napisy24": {},
+            "titlovi": {},
+            "titulky": {},
+            "karagarga": {},
+            "assrt": {},
+            "betaseries": {},
+            "jimaku": {},
+            "subdl": {},
+            "subsource": {},
+            "subx": {},
+            "subsro": {},
+            "omdb": {},
+        }
+    )
     decrypt_settings_in_place(settings)
     assert settings.sonarr.apikey == "real-sonarr-key"
     assert settings.radarr.apikey == "radarr-plain-already"
@@ -194,17 +197,39 @@ def test_decrypt_settings_in_place_tolerates_bad_cipher_per_field(caplog):
     via the Settings page."""
     bad = SECRET_MARKER_PREFIX + "tampered-payload"
     good = encrypt_secret("good-key")
-    settings = _FakeSettings({
-        "sonarr": {"apikey": bad},
-        "radarr": {"apikey": good},
-        "general": {}, "auth": {}, "compat_endpoint": {}, "plex": {},
-        "jellyfin": {}, "translator": {}, "proxy": {}, "postgresql": {},
-        "opensubtitles": {}, "opensubtitlescom": {}, "addic7ed": {},
-        "legendasdivx": {}, "legendasnet": {}, "xsubs": {},
-        "deathbycaptcha": {}, "napisy24": {}, "titlovi": {}, "titulky": {},
-        "karagarga": {}, "assrt": {}, "betaseries": {}, "jimaku": {},
-        "subdl": {}, "subsource": {}, "subx": {}, "subsro": {}, "omdb": {},
-    })
+    settings = _FakeSettings(
+        {
+            "sonarr": {"apikey": bad},
+            "radarr": {"apikey": good},
+            "general": {},
+            "auth": {},
+            "compat_endpoint": {},
+            "plex": {},
+            "jellyfin": {},
+            "translator": {},
+            "proxy": {},
+            "postgresql": {},
+            "opensubtitles": {},
+            "opensubtitlescom": {},
+            "addic7ed": {},
+            "legendasdivx": {},
+            "legendasnet": {},
+            "xsubs": {},
+            "deathbycaptcha": {},
+            "napisy24": {},
+            "titlovi": {},
+            "titulky": {},
+            "karagarga": {},
+            "assrt": {},
+            "betaseries": {},
+            "jimaku": {},
+            "subdl": {},
+            "subsource": {},
+            "subx": {},
+            "subsro": {},
+            "omdb": {},
+        }
+    )
     with caplog.at_level("ERROR"):
         decrypt_settings_in_place(settings)
     assert settings.radarr.apikey == "good-key"

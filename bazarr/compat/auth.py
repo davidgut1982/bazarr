@@ -14,10 +14,17 @@ from flask import jsonify, make_response, request
 from app.config import settings
 
 
-_XREASON_ALLOWED = frozenset({
-    "auth", "not_found", "throttled", "compat-disabled",
-    "bad-request", "upstream", "internal",
-})
+_XREASON_ALLOWED = frozenset(
+    {
+        "auth",
+        "not_found",
+        "throttled",
+        "compat-disabled",
+        "bad-request",
+        "upstream",
+        "internal",
+    }
+)
 
 
 class CompatBootError(RuntimeError):
@@ -64,6 +71,7 @@ def validate_jwt(token: str | None) -> Tuple[bool, dict]:
     except pyjwt.PyJWTError:
         return False, {}
     from . import jwt_denylist
+
     jti = claims.get("jti")
     if jti and jwt_denylist.is_revoked(jti):
         return False, {}
@@ -73,6 +81,7 @@ def validate_jwt(token: str | None) -> Tuple[bool, dict]:
 def revoke_jwt(jti: str, exp: int) -> None:
     """Add a jti to the server-side revocation denylist. Called by /logout."""
     from . import jwt_denylist
+
     jwt_denylist.revoke(jti, exp)
 
 
@@ -97,8 +106,9 @@ def _hmac_sign(secret: bytes, payload_bytes: bytes) -> bytes:
     return hmac.new(secret, payload_bytes, hashlib.sha256).digest()
 
 
-def mint_file_id(provider: str, native_id: str, language: str, release_info: str,
-                 subtitle=None) -> int:
+def mint_file_id(
+    provider: str, native_id: str, language: str, release_info: str, subtitle=None
+) -> int:
     """Allocate a server-side-mapped integer file_id.
 
     OS.com-compat clients require `files[].file_id` to be an int, so we can't
@@ -113,17 +123,30 @@ def mint_file_id(provider: str, native_id: str, language: str, release_info: str
     reliable way to fetch content across providers.
     """
     from .file_id_store import get_store
+
     ttl = int(settings.compat_endpoint.file_id_ttl_seconds)
     release_hash = hashlib.sha1((release_info or "").encode()).hexdigest()[:10]
-    payload = {"p": provider, "i": str(native_id), "l": str(language),
-               "r": release_hash, "sub": subtitle}
+    payload = {
+        "p": provider,
+        "i": str(native_id),
+        "l": str(language),
+        "r": release_hash,
+        "sub": subtitle,
+    }
     return get_store().put(payload, ttl)
 
 
-def mint_local_file_id(*, path: str, lang: str, modifier: str | None,
-                       fmt: str, media_type: str, media_id: int,
-                       media_dir: str,
-                       allowed_roots: list[str] | None = None) -> int:
+def mint_local_file_id(
+    *,
+    path: str,
+    lang: str,
+    modifier: str | None,
+    fmt: str,
+    media_type: str,
+    media_id: int,
+    media_dir: str,
+    allowed_roots: list[str] | None = None,
+) -> int:
     """Allocate a server-side-mapped int file_id for a locally-stored subtitle.
 
     Stash the resolved path + format + allowed-roots list so /download/stream
@@ -134,6 +157,7 @@ def mint_local_file_id(*, path: str, lang: str, modifier: str | None,
     caller doesn't pre-compute the list (back-compat).
     """
     from .file_id_store import get_store
+
     ttl = int(settings.compat_endpoint.file_id_ttl_seconds)
     roots = [str(r) for r in (allowed_roots or [media_dir])]
     payload = {
@@ -153,6 +177,7 @@ def mint_local_file_id(*, path: str, lang: str, modifier: str | None,
 def parse_file_id(fid) -> Tuple[bool, dict]:
     """Resolve an int (or digit string) file_id to its stored payload."""
     from .file_id_store import get_store
+
     return get_store().get(fid)
 
 
@@ -265,6 +290,7 @@ def compat_auth(require_jwt: bool = False):
       - JWT missing / invalid / expired: 401 Unauthorized. This IS the
         signal the plugin uses to re-login (clear token + POST /login).
     """
+
     def decorator(fn):
         @wraps(fn)
         def wrapper(*args, **kwargs):
@@ -274,12 +300,14 @@ def compat_auth(require_jwt: bool = False):
             if not validate_compat_token(api_key):
                 return compat_error("Invalid API key", 403, "auth")
             if require_jwt:
-                bearer = (request.headers.get("Authorization") or "")
+                bearer = request.headers.get("Authorization") or ""
                 if not bearer.startswith("Bearer "):
                     return compat_error("Authorization header required", 401, "auth")
                 ok, _ = validate_jwt(bearer[7:])
                 if not ok:
                     return compat_error("Token invalid or expired", 401, "auth")
             return fn(*args, **kwargs)
+
         return wrapper
+
     return decorator

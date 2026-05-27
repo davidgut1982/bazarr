@@ -12,7 +12,9 @@ from jsonschema import validate, RefResolver
 
 # Spec downloaded from https://api.jellyfin.org/openapi/jellyfin-openapi-stable.json
 
-OPENAPI_PATH = os.path.join(os.path.dirname(__file__), "fixtures", "jellyfin-openapi.json")
+OPENAPI_PATH = os.path.join(
+    os.path.dirname(__file__), "fixtures", "jellyfin-openapi.json"
+)
 
 _spec = None
 _resolver = None
@@ -46,7 +48,9 @@ def _validate_params(params, path, method="get"):
     valid_params = {p["name"] for p in op.get("parameters", [])}
     unknown = set(params.keys()) - valid_params
     if unknown:
-        raise ValueError(f"Unknown params for {method.upper()} {path}: {unknown}. Valid: {valid_params}")
+        raise ValueError(
+            f"Unknown params for {method.upper()} {path}: {unknown}. Valid: {valid_params}"
+        )
 
 
 def _validate_enum(value, path, method, param_name):
@@ -64,7 +68,9 @@ def _validate_enum(value, path, method, param_name):
                         name = ref.split("/")[-1]
                         enum = spec["components"]["schemas"].get(name, {}).get("enum")
             if enum and value not in enum:
-                raise ValueError(f"Invalid value '{value}' for {param_name}. Valid: {enum}")
+                raise ValueError(
+                    f"Invalid value '{value}' for {param_name}. Valid: {enum}"
+                )
 
 
 def _validate_request_body(data, path, method="post"):
@@ -88,8 +94,13 @@ def _validate_fields(fields_str):
                 raise ValueError(f"Invalid field '{field}'. Valid: {item_fields}")
 
 
-def make_movie(id="movie-1", name="Test Movie", imdb_id="tt0000001",
-               tmdb_id="12345", path="/media/movies/Test Movie (2020)/Test Movie (2020).mkv"):
+def make_movie(
+    id="movie-1",
+    name="Test Movie",
+    imdb_id="tt0000001",
+    tmdb_id="12345",
+    path="/media/movies/Test Movie (2020)/Test Movie (2020).mkv",
+):
     return {
         "Name": name,
         "Id": id,
@@ -103,8 +114,13 @@ def make_movie(id="movie-1", name="Test Movie", imdb_id="tt0000001",
     }
 
 
-def make_series(id="series-1", name="Test Show", imdb_id="tt0000002",
-                tvdb_id="100", path="/media/shows/Test Show (2020)"):
+def make_series(
+    id="series-1",
+    name="Test Show",
+    imdb_id="tt0000002",
+    tvdb_id="100",
+    path="/media/shows/Test Show (2020)",
+):
     return {
         "Name": name,
         "Id": id,
@@ -220,7 +236,12 @@ class FakeJellyfinClient:
 
     def refresh_item(self, item_id: str) -> None:
         if _has_spec():
-            _validate_enum("ValidationOnly", "/Items/{itemId}/Refresh", "post", "metadataRefreshMode")
+            _validate_enum(
+                "ValidationOnly",
+                "/Items/{itemId}/Refresh",
+                "post",
+                "metadataRefreshMode",
+            )
         self.refresh_item_calls.append(item_id)
 
     def report_media_updated(self, path: str) -> None:
@@ -230,7 +251,11 @@ class FakeJellyfinClient:
         self.report_media_updated_calls.append(path)
 
     def get(self, path, params=None):
-        raise RuntimeError(f"FakeJellyfinClient.get() called with {path} — use the high-level methods instead")
+        raise RuntimeError(
+            f"FakeJellyfinClient.get() called with {path} — use the high-level methods instead"
+        )
 
     def post(self, path, json=None, params=None):
-        raise RuntimeError(f"FakeJellyfinClient.post() called with {path} — use the high-level methods instead")
+        raise RuntimeError(
+            f"FakeJellyfinClient.post() called with {path} — use the high-level methods instead"
+        )

@@ -109,7 +109,7 @@ class Napisy24Provider(Provider):
         elif n24_status == 'OK-3':
             logger.info('Found subtitles but not from Napisy24 database')
             return None
-        
+
         subtitle_content = response_content[1]
 
         subtitle = Napisy24Subtitle(language, hash, 'tt%s' % subtitle_info['imdb'].zfill(7), subtitle_info['napisId'])

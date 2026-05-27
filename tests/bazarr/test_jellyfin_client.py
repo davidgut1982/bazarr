@@ -21,16 +21,17 @@ def client():
     return JellyfinClient("http://jellyfin:8096", "test-api-key")
 
 
-
 def test_fake_client_has_same_interface_as_real():
     """Ensure FakeJellyfinClient implements all public methods of JellyfinClient."""
-    real_methods = {m for m in dir(JellyfinClient) if not m.startswith('_')}
-    fake_methods = {m for m in dir(FakeJellyfinClient) if not m.startswith('_')}
+    real_methods = {m for m in dir(JellyfinClient) if not m.startswith("_")}
+    fake_methods = {m for m in dir(FakeJellyfinClient) if not m.startswith("_")}
     missing = real_methods - fake_methods
     assert not missing, f"FakeJellyfinClient is missing methods: {missing}"
 
 
-@pytest.mark.skipif(not os.path.exists(OPENAPI_PATH), reason="jellyfin-openapi.json not found")
+@pytest.mark.skipif(
+    not os.path.exists(OPENAPI_PATH), reason="jellyfin-openapi.json not found"
+)
 class TestFakeClientMatchesContract:
     """Verify that FakeJellyfinClient returns schema-valid responses."""
 
@@ -61,7 +62,6 @@ class TestFakeClientMatchesContract:
         fake.get_episodes("s1", 1)
 
 
-
 @patch.object(JellyfinClient, "post")
 def test_refresh_item(mock_post, client):
     mock_post.return_value = MagicMock()
@@ -71,15 +71,18 @@ def test_refresh_item(mock_post, client):
     assert f"/Items/{valid_id}/Refresh" in mock_post.call_args[0][0]
 
 
-@pytest.mark.parametrize("bad_id", [
-    "../../etc/passwd",
-    "abc/def",
-    "abc?injected=1",
-    "abc.exe",
-    "",
-    "short",
-    "a" * 100,  # too long
-])
+@pytest.mark.parametrize(
+    "bad_id",
+    [
+        "../../etc/passwd",
+        "abc/def",
+        "abc?injected=1",
+        "abc.exe",
+        "",
+        "short",
+        "a" * 100,  # too long
+    ],
+)
 def test_refresh_item_rejects_unsafe_id(client, bad_id):
     """A malicious or corrupt Jellyfin response with non-GUID IDs must not
     flow into URL-path substitution."""
@@ -104,19 +107,23 @@ def test_redact_secret_strips_token_and_key():
     """Helper underpinning operations._redact: api_key never appears in
     redacted output; the Authorization Token form is also masked."""
     from jellyfin.client import _redact_secret
+
     raw = 'GET https://x/y Token="SECRET-LEAK" failed: bad SECRET-LEAK'
     assert "SECRET-LEAK" not in _redact_secret(raw, "SECRET-LEAK")
     # Token="..." form is masked even when the literal secret is unknown
-    assert _redact_secret('Token="anything"', '') == 'Token="***"'
+    assert _redact_secret('Token="anything"', "") == 'Token="***"'
 
 
 @patch.object(JellyfinClient, "post")
 def test_report_media_updated(mock_post, client):
     mock_post.return_value = MagicMock()
     client.report_media_updated("/media/movies/Test Movie")
-    mock_post.assert_called_once_with("/Library/Media/Updated", json={
-        "Updates": [{"Path": "/media/movies/Test Movie", "UpdateType": "Modified"}],
-    })
+    mock_post.assert_called_once_with(
+        "/Library/Media/Updated",
+        json={
+            "Updates": [{"Path": "/media/movies/Test Movie", "UpdateType": "Modified"}],
+        },
+    )
 
 
 def test_get_closes_response_when_status_raises(client):
@@ -124,6 +131,7 @@ def test_get_closes_response_when_status_raises(client):
     into the pool. Repeated server errors would otherwise exhaust the pool
     and FDs."""
     import requests
+
     fake = MagicMock()
     fake.raise_for_status.side_effect = requests.HTTPError("500")
     with patch.object(client.session, "get", return_value=fake):
@@ -156,5 +164,3 @@ def test_get_does_not_close_response_on_success(client):
         out = client.get("/Items")
     assert out is fake
     fake.close.assert_not_called()
-
-

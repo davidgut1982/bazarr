@@ -87,14 +87,18 @@ def main():
                 "abi": ABI,
                 "id": request.get("id"),
                 "ok": True,
-                "payload": _handle(provider, request.get("op"), request.get("payload") or {}),
+                "payload": _handle(
+                    provider, request.get("op"), request.get("payload") or {}
+                ),
                 "events": [],
             }
         except Exception as error:
             print(traceback.format_exc(), file=sys.stderr, flush=True)
             response = {
                 "abi": ABI,
-                "id": locals().get("request", {}).get("id") if isinstance(locals().get("request"), dict) else None,
+                "id": locals().get("request", {}).get("id")
+                if isinstance(locals().get("request"), dict)
+                else None,
                 "ok": False,
                 "error": {
                     "code": "provider",

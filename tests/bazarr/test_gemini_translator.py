@@ -127,7 +127,9 @@ def test_handle_rate_limited_key_raises_when_all_keys_unavailable():
     service.current_api_index = 0
     service.current_api_key = "key-1"
 
-    with pytest.raises(RuntimeError, match="All Gemini API keys are currently rate limited"):
+    with pytest.raises(
+        RuntimeError, match="All Gemini API keys are currently rate limited"
+    ):
         service._handle_rate_limited_key(_RateLimitedResponse())
 
 
@@ -153,7 +155,9 @@ def test_translate_with_gemini_does_not_leave_output_file_on_failure(tmp_path, m
         assert output_file.exists()
         raise RuntimeError("boom")
 
-    mocker.patch.object(service, "_process_batch", side_effect=_fail_after_output_file_created)
+    mocker.patch.object(
+        service, "_process_batch", side_effect=_fail_after_output_file_created
+    )
     mocker.patch.object(gemini_translator.jobs_queue, "update_job_progress")
 
     with pytest.raises(RuntimeError, match="boom"):

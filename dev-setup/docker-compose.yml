@@ -25,7 +25,7 @@ services:
       - ../custom_libs:/app/bazarr/bin/custom_libs:ro
       - ../libs:/app/bazarr/bin/libs:ro
       - ../migrations:/app/bazarr/bin/migrations:ro
-      
+
       # Mount data directory for persistence
       - ./data:/app/bazarr/data
     environment:
@@ -58,10 +58,10 @@ services:
       - ../frontend/tsconfig.json:/app/tsconfig.json:ro
       - ../frontend/package.json:/app/package.json:ro
       - ../frontend/.env.development:/app/.env.development:ro
-      
+
       # Ensure node_modules is not overwritten by volume mount
       - /app/node_modules
-      
+
       # Share data directory so frontend can read backend config
       - ./data:/app/data
     environment:

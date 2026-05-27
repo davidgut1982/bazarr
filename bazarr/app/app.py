@@ -24,17 +24,17 @@ def create_app():
     # Flask Setup
     app = Flask(__name__)
     app.request_class = CustomRequest
-    app.config['COMPRESS_ALGORITHM'] = 'gzip'
+    app.config["COMPRESS_ALGORITHM"] = "gzip"
     Compress(app)
     app.wsgi_app = ReverseProxied(app.wsgi_app)
 
     app.config["SECRET_KEY"] = settings.general.flask_secret_key
-    app.config['JSONIFY_PRETTYPRINT_REGULAR'] = True
-    app.config['JSON_AS_ASCII'] = False
+    app.config["JSONIFY_PRETTYPRINT_REGULAR"] = True
+    app.config["JSON_AS_ASCII"] = False
 
-    app.config['RESTX_MASK_SWAGGER'] = False
+    app.config["RESTX_MASK_SWAGGER"] = False
 
-    if settings.get('cors', 'enabled'):
+    if settings.get("cors", "enabled"):
         CORS(app)
 
     if args.dev:
@@ -43,8 +43,16 @@ def create_app():
         app.config["DEBUG"] = False
 
     from engineio.async_drivers import threading  # noqa: F401
-    socketio.init_app(app, path=f'{base_url.rstrip("/")}/api/socket.io', cors_allowed_origins='*',
-                      async_mode='threading', allow_upgrades=False, transports='polling', engineio_logger=False)
+
+    socketio.init_app(
+        app,
+        path=f"{base_url.rstrip('/')}/api/socket.io",
+        cors_allowed_origins="*",
+        async_mode="threading",
+        allow_upgrades=False,
+        transports="polling",
+        engineio_logger=False,
+    )
 
     @app.errorhandler(404)
     def page_not_found(_):
@@ -70,7 +78,7 @@ class ReverseProxied(object):
         self.app = app
 
     def __call__(self, environ, start_response):
-        scheme = environ.get('HTTP_X_FORWARDED_PROTO')
+        scheme = environ.get("HTTP_X_FORWARDED_PROTO")
         if scheme:
-            environ['wsgi.url_scheme'] = scheme
+            environ["wsgi.url_scheme"] = scheme
         return self.app(environ, start_response)

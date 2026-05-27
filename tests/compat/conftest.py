@@ -35,6 +35,7 @@ def _guarantee_compat_secrets():
     sync regardless of which layer any individual caller reads.
     """
     from app.config import settings
+
     _defaults = {
         "enabled": True,
         "token": "t" * 32,

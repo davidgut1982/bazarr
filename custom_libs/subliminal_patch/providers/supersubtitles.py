@@ -330,7 +330,7 @@ class SuperSubtitlesProvider(Provider, ProviderSubtitleArchiveMixin):
         if episode_subs:
             sub_list = episode_subs
         else:
-            ''' 
+            '''
             Sometimes the site is a bit buggy when you are searching for an episode sub that is only present in a
             season pack, so we have to make a separate call for that without supplying the episode number
             '''

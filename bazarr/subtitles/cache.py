@@ -70,7 +70,9 @@ class _SubtitleCache:
         # Use the module-level shared dict so every _SubtitleCache instance
         # in this process operates on the same storage.
         self._cache = _get_shared_store()
-        self._lock = sys.modules.setdefault("_bazarr_subtitle_cache_shared_lock", threading.Lock())
+        self._lock = sys.modules.setdefault(
+            "_bazarr_subtitle_cache_shared_lock", threading.Lock()
+        )
 
     def _purge_expired(self):
         now = time.monotonic()
@@ -96,8 +98,13 @@ class _SubtitleCache:
         with self._lock:
             self._purge_expired()
             self._cache[key] = (subtitle, expiry)
-            log.debug("CACHE store key=%s total_keys=%d id(cache)=%s module=%s",
-                      key, len(self._cache), id(self._cache), __name__)
+            log.debug(
+                "CACHE store key=%s total_keys=%d id(cache)=%s module=%s",
+                key,
+                len(self._cache),
+                id(self._cache),
+                __name__,
+            )
         return key
 
     def get(self, key):
@@ -115,7 +122,11 @@ class _SubtitleCache:
             found = entry is not None
             log.debug(
                 "CACHE get key=%s found=%s total_keys=%d id(cache)=%s module=%s",
-                key, found, len(self._cache), id(self._cache), __name__,
+                key,
+                found,
+                len(self._cache),
+                id(self._cache),
+                __name__,
             )
             if entry is None:
                 return None

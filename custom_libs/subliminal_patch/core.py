@@ -525,7 +525,7 @@ class SZProviderPool(ProviderPool):
                                    name, type(subtitle).__name__, subtitle)
                     continue
                 valid_subtitles.append(subtitle)
-            
+
             if not valid_subtitles:
                 continue
 
@@ -740,10 +740,10 @@ class SZProviderPool(ProviderPool):
         # 2. We are in a Bulk Task or Single Series search
         # 3. User enabled the Whisper fallback setting
         # 4. Whisper is actually in the active providers list
-        if (not downloaded_subtitles and 
-            fallback_allowed and 
+        if (not downloaded_subtitles and
+            fallback_allowed and
             'whisperai' in self.providers):
-            
+
             for subtitle, score, score_without_hash, matches, orig_matches in scored_subtitles:
                 if subtitle.provider_name == 'whisperai':
                     logger.info('BAZARR Bulk Task: Falling back to Whisper for %r', video.name)

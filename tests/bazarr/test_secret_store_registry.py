@@ -22,17 +22,27 @@ def test_user_visible_includes_compat_token():
 
 
 def test_user_visible_includes_arr_apikeys():
-    for key in ("sonarr.apikey", "radarr.apikey", "jellyfin.apikey",
-                "plex.apikey", "plex.token"):
+    for key in (
+        "sonarr.apikey",
+        "radarr.apikey",
+        "jellyfin.apikey",
+        "plex.apikey",
+        "plex.token",
+    ):
         assert is_user_visible_secret(key), f"{key} should be user-visible"
 
 
 def test_user_visible_includes_provider_passwords_and_keys():
     """Spot-check the provider list - if validators get added without
     updating the registry, those credentials would ship plaintext."""
-    for key in ("opensubtitles.password", "addic7ed.password",
-                "subdl.api_key", "subsource.apikey",
-                "translator.openrouter_api_key", "translator.lingarr_token"):
+    for key in (
+        "opensubtitles.password",
+        "addic7ed.password",
+        "subdl.api_key",
+        "subsource.apikey",
+        "translator.openrouter_api_key",
+        "translator.lingarr_token",
+    ):
         assert is_user_visible_secret(key), f"{key} should be user-visible"
 
 
@@ -47,11 +57,13 @@ def test_system_secrets_never_user_visible():
 def test_system_includes_master_and_signing_keys():
     """Every cryptographic primitive (anything used to sign / encrypt
     OTHER secrets) must be SYSTEM, never visible to the frontend."""
-    for key in ("general.flask_secret_key",
-                "general.secrets_encryption_key",
-                "compat_endpoint.jwt_secret",
-                "compat_endpoint.file_id_secret",
-                "plex.encryption_key"):
+    for key in (
+        "general.flask_secret_key",
+        "general.secrets_encryption_key",
+        "compat_endpoint.jwt_secret",
+        "compat_endpoint.file_id_secret",
+        "plex.encryption_key",
+    ):
         assert is_system_secret(key), f"{key} should be system-only"
 
 
@@ -95,17 +107,23 @@ def test_provider_login_pairs_are_both_classified():
         ("auth.username", "auth.password"),
     ]
     for username_key, password_key in pairs:
-        assert is_user_visible_secret(username_key), \
+        assert is_user_visible_secret(username_key), (
             f"{username_key} missing from USER_VISIBLE_SECRETS"
-        assert is_user_visible_secret(password_key), \
+        )
+        assert is_user_visible_secret(password_key), (
             f"{password_key} missing from USER_VISIBLE_SECRETS"
+        )
 
 
 def test_session_cookies_are_classified():
     """Session cookies are functionally long-lived auth tokens after the
     initial login - encrypt them at rest like passwords."""
-    for key in ("addic7ed.cookies", "avistaz.cookies", "cinemaz.cookies",
-                "turkcealtyaziorg.cookies"):
+    for key in (
+        "addic7ed.cookies",
+        "avistaz.cookies",
+        "cinemaz.cookies",
+        "turkcealtyaziorg.cookies",
+    ):
         assert is_user_visible_secret(key), f"{key} missing"
 
 

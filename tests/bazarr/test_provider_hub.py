@@ -13,11 +13,13 @@ from subliminal.video import Movie
 
 def _sha256(value):
     import hashlib
+
     return hashlib.sha256(value).hexdigest()
 
 
 def _bundle_sha256(file_payloads):
     import hashlib
+
     digest = hashlib.sha256()
     for relative_path, content in sorted(file_payloads.items()):
         digest.update(relative_path.encode("utf-8"))
@@ -30,9 +32,13 @@ def _bundle_sha256(file_payloads):
 
 
 def _manifest(**overrides):
-    provider_content = overrides.pop("provider_content", b"class ExampleProvider: pass\n")
+    provider_content = overrides.pop(
+        "provider_content", b"class ExampleProvider: pass\n"
+    )
     file_payloads = overrides.pop("file_payloads", {"provider.py": provider_content})
-    files = overrides.pop("files", {path: _sha256(content) for path, content in file_payloads.items()})
+    files = overrides.pop(
+        "files", {path: _sha256(content) for path, content in file_payloads.items()}
+    )
     bundle_digest = overrides.pop("bundle_sha256", _bundle_sha256(file_payloads))
     manifest = {
         "schema_version": 1,
@@ -122,7 +128,10 @@ def test_manifest_accepts_safe_github_source_path():
     assert validated.source_path == "providers/smoke"
 
 
-@pytest.mark.parametrize("bad_source_path", ["../smoke", "/providers/smoke", "providers/../smoke", "providers\\smoke"])
+@pytest.mark.parametrize(
+    "bad_source_path",
+    ["../smoke", "/providers/smoke", "providers/../smoke", "providers\\smoke"],
+)
 def test_manifest_rejects_unsafe_github_source_path(bad_source_path):
     from provider_hub.manifest import ManifestValidationError, validate_manifest
 
@@ -191,10 +200,22 @@ def test_manifest_rejects_built_in_provider_shadowing():
 @pytest.mark.parametrize(
     "requirement",
     [
-        {"name": "cloudscraper", "version": ">=1.2.58", "hashes": ["sha256:" + ("c" * 64)]},
+        {
+            "name": "cloudscraper",
+            "version": ">=1.2.58",
+            "hashes": ["sha256:" + ("c" * 64)],
+        },
         {"name": "cloudscraper", "version": "1.2.58", "hashes": []},
-        {"name": "git+https://github.com/x/y", "version": "1.0.0", "hashes": ["sha256:" + ("c" * 64)]},
-        {"name": "pkg; os_name=='posix'", "version": "1.0.0", "hashes": ["sha256:" + ("c" * 64)]},
+        {
+            "name": "git+https://github.com/x/y",
+            "version": "1.0.0",
+            "hashes": ["sha256:" + ("c" * 64)],
+        },
+        {
+            "name": "pkg; os_name=='posix'",
+            "version": "1.0.0",
+            "hashes": ["sha256:" + ("c" * 64)],
+        },
     ],
 )
 def test_manifest_rejects_unlocked_or_unsafe_dependencies(requirement):
@@ -244,7 +265,11 @@ def test_worker_protocol_round_trips_language_video_and_download_payload():
             "hash_verifiable": True,
             "hearing_impaired_verifiable": True,
             "display": {"download_count": 7, "ratings": 4.5},
-            "provider_payload": {"provider": "upstream", "schema": 1, "data": {"file_id": "sub-1"}},
+            "provider_payload": {
+                "provider": "upstream",
+                "schema": 1,
+                "data": {"file_id": "sub-1"},
+            },
         },
     )
 
@@ -341,7 +366,9 @@ def test_active_provider_hub_installation_registers_proxy(tmp_path, monkeypatch)
     assert provider_cls.languages
 
 
-def test_get_providers_registers_active_provider_hub_installation(tmp_path, monkeypatch):
+def test_get_providers_registers_active_provider_hub_installation(
+    tmp_path, monkeypatch
+):
     from app import get_providers
     from subliminal_patch.extensions import provider_registry
 
@@ -368,7 +395,12 @@ def test_get_providers_registers_active_provider_hub_installation(tmp_path, monk
         encoding="utf-8",
     )
     monkeypatch.setenv("BAZARR_PROVIDER_HUB_STATE", str(state_file))
-    monkeypatch.setattr(get_providers.settings.general, "enabled_providers", [provider_id], raising=False)
+    monkeypatch.setattr(
+        get_providers.settings.general,
+        "enabled_providers",
+        [provider_id],
+        raising=False,
+    )
 
     assert get_providers.get_providers() == [provider_id]
 
@@ -385,7 +417,9 @@ def test_get_providers_retries_provider_hub_registration_after_failure(monkeypat
             raise RuntimeError("temporary registration failure")
 
     monkeypatch.setattr(get_providers, "_PROVIDER_HUB_REGISTRATION_DONE", False)
-    monkeypatch.setattr(hub_registry, "register_active_provider_classes", fail_then_succeed)
+    monkeypatch.setattr(
+        hub_registry, "register_active_provider_classes", fail_then_succeed
+    )
 
     get_providers._ensure_provider_hub_registered()
 
@@ -447,30 +481,40 @@ def test_provider_hub_scheduler_task_is_registered_on_scheduler():
     assert kwargs["replace_existing"] is True
 
 
-def test_provider_hub_update_task_refreshes_catalog_before_checking_updates(monkeypatch):
+def test_provider_hub_update_task_refreshes_catalog_before_checking_updates(
+    monkeypatch,
+):
     from provider_hub import tasks
 
     calls = []
     monkeypatch.setattr(tasks, "refresh_catalog", lambda: calls.append("refresh"))
-    monkeypatch.setattr(tasks, "check_updates", lambda: calls.append("check") or {"state": "completed"})
+    monkeypatch.setattr(
+        tasks, "check_updates", lambda: calls.append("check") or {"state": "completed"}
+    )
 
     assert tasks.provider_hub_check_updates() == {"state": "completed"}
     assert calls == ["refresh", "check"]
 
 
-def test_provider_hub_updates_check_endpoint_refreshes_catalog_before_check(monkeypatch):
+def test_provider_hub_updates_check_endpoint_refreshes_catalog_before_check(
+    monkeypatch,
+):
     from api.provider_hub.provider_hub import ProviderHubUpdatesCheck
     from api.provider_hub import provider_hub
 
     calls = []
-    monkeypatch.setattr(provider_hub.service, "refresh_catalog", lambda: calls.append("refresh"))
+    monkeypatch.setattr(
+        provider_hub.service, "refresh_catalog", lambda: calls.append("refresh")
+    )
     monkeypatch.setattr(
         provider_hub.service,
         "check_updates",
         lambda: calls.append("check") or {"state": "completed"},
     )
 
-    assert ProviderHubUpdatesCheck.post.__wrapped__(ProviderHubUpdatesCheck()) == {"state": "completed"}
+    assert ProviderHubUpdatesCheck.post.__wrapped__(ProviderHubUpdatesCheck()) == {
+        "state": "completed"
+    }
     assert calls == ["refresh", "check"]
 
 
@@ -550,7 +594,10 @@ def test_apply_update_uses_latest_catalog_manifest(tmp_path, monkeypatch):
         encoding="utf-8",
     )
     monkeypatch.setenv("BAZARR_PROVIDER_HUB_STATE", str(state_file))
-    monkeypatch.setattr("provider_hub.service._fetch_bundle", lambda manifest: tmp_path / "bundle")
+    monkeypatch.setattr(
+        "provider_hub.service._fetch_bundle", lambda manifest: tmp_path / "bundle"
+    )
+
     class FakeEnvironment:
         def __init__(self, root):
             self.root = root
@@ -559,8 +606,13 @@ def test_apply_update_uses_latest_catalog_manifest(tmp_path, monkeypatch):
             return tmp_path / "env"
 
     monkeypatch.setattr("provider_hub.service.PluginEnvironment", FakeEnvironment)
-    monkeypatch.setattr("provider_hub.service.python_executable", lambda env_path: tmp_path / "python")
-    monkeypatch.setattr("provider_hub.service._smoke_validate_worker", lambda manifest, bundle_path, python_path: None)
+    monkeypatch.setattr(
+        "provider_hub.service.python_executable", lambda env_path: tmp_path / "python"
+    )
+    monkeypatch.setattr(
+        "provider_hub.service._smoke_validate_worker",
+        lambda manifest, bundle_path, python_path: None,
+    )
 
     provider = apply_update(provider_id)
 
@@ -576,8 +628,19 @@ def test_provider_hub_restart_activation_promotes_staged_install(tmp_path, monke
     from provider_hub.state import load_state
 
     provider_id = "stagehub"
-    staged_path = tmp_path / "provider_hub" / "bundles" / provider_id / "1.1.0" / ("b" * 40)
-    staged_python_path = tmp_path / "provider_hub" / "envs" / provider_id / "1.1.0" / "test" / "bin" / "python"
+    staged_path = (
+        tmp_path / "provider_hub" / "bundles" / provider_id / "1.1.0" / ("b" * 40)
+    )
+    staged_python_path = (
+        tmp_path
+        / "provider_hub"
+        / "envs"
+        / provider_id
+        / "1.1.0"
+        / "test"
+        / "bin"
+        / "python"
+    )
     state_file = tmp_path / "state.json"
     state_file.write_text(
         json.dumps(
@@ -602,8 +665,13 @@ def test_provider_hub_restart_activation_promotes_staged_install(tmp_path, monke
         encoding="utf-8",
     )
     monkeypatch.setenv("BAZARR_PROVIDER_HUB_STATE", str(state_file))
-    monkeypatch.setattr("provider_hub.service.verify_bundle_tree", lambda manifest, root: None)
-    monkeypatch.setattr("provider_hub.service._smoke_validate_worker", lambda manifest, bundle_path, python_path: None)
+    monkeypatch.setattr(
+        "provider_hub.service.verify_bundle_tree", lambda manifest, root: None
+    )
+    monkeypatch.setattr(
+        "provider_hub.service._smoke_validate_worker",
+        lambda manifest, bundle_path, python_path: None,
+    )
 
     assert activate_staged_installations() == [provider_id]
 
@@ -624,11 +692,15 @@ def test_provider_hub_restart_activation_promotes_staged_install(tmp_path, monke
     )
 
 
-def test_provider_hub_state_write_lock_serializes_load_modify_save_cycles(tmp_path, monkeypatch):
+def test_provider_hub_state_write_lock_serializes_load_modify_save_cycles(
+    tmp_path, monkeypatch
+):
     from provider_hub.state import load_state, save_state, state_write_lock
 
     state_file = tmp_path / "state.json"
-    state_file.write_text(json.dumps({"installations": {}, "jobs": []}), encoding="utf-8")
+    state_file.write_text(
+        json.dumps({"installations": {}, "jobs": []}), encoding="utf-8"
+    )
     monkeypatch.setenv("BAZARR_PROVIDER_HUB_STATE", str(state_file))
 
     first_loaded = threading.Event()
@@ -639,7 +711,9 @@ def test_provider_hub_state_write_lock_serializes_load_modify_save_cycles(tmp_pa
         try:
             with state_write_lock():
                 state = load_state()
-                state.setdefault("installations", {})["first"] = {"provider_id": "first"}
+                state.setdefault("installations", {})["first"] = {
+                    "provider_id": "first"
+                }
                 first_loaded.set()
                 if second_entered.wait(0.05):
                     errors.append("second writer entered before first save")
@@ -653,7 +727,9 @@ def test_provider_hub_state_write_lock_serializes_load_modify_save_cycles(tmp_pa
             with state_write_lock():
                 second_entered.set()
                 state = load_state()
-                state.setdefault("installations", {})["second"] = {"provider_id": "second"}
+                state.setdefault("installations", {})["second"] = {
+                    "provider_id": "second"
+                }
                 save_state(state)
         except Exception as error:
             errors.append(str(error))
@@ -673,7 +749,9 @@ def test_provider_hub_state_write_lock_serializes_load_modify_save_cycles(tmp_pa
     assert "second" in installations
 
 
-def test_provider_hub_restart_activation_keeps_active_on_staged_failure(tmp_path, monkeypatch):
+def test_provider_hub_restart_activation_keeps_active_on_staged_failure(
+    tmp_path, monkeypatch
+):
     from provider_hub.service import activate_staged_installations
     from provider_hub.state import load_state
 
@@ -720,7 +798,9 @@ def test_provider_hub_restart_activation_keeps_active_on_staged_failure(tmp_path
     assert installation["last_error"]
 
 
-def test_provider_hub_restart_activation_finalizes_removed_installation(tmp_path, monkeypatch):
+def test_provider_hub_restart_activation_finalizes_removed_installation(
+    tmp_path, monkeypatch
+):
     from provider_hub.service import activate_staged_installations
     from provider_hub.state import load_state
 
@@ -751,7 +831,9 @@ def test_provider_hub_restart_activation_finalizes_removed_installation(tmp_path
     assert provider_id not in load_state()["installations"]
 
 
-def test_provider_hub_uninstall_discards_staged_install_without_restart(tmp_path, monkeypatch):
+def test_provider_hub_uninstall_discards_staged_install_without_restart(
+    tmp_path, monkeypatch
+):
     from provider_hub.service import remove_installation
     from provider_hub.state import load_state
 
@@ -783,7 +865,9 @@ def test_provider_hub_uninstall_discards_staged_install_without_restart(tmp_path
     assert provider_id not in load_state()["installations"]
 
 
-def test_provider_hub_uninstall_stages_active_removal_and_discards_staged_update(tmp_path, monkeypatch):
+def test_provider_hub_uninstall_stages_active_removal_and_discards_staged_update(
+    tmp_path, monkeypatch
+):
     from provider_hub.service import remove_installation
     from provider_hub.state import load_state
 
@@ -802,7 +886,9 @@ def test_provider_hub_uninstall_stages_active_removal_and_discards_staged_update
                         "staged_version": "1.1.0",
                         "staged_path": "/new/bundle",
                         "staged_python_path": "/new/python",
-                        "staged_manifest": _manifest(provider_id=provider_id, version="1.1.0"),
+                        "staged_manifest": _manifest(
+                            provider_id=provider_id, version="1.1.0"
+                        ),
                         "state": "staged",
                         "pending_restart": True,
                         "manifest": _manifest(provider_id=provider_id),
@@ -825,11 +911,19 @@ def test_provider_hub_uninstall_stages_active_removal_and_discards_staged_update
     assert installation["staged_manifest"] is None
 
 
-def test_provider_hub_config_redacts_secret_and_preserves_placeholder(tmp_path, monkeypatch):
-    from provider_hub.service import SECRET_PLACEHOLDER, runtime_provider_configs, update_provider
+def test_provider_hub_config_redacts_secret_and_preserves_placeholder(
+    tmp_path, monkeypatch
+):
+    from provider_hub.service import (
+        SECRET_PLACEHOLDER,
+        runtime_provider_configs,
+        update_provider,
+    )
     from provider_hub.state import load_state, save_state
 
-    monkeypatch.setenv("BAZARR_PROVIDER_HUB_STATE", str(tmp_path / "provider_hub" / "state.json"))
+    monkeypatch.setenv(
+        "BAZARR_PROVIDER_HUB_STATE", str(tmp_path / "provider_hub" / "state.json")
+    )
     state = load_state()
     state["installations"] = {
         "examplehub": {
@@ -847,14 +941,17 @@ def test_provider_hub_config_redacts_secret_and_preserves_placeholder(tmp_path, 
     redacted = update_provider(
         "examplehub",
         enabled=True,
-        config={"api_key": "real-secret", "region": "eu"},
+        config={"api_key": "real-secret", "region": "eu"},  # pragma: allowlist secret
     )
 
     assert redacted["enabled"] is True
     assert redacted["config"]["api_key"] == SECRET_PLACEHOLDER
     assert redacted["config"]["region"] == "eu"
     assert "real-secret" not in json.dumps(redacted)
-    assert runtime_provider_configs()["examplehub"]["api_key"] == "real-secret"
+    assert (
+        runtime_provider_configs()["examplehub"]["api_key"]
+        == "real-secret"  # pragma: allowlist secret
+    )
 
     redacted = update_provider(
         "examplehub",
@@ -864,13 +961,19 @@ def test_provider_hub_config_redacts_secret_and_preserves_placeholder(tmp_path, 
     assert redacted["config"]["api_key"] == SECRET_PLACEHOLDER
     assert redacted["config"]["region"] == "us"
     assert runtime_provider_configs()["examplehub"] == {
-        "api_key": "real-secret",
+        "api_key": "real-secret",  # pragma: allowlist secret
         "region": "us",
     }
 
-    update_provider("examplehub", config={"api_key": "new-secret"})
+    update_provider(
+        "examplehub",
+        config={"api_key": "new-secret"},  # pragma: allowlist secret
+    )
 
-    assert runtime_provider_configs()["examplehub"]["api_key"] == "new-secret"
+    assert (
+        runtime_provider_configs()["examplehub"]["api_key"]
+        == "new-secret"  # pragma: allowlist secret
+    )
 
 
 def test_get_providers_auth_includes_active_provider_hub_config(tmp_path, monkeypatch):
@@ -878,7 +981,9 @@ def test_get_providers_auth_includes_active_provider_hub_config(tmp_path, monkey
     from provider_hub.service import update_provider
     from provider_hub.state import load_state, save_state
 
-    monkeypatch.setenv("BAZARR_PROVIDER_HUB_STATE", str(tmp_path / "provider_hub" / "state.json"))
+    monkeypatch.setenv(
+        "BAZARR_PROVIDER_HUB_STATE", str(tmp_path / "provider_hub" / "state.json")
+    )
     state = load_state()
     state["installations"] = {
         "examplehub": {
@@ -892,9 +997,18 @@ def test_get_providers_auth_includes_active_provider_hub_config(tmp_path, monkey
         }
     }
     save_state(state)
-    update_provider("examplehub", config={"api_key": "runtime-secret", "region": "eu"})
+    update_provider(
+        "examplehub",
+        config={
+            "api_key": "runtime-secret",  # pragma: allowlist secret
+            "region": "eu",
+        },
+    )
 
-    assert get_providers_auth()["examplehub"]["api_key"] == "runtime-secret"
+    assert (
+        get_providers_auth()["examplehub"]["api_key"]
+        == "runtime-secret"  # pragma: allowlist secret
+    )
     assert get_providers_auth()["examplehub"]["region"] == "eu"
 
 
@@ -911,7 +1025,9 @@ def test_provider_hub_connection_test_runs_worker_health(tmp_path, monkeypatch):
 
         def request(self, op, payload=None, timeout=30):
             requests.append((op, payload, timeout, self.cwd, self.env))
-            return type("Result", (), {"payload": {"initialized": True}, "events": []})()
+            return type(
+                "Result", (), {"payload": {"initialized": True}, "events": []}
+            )()
 
         def stop(self):
             requests.append(("stop", None, None, self.cwd, self.env))
@@ -922,8 +1038,12 @@ def test_provider_hub_connection_test_runs_worker_health(tmp_path, monkeypatch):
     python_path.parent.mkdir(parents=True)
     python_path.write_text("", encoding="utf-8")
 
-    monkeypatch.setenv("BAZARR_PROVIDER_HUB_STATE", str(tmp_path / "provider_hub" / "state.json"))
-    monkeypatch.setattr("provider_hub.service.verify_bundle_tree", lambda _manifest, _path: None)
+    monkeypatch.setenv(
+        "BAZARR_PROVIDER_HUB_STATE", str(tmp_path / "provider_hub" / "state.json")
+    )
+    monkeypatch.setattr(
+        "provider_hub.service.verify_bundle_tree", lambda _manifest, _path: None
+    )
     monkeypatch.setattr("provider_hub.service.ProviderWorkerClient", FakeWorkerClient)
 
     state = load_state()
@@ -953,7 +1073,10 @@ def test_provider_hub_connection_test_runs_worker_health(tmp_path, monkeypatch):
     assert requests[0][0] == "health"
     assert requests[0][2] == 10
     assert str(requests[0][3]) == str(bundle_path)
-    assert json.loads(requests[0][4]["BAZARR_PROVIDER_HUB_MANIFEST"])["provider_id"] == "examplehub"
+    assert (
+        json.loads(requests[0][4]["BAZARR_PROVIDER_HUB_MANIFEST"])["provider_id"]
+        == "examplehub"
+    )
     assert load_state()["installations"]["examplehub"]["last_error"] is None
 
 
@@ -967,7 +1090,9 @@ def test_provider_hub_connection_test_ignores_runtime_pycache(tmp_path, monkeypa
             self.env = env
 
         def request(self, op, payload=None, timeout=30):
-            return type("Result", (), {"payload": {"initialized": True}, "events": []})()
+            return type(
+                "Result", (), {"payload": {"initialized": True}, "events": []}
+            )()
 
         def stop(self):
             return None
@@ -984,7 +1109,9 @@ def test_provider_hub_connection_test_ignores_runtime_pycache(tmp_path, monkeypa
     python_path.parent.mkdir(parents=True)
     python_path.write_text("", encoding="utf-8")
 
-    monkeypatch.setenv("BAZARR_PROVIDER_HUB_STATE", str(tmp_path / "provider_hub" / "state.json"))
+    monkeypatch.setenv(
+        "BAZARR_PROVIDER_HUB_STATE", str(tmp_path / "provider_hub" / "state.json")
+    )
     monkeypatch.setattr("provider_hub.service.ProviderWorkerClient", FakeWorkerClient)
 
     state = load_state()
@@ -1014,7 +1141,9 @@ def test_provider_hub_connection_test_ignores_runtime_pycache(tmp_path, monkeypa
     assert not pycache_path.exists()
 
 
-def test_stage_install_failure_preserves_active_install_and_records_last_error(tmp_path, monkeypatch):
+def test_stage_install_failure_preserves_active_install_and_records_last_error(
+    tmp_path, monkeypatch
+):
     from provider_hub.service import ProviderHubInstallError, stage_install
     from provider_hub.state import load_state
 
@@ -1035,7 +1164,10 @@ def test_stage_install_failure_preserves_active_install_and_records_last_error(t
         "last_error": None,
     }
     state_file.parent.mkdir(parents=True)
-    state_file.write_text(json.dumps({"installations": {provider_id: old_installation}, "jobs": []}), encoding="utf-8")
+    state_file.write_text(
+        json.dumps({"installations": {provider_id: old_installation}, "jobs": []}),
+        encoding="utf-8",
+    )
     monkeypatch.setenv("BAZARR_PROVIDER_HUB_STATE", str(state_file))
 
     def fake_get(url, timeout):
@@ -1078,7 +1210,9 @@ def test_custom_github_catalog_source_is_stored_as_untrusted(tmp_path, monkeypat
 
     assert source["trusted"] is False
     assert source["type"] == "github"
-    assert source["url"] == "https://github.com/example/providers/blob/main/catalog.json"
+    assert (
+        source["url"] == "https://github.com/example/providers/blob/main/catalog.json"
+    )
     sources = {item["name"]: item for item in list_catalog()["sources"]}
     assert sources["community"]["trusted"] is False
 
@@ -1129,7 +1263,10 @@ def test_official_catalog_source_is_reseeded_when_missing(tmp_path, monkeypatch)
     from provider_hub.service import list_catalog
 
     state_file = tmp_path / "state.json"
-    state_file.write_text(json.dumps({"catalog_sources": {}, "installations": {}, "jobs": []}), encoding="utf-8")
+    state_file.write_text(
+        json.dumps({"catalog_sources": {}, "installations": {}, "jobs": []}),
+        encoding="utf-8",
+    )
     monkeypatch.setenv("BAZARR_PROVIDER_HUB_STATE", str(state_file))
 
     sources = {item["id"]: item for item in list_catalog()["sources"]}
@@ -1137,8 +1274,14 @@ def test_official_catalog_source_is_reseeded_when_missing(tmp_path, monkeypatch)
     assert sources[OFFICIAL_CATALOG_SOURCE_ID]["trusted"] is True
 
 
-def test_official_catalog_source_cannot_be_overwritten_or_deleted(tmp_path, monkeypatch):
-    from provider_hub.service import CatalogSourceError, add_catalog_source, remove_catalog_source
+def test_official_catalog_source_cannot_be_overwritten_or_deleted(
+    tmp_path, monkeypatch
+):
+    from provider_hub.service import (
+        CatalogSourceError,
+        add_catalog_source,
+        remove_catalog_source,
+    )
 
     monkeypatch.setenv("BAZARR_PROVIDER_HUB_STATE", str(tmp_path / "state.json"))
 
@@ -1159,7 +1302,9 @@ def test_official_catalog_source_cannot_be_overwritten_or_deleted(tmp_path, monk
     assert remove_catalog_source("official") is False
 
 
-def test_existing_state_does_not_trust_sources_spoofing_official_name(tmp_path, monkeypatch):
+def test_existing_state_does_not_trust_sources_spoofing_official_name(
+    tmp_path, monkeypatch
+):
     from provider_hub.service import list_catalog
     from provider_hub.state import OFFICIAL_CATALOG_SOURCE_ID, load_state, save_state
 
@@ -1263,14 +1408,21 @@ def test_catalog_refresh_fetches_github_catalog_entries(tmp_path, monkeypatch):
             return _FakeResponse({"sha": "d" * 40})
         if "LavX/bazarr-provider-catalog" in url:
             return _FakeResponse({"providers": []})
-        return _FakeResponse({"providers": [{"manifest": _manifest(provider_id="cataloghub")} ]})
+        return _FakeResponse(
+            {"providers": [{"manifest": _manifest(provider_id="cataloghub")}]}
+        )
 
     monkeypatch.setattr("provider_hub.service.requests.get", fake_get)
     state_file = tmp_path / "state.json"
-    state_file.write_text(json.dumps({"catalog_sources": {}, "installations": {}, "jobs": []}), encoding="utf-8")
+    state_file.write_text(
+        json.dumps({"catalog_sources": {}, "installations": {}, "jobs": []}),
+        encoding="utf-8",
+    )
     monkeypatch.setenv("BAZARR_PROVIDER_HUB_STATE", str(state_file))
 
-    add_catalog_source("community", "https://github.com/example/providers/blob/main/catalog.json")
+    add_catalog_source(
+        "community", "https://github.com/example/providers/blob/main/catalog.json"
+    )
     result = refresh_catalog()
 
     assert result["sources"] == 2
@@ -1278,15 +1430,21 @@ def test_catalog_refresh_fetches_github_catalog_entries(tmp_path, monkeypatch):
     catalog = list_catalog()
     assert catalog["entries"][0]["provider_id"] == "cataloghub"
     assert catalog["entries"][0]["trusted"] is False
-    assert any(call[0].endswith("/repos/example/providers/commits/main") for call in calls)
+    assert any(
+        call[0].endswith("/repos/example/providers/commits/main") for call in calls
+    )
     assert (
-        "https://raw.githubusercontent.com/example/providers/" + ("d" * 40) + "/catalog.json",
+        "https://raw.githubusercontent.com/example/providers/"
+        + ("d" * 40)
+        + "/catalog.json",
         30,
     ) in calls
     assert catalog["entries"][0]["manifest"]["source"]["commit"] == "d" * 40
 
 
-def test_catalog_refresh_prunes_stale_entries_for_successful_source(tmp_path, monkeypatch):
+def test_catalog_refresh_prunes_stale_entries_for_successful_source(
+    tmp_path, monkeypatch
+):
     from provider_hub.service import list_catalog, refresh_catalog
 
     def fake_get(url, timeout):
@@ -1294,7 +1452,9 @@ def test_catalog_refresh_prunes_stale_entries_for_successful_source(tmp_path, mo
             return _FakeResponse({"sha": "d" * 40})
         if "LavX/bazarr-provider-catalog" in url:
             return _FakeResponse({"providers": []})
-        return _FakeResponse({"providers": [{"manifest": _manifest(provider_id="freshhub")} ]})
+        return _FakeResponse(
+            {"providers": [{"manifest": _manifest(provider_id="freshhub")}]}
+        )
 
     monkeypatch.setattr("provider_hub.service.requests.get", fake_get)
     state_file = tmp_path / "state.json"
@@ -1335,7 +1495,9 @@ def test_catalog_refresh_prunes_stale_entries_for_successful_source(tmp_path, mo
     assert "stalehub" not in provider_ids
 
 
-def test_stage_install_fetches_bundle_builds_env_and_records_staged_paths(tmp_path, monkeypatch):
+def test_stage_install_fetches_bundle_builds_env_and_records_staged_paths(
+    tmp_path, monkeypatch
+):
     from provider_hub.service import stage_install
     from provider_hub.state import load_state
 
@@ -1370,21 +1532,32 @@ def test_stage_install_fetches_bundle_builds_env_and_records_staged_paths(tmp_pa
 
         def install(self, validated):
             env_calls.append((self.root, validated.provider_id, validated.version))
-            env_path = self.root / "envs" / validated.provider_id / validated.version / "test"
-            python_path = env_path / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+            env_path = (
+                self.root / "envs" / validated.provider_id / validated.version / "test"
+            )
+            python_path = env_path / (
+                "Scripts/python.exe" if os.name == "nt" else "bin/python"
+            )
             python_path.parent.mkdir(parents=True, exist_ok=True)
             python_path.write_text("", encoding="utf-8")
             return env_path
 
     monkeypatch.setattr("provider_hub.service.requests.get", fake_get)
     monkeypatch.setattr("provider_hub.service.PluginEnvironment", FakeEnvironment)
-    monkeypatch.setattr("provider_hub.service._smoke_validate_worker", lambda manifest, bundle_path, python_path: None)
+    monkeypatch.setattr(
+        "provider_hub.service._smoke_validate_worker",
+        lambda manifest, bundle_path, python_path: None,
+    )
 
     installation = stage_install(manifest)
 
-    bundle_path = tmp_path / "provider_hub" / "bundles" / "examplehub" / "1.0.0" / commit
+    bundle_path = (
+        tmp_path / "provider_hub" / "bundles" / "examplehub" / "1.0.0" / commit
+    )
     python_path = tmp_path / "provider_hub" / "envs" / "examplehub" / "1.0.0" / "test"
-    python_path = python_path / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    python_path = python_path / (
+        "Scripts/python.exe" if os.name == "nt" else "bin/python"
+    )
     assert calls == [
         (
             "https://raw.githubusercontent.com/owner/repo/" + commit + "/provider.py",
@@ -1393,7 +1566,12 @@ def test_stage_install_fetches_bundle_builds_env_and_records_staged_paths(tmp_pa
     ]
     assert env_calls == [(tmp_path / "provider_hub", "examplehub", "1.0.0")]
     assert (bundle_path / "provider.py").read_bytes() == provider_content
-    assert json.loads((bundle_path / "provider.json").read_text(encoding="utf-8"))["provider_id"] == "examplehub"
+    assert (
+        json.loads((bundle_path / "provider.json").read_text(encoding="utf-8"))[
+            "provider_id"
+        ]
+        == "examplehub"
+    )
     assert installation["staged_path"] == str(bundle_path)
     assert installation["staged_python_path"] == str(python_path)
     assert installation["active_path"] is None
@@ -1423,7 +1601,9 @@ def test_stage_install_fetches_bundle_from_manifest_source_path(tmp_path, monkey
             "trusted": True,
         },
     )
-    monkeypatch.setenv("BAZARR_PROVIDER_HUB_STATE", str(tmp_path / "provider_hub" / "state.json"))
+    monkeypatch.setenv(
+        "BAZARR_PROVIDER_HUB_STATE", str(tmp_path / "provider_hub" / "state.json")
+    )
 
     calls = []
 
@@ -1436,21 +1616,30 @@ def test_stage_install_fetches_bundle_from_manifest_source_path(tmp_path, monkey
             self.root = Path(root)
 
         def install(self, validated):
-            env_path = self.root / "envs" / validated.provider_id / validated.version / "test"
-            python_path = env_path / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+            env_path = (
+                self.root / "envs" / validated.provider_id / validated.version / "test"
+            )
+            python_path = env_path / (
+                "Scripts/python.exe" if os.name == "nt" else "bin/python"
+            )
             python_path.parent.mkdir(parents=True, exist_ok=True)
             python_path.write_text("", encoding="utf-8")
             return env_path
 
     monkeypatch.setattr("provider_hub.service.requests.get", fake_get)
     monkeypatch.setattr("provider_hub.service.PluginEnvironment", FakeEnvironment)
-    monkeypatch.setattr("provider_hub.service._smoke_validate_worker", lambda manifest, bundle_path, python_path: None)
+    monkeypatch.setattr(
+        "provider_hub.service._smoke_validate_worker",
+        lambda manifest, bundle_path, python_path: None,
+    )
 
     stage_install(manifest)
 
     assert calls == [
         (
-            "https://raw.githubusercontent.com/owner/repo/" + commit + "/providers/smoke/provider.py",
+            "https://raw.githubusercontent.com/owner/repo/"
+            + commit
+            + "/providers/smoke/provider.py",
             30,
         )
     ]
@@ -1507,15 +1696,22 @@ def test_stage_install_trust_comes_from_catalog_entry_only(tmp_path, monkeypatch
             self.root = Path(root)
 
         def install(self, validated):
-            env_path = self.root / "envs" / validated.provider_id / validated.version / "test"
-            python_path = env_path / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+            env_path = (
+                self.root / "envs" / validated.provider_id / validated.version / "test"
+            )
+            python_path = env_path / (
+                "Scripts/python.exe" if os.name == "nt" else "bin/python"
+            )
             python_path.parent.mkdir(parents=True, exist_ok=True)
             python_path.write_text("", encoding="utf-8")
             return env_path
 
     monkeypatch.setattr("provider_hub.service.requests.get", fake_get)
     monkeypatch.setattr("provider_hub.service.PluginEnvironment", FakeEnvironment)
-    monkeypatch.setattr("provider_hub.service._smoke_validate_worker", lambda manifest, bundle_path, python_path: None)
+    monkeypatch.setattr(
+        "provider_hub.service._smoke_validate_worker",
+        lambda manifest, bundle_path, python_path: None,
+    )
 
     installation = stage_install(install_manifest)
 
@@ -1538,7 +1734,9 @@ def test_stage_install_smoke_failure_records_failed_install(tmp_path, monkeypatc
         file_payloads={"provider.py": provider_content},
         dependencies={"requirements": []},
     )
-    monkeypatch.setenv("BAZARR_PROVIDER_HUB_STATE", str(tmp_path / "provider_hub" / "state.json"))
+    monkeypatch.setenv(
+        "BAZARR_PROVIDER_HUB_STATE", str(tmp_path / "provider_hub" / "state.json")
+    )
 
     def fake_get(url, timeout):
         return _FakeResponse(content=provider_content)
@@ -1548,8 +1746,12 @@ def test_stage_install_smoke_failure_records_failed_install(tmp_path, monkeypatc
             self.root = Path(root)
 
         def install(self, validated):
-            env_path = self.root / "envs" / validated.provider_id / validated.version / "test"
-            python_path = env_path / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+            env_path = (
+                self.root / "envs" / validated.provider_id / validated.version / "test"
+            )
+            python_path = env_path / (
+                "Scripts/python.exe" if os.name == "nt" else "bin/python"
+            )
             python_path.parent.mkdir(parents=True, exist_ok=True)
             python_path.write_text("", encoding="utf-8")
             return env_path
@@ -1558,7 +1760,9 @@ def test_stage_install_smoke_failure_records_failed_install(tmp_path, monkeypatc
     monkeypatch.setattr("provider_hub.service.PluginEnvironment", FakeEnvironment)
     monkeypatch.setattr(
         "provider_hub.service._smoke_validate_worker",
-        lambda manifest, bundle_path, python_path: (_ for _ in ()).throw(RuntimeError("worker broke")),
+        lambda manifest, bundle_path, python_path: (_ for _ in ()).throw(
+            RuntimeError("worker broke")
+        ),
     )
 
     with pytest.raises(ProviderHubInstallError, match="worker broke"):
@@ -1597,7 +1801,9 @@ def test_bundle_tree_verification_rejects_bundle_hash_mismatch(tmp_path):
 
     provider_file = tmp_path / "provider.py"
     provider_file.write_bytes(b"class ExampleProvider: pass\n")
-    manifest = validate_manifest(_manifest(bundle_sha256="a" * 64), built_in_provider_ids=set())
+    manifest = validate_manifest(
+        _manifest(bundle_sha256="a" * 64), built_in_provider_ids=set()
+    )
 
     with pytest.raises(BundleValidationError, match="bundle SHA256"):
         verify_bundle_tree(manifest, tmp_path)
@@ -1657,7 +1863,9 @@ def test_hub_proxy_provider_search_and_download_uses_worker_payload():
             return None
 
     worker = FakeWorker()
-    manifest = validate_manifest(_manifest(provider_id="proxyhub"), built_in_provider_ids=set())
+    manifest = validate_manifest(
+        _manifest(provider_id="proxyhub"), built_in_provider_ids=set()
+    )
     provider_cls = _make_provider_class(manifest, worker_client=worker)
     provider_config = {"profile_name": "smoke-profile", "api_token": "secret-token"}
     provider = provider_cls(timeout=9, **provider_config)
@@ -1713,7 +1921,7 @@ class ExampleProvider:
         content = b"hello from worker"
         return {
             "content_b64": base64.b64encode(content).decode("ascii"),
-            "content_sha256": "94bbc6037685e2186909083aa02abe58fbec222f6e2d73bb3e9e59d5b24a3d25",
+            "content_sha256": "94bbc6037685e2186909083aa02abe58fbec222f6e2d73bb3e9e59d5b24a3d25",  # pragma: allowlist secret
             "empty": False,
         }
 """,
@@ -1739,7 +1947,10 @@ class ExampleProvider:
             {
                 "video": {"title": "Example Movie"},
                 "languages": [{"alpha3": "eng", "hi": False, "forced": False}],
-                "config": {"profile_name": "smoke-profile", "api_token": "secret-token"},
+                "config": {
+                    "profile_name": "smoke-profile",
+                    "api_token": "secret-token",
+                },
             },
             timeout=3,
         )
@@ -1750,7 +1961,10 @@ class ExampleProvider:
             {
                 "provider_payload": search.payload["candidates"][0]["provider_payload"],
                 "language": {"alpha3": "eng"},
-                "config": {"profile_name": "smoke-profile", "api_token": "secret-token"},
+                "config": {
+                    "profile_name": "smoke-profile",
+                    "api_token": "secret-token",
+                },
             },
             timeout=3,
         )
@@ -1766,8 +1980,7 @@ def test_worker_client_times_out_when_worker_stops_writing_stdout(tmp_path):
 
     worker_file = tmp_path / "silent_worker.py"
     worker_file.write_text(
-        "import time\n"
-        "time.sleep(60)\n",
+        "import time\ntime.sleep(60)\n",
         encoding="utf-8",
     )
     client = ProviderWorkerClient([sys.executable, "-I", "-B", str(worker_file)])
@@ -2041,7 +2254,9 @@ def test_record_job_marks_failed_with_exception(tmp_path, monkeypatch):
     monkeypatch.setenv("BAZARR_PROVIDER_HUB_STATE", str(_empty_state_file(tmp_path)))
 
     with pytest.raises(ValueError):
-        with record_job("install", target_kind="provider", target_id="examplehub") as job:
+        with record_job(
+            "install", target_kind="provider", target_id="examplehub"
+        ) as job:
             job.update(message="kicking off")
             raise ValueError("boom")
 
@@ -2180,7 +2395,11 @@ def test_add_catalog_source_records_activity_job(tmp_path, monkeypatch):
 
 
 def test_update_catalog_source_records_version_diff(tmp_path, monkeypatch):
-    from provider_hub.service import add_catalog_source, list_jobs, update_catalog_source
+    from provider_hub.service import (
+        add_catalog_source,
+        list_jobs,
+        update_catalog_source,
+    )
 
     monkeypatch.setenv("BAZARR_PROVIDER_HUB_STATE", str(_empty_state_file(tmp_path)))
 
@@ -2298,7 +2517,9 @@ def test_stage_install_records_install_job_on_success(tmp_path, monkeypatch):
             "trusted": True,
         },
     )
-    monkeypatch.setenv("BAZARR_PROVIDER_HUB_STATE", str(tmp_path / "provider_hub" / "state.json"))
+    monkeypatch.setenv(
+        "BAZARR_PROVIDER_HUB_STATE", str(tmp_path / "provider_hub" / "state.json")
+    )
 
     def fake_get(url, timeout):
         return _FakeResponse(content=provider_content)
@@ -2308,8 +2529,12 @@ def test_stage_install_records_install_job_on_success(tmp_path, monkeypatch):
             self.root = Path(root)
 
         def install(self, validated):
-            env_path = self.root / "envs" / validated.provider_id / validated.version / "test"
-            python_path = env_path / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+            env_path = (
+                self.root / "envs" / validated.provider_id / validated.version / "test"
+            )
+            python_path = env_path / (
+                "Scripts/python.exe" if os.name == "nt" else "bin/python"
+            )
             python_path.parent.mkdir(parents=True, exist_ok=True)
             python_path.write_text("", encoding="utf-8")
             return env_path
@@ -2340,7 +2565,9 @@ def test_stage_install_records_failed_job_on_smoke_error(tmp_path, monkeypatch):
         file_payloads={"provider.py": provider_content},
         dependencies={"requirements": []},
     )
-    monkeypatch.setenv("BAZARR_PROVIDER_HUB_STATE", str(tmp_path / "provider_hub" / "state.json"))
+    monkeypatch.setenv(
+        "BAZARR_PROVIDER_HUB_STATE", str(tmp_path / "provider_hub" / "state.json")
+    )
 
     def fake_get(url, timeout):
         return _FakeResponse(content=provider_content)
@@ -2350,8 +2577,12 @@ def test_stage_install_records_failed_job_on_smoke_error(tmp_path, monkeypatch):
             self.root = Path(root)
 
         def install(self, validated):
-            env_path = self.root / "envs" / validated.provider_id / validated.version / "test"
-            python_path = env_path / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+            env_path = (
+                self.root / "envs" / validated.provider_id / validated.version / "test"
+            )
+            python_path = env_path / (
+                "Scripts/python.exe" if os.name == "nt" else "bin/python"
+            )
             python_path.parent.mkdir(parents=True, exist_ok=True)
             python_path.write_text("", encoding="utf-8")
             return env_path
@@ -2360,7 +2591,9 @@ def test_stage_install_records_failed_job_on_smoke_error(tmp_path, monkeypatch):
     monkeypatch.setattr("provider_hub.service.PluginEnvironment", FakeEnvironment)
     monkeypatch.setattr(
         "provider_hub.service._smoke_validate_worker",
-        lambda manifest, bundle_path, python_path: (_ for _ in ()).throw(RuntimeError("worker broke")),
+        lambda manifest, bundle_path, python_path: (_ for _ in ()).throw(
+            RuntimeError("worker broke")
+        ),
     )
 
     with pytest.raises(ProviderHubInstallError):

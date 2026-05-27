@@ -5,7 +5,15 @@ import requests
 import logging
 
 from app.config import settings, get_ssl_verify
-from app.database import TableShowsRootfolder, TableShows, database, insert, update, delete, select
+from app.database import (
+    TableShowsRootfolder,
+    TableShows,
+    database,
+    insert,
+    update,
+    delete,
+    select,
+)
 from utilities.path_mappings import path_mappings
 from sonarr.http_session import sonarr_session
 from sonarr.info import sonarr_headers, url_api_sonarr
@@ -19,66 +27,91 @@ def get_sonarr_rootfolder():
     url_sonarr_api_rootfolder = f"{url_api_sonarr()}rootfolder"
 
     try:
-        rootfolder = sonarr_session().get(url_sonarr_api_rootfolder, timeout=int(settings.sonarr.http_timeout), verify=get_ssl_verify('sonarr'),
-                                          headers=sonarr_headers(apikey_sonarr))
+        rootfolder = sonarr_session().get(
+            url_sonarr_api_rootfolder,
+            timeout=int(settings.sonarr.http_timeout),
+            verify=get_ssl_verify("sonarr"),
+            headers=sonarr_headers(apikey_sonarr),
+        )
     except requests.exceptions.ConnectionError:
-        logging.exception("BAZARR Error trying to get rootfolder from Sonarr. Connection Error.")
+        logging.exception(
+            "BAZARR Error trying to get rootfolder from Sonarr. Connection Error."
+        )
         return []
     except requests.exceptions.Timeout:
-        logging.exception("BAZARR Error trying to get rootfolder from Sonarr. Timeout Error.")
+        logging.exception(
+            "BAZARR Error trying to get rootfolder from Sonarr. Timeout Error."
+        )
         return []
     except requests.exceptions.RequestException:
         logging.exception("BAZARR Error trying to get rootfolder from Sonarr.")
         return []
     else:
         for folder in rootfolder.json():
-            if any(item.path.startswith(folder['path']) for item in database.execute(
-                    select(TableShows.path))
-                    .all()):
-                sonarr_rootfolder.append({'id': folder['id'], 'path': folder['path']})  # noqa: PERF401
+            if any(
+                item.path.startswith(folder["path"])
+                for item in database.execute(select(TableShows.path)).all()
+            ):
+                sonarr_rootfolder.append({"id": folder["id"], "path": folder["path"]})  # noqa: PERF401
         db_rootfolder = database.execute(
-            select(TableShowsRootfolder.id, TableShowsRootfolder.path))\
-            .all()
-        rootfolder_to_remove = [x for x in db_rootfolder if not
-                                next((item for item in sonarr_rootfolder if item['id'] == x.id), False)]
-        rootfolder_to_update = [x for x in sonarr_rootfolder if
-                                next((item for item in db_rootfolder if item.id == x['id']), False)]
-        rootfolder_to_insert = [x for x in sonarr_rootfolder if not
-                                next((item for item in db_rootfolder if item.id == x['id']), False)]
+            select(TableShowsRootfolder.id, TableShowsRootfolder.path)
+        ).all()
+        rootfolder_to_remove = [
+            x
+            for x in db_rootfolder
+            if not next(
+                (item for item in sonarr_rootfolder if item["id"] == x.id), False
+            )
+        ]
+        rootfolder_to_update = [
+            x
+            for x in sonarr_rootfolder
+            if next((item for item in db_rootfolder if item.id == x["id"]), False)
+        ]
+        rootfolder_to_insert = [
+            x
+            for x in sonarr_rootfolder
+            if not next((item for item in db_rootfolder if item.id == x["id"]), False)
+        ]
 
         for item in rootfolder_to_remove:
             database.execute(
-                delete(TableShowsRootfolder)
-                .where(TableShowsRootfolder.id == item.id))
+                delete(TableShowsRootfolder).where(TableShowsRootfolder.id == item.id)
+            )
         for item in rootfolder_to_update:
             database.execute(
                 update(TableShowsRootfolder)
-                .values(path=item['path'])
-                .where(TableShowsRootfolder.id == item['id']))
+                .values(path=item["path"])
+                .where(TableShowsRootfolder.id == item["id"])
+            )
         for item in rootfolder_to_insert:
             database.execute(
-                insert(TableShowsRootfolder)
-                .values(id=item['id'], path=item['path']))
+                insert(TableShowsRootfolder).values(id=item["id"], path=item["path"])
+            )
 
 
 def check_sonarr_rootfolder():
     get_sonarr_rootfolder()
     rootfolder = database.execute(
-        select(TableShowsRootfolder.id, TableShowsRootfolder.path))\
-        .all()
+        select(TableShowsRootfolder.id, TableShowsRootfolder.path)
+    ).all()
     for item in rootfolder:
         root_path = item.path
-        if not root_path.endswith(('/', '\\')):
-            if root_path.startswith('/'):
-                root_path += '/'
+        if not root_path.endswith(("/", "\\")):
+            if root_path.startswith("/"):
+                root_path += "/"
             else:
-                root_path += '\\'
+                root_path += "\\"
         if not os.path.isdir(path_mappings.path_replace(root_path)):
             database.execute(
                 update(TableShowsRootfolder)
-                .values(accessible=0, error='This Sonarr root directory does not seem to be accessible by Bazarr. '
-                                            'Please check path mapping or if directory/drive is online.')
-                .where(TableShowsRootfolder.id == item.id))
+                .values(
+                    accessible=0,
+                    error="This Sonarr root directory does not seem to be accessible by Bazarr. "
+                    "Please check path mapping or if directory/drive is online.",
+                )
+                .where(TableShowsRootfolder.id == item.id)
+            )
         else:
             # Try os.access() first (fast, no disk I/O)
             # Fall back to write test only if os.access() fails (e.g., NFS mounts)
@@ -87,22 +120,28 @@ def check_sonarr_rootfolder():
                 # Path is writable according to os.access()
                 database.execute(
                     update(TableShowsRootfolder)
-                    .values(accessible=1, error='')
-                    .where(TableShowsRootfolder.id == item.id))
+                    .values(accessible=1, error="")
+                    .where(TableShowsRootfolder.id == item.id)
+                )
             else:
                 # os.access() failed, try actual write test (needed for NFS)
                 try:
-                    test_file = os.path.join(mapped_path, '.bazarr_write_test')
-                    with open(test_file, 'w') as f:
-                        f.write('test')
+                    test_file = os.path.join(mapped_path, ".bazarr_write_test")
+                    with open(test_file, "w") as f:
+                        f.write("test")
                     os.remove(test_file)
                 except Exception as e:
                     database.execute(
                         update(TableShowsRootfolder)
-                        .values(accessible=0, error=f"There's an issue with this Sonarr root directory: {repr(e)}")
-                        .where(TableShowsRootfolder.id == item.id))
+                        .values(
+                            accessible=0,
+                            error=f"There's an issue with this Sonarr root directory: {repr(e)}",
+                        )
+                        .where(TableShowsRootfolder.id == item.id)
+                    )
                 else:
                     database.execute(
                         update(TableShowsRootfolder)
-                        .values(accessible=1, error='')
-                        .where(TableShowsRootfolder.id == item.id))
+                        .values(accessible=1, error="")
+                        .where(TableShowsRootfolder.id == item.id)
+                    )

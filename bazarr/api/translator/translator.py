@@ -10,7 +10,9 @@ from app.jobs_queue import jobs_queue
 from subtitles.tools.translate.services.auth import get_translator_auth_headers
 from ..utils import authenticate
 
-api_ns_translator = Namespace('Translator', description='AI Subtitle Translator service operations')
+api_ns_translator = Namespace(
+    "Translator", description="AI Subtitle Translator service operations"
+)
 
 logger = logging.getLogger(__name__)
 
@@ -19,16 +21,14 @@ def get_service_url():
     """Get the AI Subtitle Translator service URL from settings."""
     url = settings.translator.openrouter_url
     if url:
-        return url.rstrip('/')
+        return url.rstrip("/")
     return None
 
 
-@api_ns_translator.route('translator/status')
+@api_ns_translator.route("translator/status")
 class TranslatorStatus(Resource):
     @authenticate
-    @api_ns_translator.doc(
-        responses={200: 'Success', 503: 'Service Unavailable'}
-    )
+    @api_ns_translator.doc(responses={200: "Success", 503: "Service Unavailable"})
     def get(self):
         """Get AI Subtitle Translator service status"""
         service_url = get_service_url()
@@ -36,21 +36,27 @@ class TranslatorStatus(Resource):
             return {"error": "AI Subtitle Translator service URL not configured"}, 503
 
         try:
-            response = requests.get(f"{service_url}/api/v1/status", headers=get_translator_auth_headers(), timeout=10)
+            response = requests.get(
+                f"{service_url}/api/v1/status",
+                headers=get_translator_auth_headers(),
+                timeout=10,
+            )
             if response.status_code == 200:
                 data = response.json()
                 # Count Bazarr-side pending translation jobs
                 pending_count = sum(
-                    1 for job in jobs_queue.jobs_pending_queue
-                    if 'translat' in (job.job_name or '').lower()
+                    1
+                    for job in jobs_queue.jobs_pending_queue
+                    if "translat" in (job.job_name or "").lower()
                 )
                 running_count = sum(
-                    1 for job in jobs_queue.jobs_running_queue
-                    if 'translat' in (job.job_name or '').lower()
+                    1
+                    for job in jobs_queue.jobs_running_queue
+                    if "translat" in (job.job_name or "").lower()
                 )
-                data['bazarr_queue'] = {
-                    'pending': pending_count,
-                    'running': running_count,
+                data["bazarr_queue"] = {
+                    "pending": pending_count,
+                    "running": running_count,
                 }
                 return data, 200
             else:
@@ -64,12 +70,10 @@ class TranslatorStatus(Resource):
             return {"error": str(e)}, 500
 
 
-@api_ns_translator.route('translator/jobs')
+@api_ns_translator.route("translator/jobs")
 class TranslatorJobs(Resource):
     @authenticate
-    @api_ns_translator.doc(
-        responses={200: 'Success', 503: 'Service Unavailable'}
-    )
+    @api_ns_translator.doc(responses={200: "Success", 503: "Service Unavailable"})
     def get(self):
         """Get all translation jobs"""
         service_url = get_service_url()
@@ -77,7 +81,11 @@ class TranslatorJobs(Resource):
             return {"error": "AI Subtitle Translator service URL not configured"}, 503
 
         try:
-            response = requests.get(f"{service_url}/api/v1/jobs", headers=get_translator_auth_headers(), timeout=10)
+            response = requests.get(
+                f"{service_url}/api/v1/jobs",
+                headers=get_translator_auth_headers(),
+                timeout=10,
+            )
             if response.status_code == 200:
                 return response.json(), 200
             else:
@@ -92,7 +100,7 @@ class TranslatorJobs(Resource):
 
     @authenticate
     @api_ns_translator.doc(
-        responses={200: 'Success', 400: 'Bad Request', 503: 'Service Unavailable'}
+        responses={200: "Success", 400: "Bad Request", 503: "Service Unavailable"}
     )
     def post(self):
         """Submit a content translation job to the translator service"""
@@ -124,15 +132,18 @@ class TranslatorJobs(Resource):
                 "apiKey": api_key,
                 "model": settings.translator.openrouter_model,
                 "temperature": settings.translator.openrouter_temperature,
-            }
+            },
         }
 
         try:
             response = requests.post(
                 f"{service_url}/api/v1/jobs/translate/content",
                 json=payload,
-                headers={"Content-Type": "application/json", **get_translator_auth_headers()},
-                timeout=30
+                headers={
+                    "Content-Type": "application/json",
+                    **get_translator_auth_headers(),
+                },
+                timeout=30,
             )
             if response.status_code == 200:
                 return response.json(), 200
@@ -147,11 +158,11 @@ class TranslatorJobs(Resource):
             return {"error": str(e)}, 500
 
 
-@api_ns_translator.route('translator/jobs/<job_id>')
+@api_ns_translator.route("translator/jobs/<job_id>")
 class TranslatorJob(Resource):
     @authenticate
     @api_ns_translator.doc(
-        responses={200: 'Success', 404: 'Not Found', 503: 'Service Unavailable'}
+        responses={200: "Success", 404: "Not Found", 503: "Service Unavailable"}
     )
     def get(self, job_id):
         """Get specific job status"""
@@ -160,7 +171,11 @@ class TranslatorJob(Resource):
             return {"error": "AI Subtitle Translator service URL not configured"}, 503
 
         try:
-            response = requests.get(f"{service_url}/api/v1/jobs/{job_id}", headers=get_translator_auth_headers(), timeout=10)
+            response = requests.get(
+                f"{service_url}/api/v1/jobs/{job_id}",
+                headers=get_translator_auth_headers(),
+                timeout=10,
+            )
             if response.status_code == 200:
                 return response.json(), 200
             elif response.status_code == 404:
@@ -175,7 +190,7 @@ class TranslatorJob(Resource):
 
     @authenticate
     @api_ns_translator.doc(
-        responses={200: 'Success', 404: 'Not Found', 503: 'Service Unavailable'}
+        responses={200: "Success", 404: "Not Found", 503: "Service Unavailable"}
     )
     def delete(self, job_id):
         """Cancel/delete a job"""
@@ -184,7 +199,11 @@ class TranslatorJob(Resource):
             return {"error": "AI Subtitle Translator service URL not configured"}, 503
 
         try:
-            response = requests.delete(f"{service_url}/api/v1/jobs/{job_id}", headers=get_translator_auth_headers(), timeout=10)
+            response = requests.delete(
+                f"{service_url}/api/v1/jobs/{job_id}",
+                headers=get_translator_auth_headers(),
+                timeout=10,
+            )
             if response.status_code == 200:
                 return response.json(), 200
             elif response.status_code == 404:
@@ -198,12 +217,10 @@ class TranslatorJob(Resource):
             return {"error": str(e)}, 500
 
 
-@api_ns_translator.route('translator/models')
+@api_ns_translator.route("translator/models")
 class TranslatorModels(Resource):
     @authenticate
-    @api_ns_translator.doc(
-        responses={200: 'Success', 503: 'Service Unavailable'}
-    )
+    @api_ns_translator.doc(responses={200: "Success", 503: "Service Unavailable"})
     def get(self):
         """Get available AI translation models from the service"""
         service_url = get_service_url()
@@ -211,7 +228,11 @@ class TranslatorModels(Resource):
             return {"error": "AI Subtitle Translator service URL not configured"}, 503
 
         try:
-            response = requests.get(f"{service_url}/api/v1/models", headers=get_translator_auth_headers(), timeout=10)
+            response = requests.get(
+                f"{service_url}/api/v1/models",
+                headers=get_translator_auth_headers(),
+                timeout=10,
+            )
             if response.status_code == 200:
                 return response.json(), 200
             else:
@@ -225,12 +246,10 @@ class TranslatorModels(Resource):
             return {"error": str(e)}, 500
 
 
-@api_ns_translator.route('translator/config')
+@api_ns_translator.route("translator/config")
 class TranslatorConfig(Resource):
     @authenticate
-    @api_ns_translator.doc(
-        responses={200: 'Success', 503: 'Service Unavailable'}
-    )
+    @api_ns_translator.doc(responses={200: "Success", 503: "Service Unavailable"})
     def get(self):
         """Get service configuration"""
         service_url = get_service_url()
@@ -238,7 +257,11 @@ class TranslatorConfig(Resource):
             return {"error": "AI Subtitle Translator service URL not configured"}, 503
 
         try:
-            response = requests.get(f"{service_url}/api/v1/config", headers=get_translator_auth_headers(), timeout=10)
+            response = requests.get(
+                f"{service_url}/api/v1/config",
+                headers=get_translator_auth_headers(),
+                timeout=10,
+            )
             if response.status_code == 200:
                 return response.json(), 200
             else:
@@ -250,11 +273,11 @@ class TranslatorConfig(Resource):
             return {"error": str(e)}, 500
 
 
-@api_ns_translator.route('translator/test')
+@api_ns_translator.route("translator/test")
 class TranslatorTest(Resource):
     @authenticate
     @api_ns_translator.doc(
-        responses={200: 'Success', 400: 'Bad Request', 503: 'Service Unavailable'}
+        responses={200: "Success", 400: "Bad Request", 503: "Service Unavailable"}
     )
     def post(self):
         """Test connection, encryption, and API key with the translator service.
@@ -276,10 +299,17 @@ class TranslatorTest(Resource):
         if not api_key:
             return {"error": "OpenRouter API key not configured"}, 400
 
-        encryption_key = data.get("encryptionKey") if "encryptionKey" in data else settings.translator.openrouter_encryption_key
+        encryption_key = (
+            data.get("encryptionKey")
+            if "encryptionKey" in data
+            else settings.translator.openrouter_encryption_key
+        )
         if encryption_key:
             try:
-                from subtitles.tools.translate.services.encryption import encrypt_api_key
+                from subtitles.tools.translate.services.encryption import (
+                    encrypt_api_key,
+                )
+
                 api_key = encrypt_api_key(api_key, encryption_key)
             except ValueError as e:
                 return {"error": f"Invalid encryption key: {e}"}, 400
@@ -288,8 +318,11 @@ class TranslatorTest(Resource):
             response = requests.post(
                 f"{service_url}/api/v1/test",
                 json={"apiKey": api_key},
-                headers={"Content-Type": "application/json", **get_translator_auth_headers(encryption_key)},
-                timeout=10
+                headers={
+                    "Content-Type": "application/json",
+                    **get_translator_auth_headers(encryption_key),
+                },
+                timeout=10,
             )
             if response.status_code == 200:
                 return response.json(), 200

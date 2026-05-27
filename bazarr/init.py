@@ -17,8 +17,16 @@ from utilities.backup import restore_from_backup
 
 from app.database import init_db
 
-from literals import (EXIT_CONFIG_CREATE_ERROR, ENV_BAZARR_ROOT_DIR, DIR_BACKUP, DIR_CACHE, DIR_CONFIG, DIR_DB, DIR_LOG,
-                      DIR_RESTORE)
+from literals import (
+    EXIT_CONFIG_CREATE_ERROR,
+    ENV_BAZARR_ROOT_DIR,
+    DIR_BACKUP,
+    DIR_CACHE,
+    DIR_CONFIG,
+    DIR_DB,
+    DIR_LOG,
+    DIR_RESTORE,
+)
 from utilities.central import make_bazarr_dir, stop_bazarr
 
 # set start time global variable as epoch
@@ -34,7 +42,9 @@ if not os.path.exists(args.config_dir):
     try:
         os.mkdir(os.path.join(args.config_dir))
     except OSError:
-        print("BAZARR The configuration directory doesn't exist and Bazarr cannot create it (permission issue?).")
+        print(
+            "BAZARR The configuration directory doesn't exist and Bazarr cannot create it (permission issue?)."
+        )
         stop_bazarr(EXIT_CONFIG_CREATE_ERROR)
 
 os.environ[ENV_BAZARR_ROOT_DIR] = os.path.join(args.config_dir)
@@ -60,17 +70,23 @@ restore_from_backup()
 
 
 # change default base_url to ''
-settings.general.base_url = settings.general.base_url.rstrip('/')
+settings.general.base_url = settings.general.base_url.rstrip("/")
 write_config()
 
 # migrate enabled_providers from comma separated string to list
-if isinstance(settings.general.enabled_providers, str) and not settings.general.enabled_providers.startswith('['):
-    settings.general.enabled_providers = str(settings.general.enabled_providers.split(","))
+if isinstance(
+    settings.general.enabled_providers, str
+) and not settings.general.enabled_providers.startswith("["):
+    settings.general.enabled_providers = str(
+        settings.general.enabled_providers.split(",")
+    )
     write_config()
 
 # Read package_info (if exists) to override some settings by package maintainers
 # This file can also provide some info about the package version and author
-package_info_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'package_info')
+package_info_file = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "package_info"
+)
 if os.path.isfile(package_info_file):
     try:
         splitted_lines = []
@@ -78,48 +94,59 @@ if os.path.isfile(package_info_file):
         with open(package_info_file) as file:
             lines = file.readlines()
             for line in lines:
-                splitted_lines += line.split(r'\n')
+                splitted_lines += line.split(r"\n")
             for line in splitted_lines:
-                splitted_line = line.split('=', 1)
+                splitted_line = line.split("=", 1)
                 if len(splitted_line) == 2:
-                    package_info[splitted_line[0].lower()] = splitted_line[1].replace('\n', '')
+                    package_info[splitted_line[0].lower()] = splitted_line[1].replace(
+                        "\n", ""
+                    )
                 else:
                     continue
         # package author can force a branch to follow
-        if 'branch' in package_info:
-            settings.general.branch = package_info['branch']
+        if "branch" in package_info:
+            settings.general.branch = package_info["branch"]
         # package author can disable update
-        if package_info.get('updatemethod', '') == 'External':
-            os.environ['BAZARR_UPDATE_ALLOWED'] = '0'
-            os.environ['BAZARR_UPDATE_MESSAGE'] = package_info.get('updatemethodmessage', '')
+        if package_info.get("updatemethod", "") == "External":
+            os.environ["BAZARR_UPDATE_ALLOWED"] = "0"
+            os.environ["BAZARR_UPDATE_MESSAGE"] = package_info.get(
+                "updatemethodmessage", ""
+            )
         # package author can provide version and contact info
-        os.environ['BAZARR_PACKAGE_VERSION'] = package_info.get('packageversion', '')
-        os.environ['BAZARR_PACKAGE_AUTHOR'] = package_info.get('packageauthor', '')
+        os.environ["BAZARR_PACKAGE_VERSION"] = package_info.get("packageversion", "")
+        os.environ["BAZARR_PACKAGE_AUTHOR"] = package_info.get("packageauthor", "")
     except Exception:
         pass
     else:
         write_config()
 
 # Configure dogpile file caching for Subliminal request
-register_cache_backend("subzero.cache.file", "subzero.cache_backends.file", "SZFileBackend")
-subliminal.region.configure('subzero.cache.file', expiration_time=datetime.timedelta(days=30),
-                            arguments={'appname': "sz_cache", 'app_cache_dir': args.config_dir},
-                            replace_existing_backend=True)
+register_cache_backend(
+    "subzero.cache.file", "subzero.cache_backends.file", "SZFileBackend"
+)
+subliminal.region.configure(
+    "subzero.cache.file",
+    expiration_time=datetime.timedelta(days=30),
+    arguments={"appname": "sz_cache", "app_cache_dir": args.config_dir},
+    replace_existing_backend=True,
+)
 subliminal.region.backend.sync()
 
-if not os.path.exists(os.path.join(args.config_dir, 'config', 'releases.txt')):
+if not os.path.exists(os.path.join(args.config_dir, "config", "releases.txt")):
     from app.check_update import check_releases
+
     check_releases(startup=True)
     logging.debug("BAZARR Created releases file")
 
-if not os.path.exists(os.path.join(args.config_dir, 'config', 'announcements.txt')):
+if not os.path.exists(os.path.join(args.config_dir, "config", "announcements.txt")):
     from app.announcements import get_announcements_to_file
+
     get_announcements_to_file(startup=True)
     logging.debug("BAZARR Created announcements file")
 
 # Clean unused settings from config
-settings['general'].pop('throtteled_providers', None)
-settings['general'].pop('update_restart', None)
+settings["general"].pop("throtteled_providers", None)
+settings["general"].pop("update_restart", None)
 write_config()
 
 
@@ -138,33 +165,47 @@ write_config()
 # would drop it from enabled_providers. main.py runs activate_staged_
 # installations() later, but that's already past this filter.
 from subliminal_patch.extensions import provider_registry  # noqa: E402
+
 provider_hub_registration_ok = True
 try:
     from provider_hub.service import activate_staged_installations
+
     activated = activate_staged_installations()
     if activated:
-        logging.info("Activated staged Provider Hub installations on startup: %s", activated)
+        logging.info(
+            "Activated staged Provider Hub installations on startup: %s", activated
+        )
 except Exception:  # pragma: no cover - hub failures must not prevent startup
     logging.exception("Unable to activate staged Provider Hub installations on startup")
 try:
     from provider_hub.registry import register_active_provider_classes
+
     registered = register_active_provider_classes()
     if registered:
-        logging.info("Registered Provider Hub plugins into provider registry: %s", registered)
+        logging.info(
+            "Registered Provider Hub plugins into provider registry: %s", registered
+        )
 except Exception:  # pragma: no cover - hub failures must not prevent startup
     provider_hub_registration_ok = False
     logging.exception("Unable to register active Provider Hub providers on startup")
 existing_providers = provider_registry.names()
 enabled_providers = settings.general.enabled_providers
 if provider_hub_registration_ok:
-    settings.general.enabled_providers = [x for x in enabled_providers if x in existing_providers]
+    settings.general.enabled_providers = [
+        x for x in enabled_providers if x in existing_providers
+    ]
     write_config()
 else:
-    logging.warning("Skipping enabled_providers cleanup because Provider Hub registration failed")
+    logging.warning(
+        "Skipping enabled_providers cleanup because Provider Hub registration failed"
+    )
 
 
 # Initialize provider_priorities if not exists
-if not hasattr(settings.general, 'provider_priorities') or not settings.general.provider_priorities:
+if (
+    not hasattr(settings.general, "provider_priorities")
+    or not settings.general.provider_priorities
+):
     settings.general.provider_priorities = {}
     # Set default priorities based on current order in enabled_providers
     for idx, provider in enumerate(settings.general.enabled_providers):
@@ -178,23 +219,31 @@ def init_binaries():
         rarfile.UNAR_TOOL = exe
         rarfile.UNRAR_TOOL = None
         rarfile.SEVENZIP_TOOL = None
-        rarfile.tool_setup(unrar=False, unar=True, bsdtar=False, sevenzip=False, force=True)
+        rarfile.tool_setup(
+            unrar=False, unar=True, bsdtar=False, sevenzip=False, force=True
+        )
     except (BinaryNotFound, rarfile.RarCannotExec):
         try:
             exe = get_binary("unrar")
             rarfile.UNRAR_TOOL = exe
             rarfile.UNAR_TOOL = None
             rarfile.SEVENZIP_TOOL = None
-            rarfile.tool_setup(unrar=True, unar=False, bsdtar=False, sevenzip=False, force=True)
+            rarfile.tool_setup(
+                unrar=True, unar=False, bsdtar=False, sevenzip=False, force=True
+            )
         except (BinaryNotFound, rarfile.RarCannotExec):
             try:
                 exe = get_binary("7z")
                 rarfile.UNRAR_TOOL = None
                 rarfile.UNAR_TOOL = None
                 rarfile.SEVENZIP_TOOL = "7z"
-                rarfile.tool_setup(unrar=False, unar=False, bsdtar=False, sevenzip=True, force=True)
+                rarfile.tool_setup(
+                    unrar=False, unar=False, bsdtar=False, sevenzip=True, force=True
+                )
             except (BinaryNotFound, rarfile.RarCannotExec):
-                logging.exception("BAZARR requires a rar archive extraction utilities (unrar, unar, 7zip) and it can't be found.")
+                logging.exception(
+                    "BAZARR requires a rar archive extraction utilities (unrar, unar, 7zip) and it can't be found."
+                )
                 raise BinaryNotFound
             else:
                 logging.debug("Using 7zip from: %s", exe)
@@ -213,4 +262,5 @@ path_mappings.update()
 
 # Initialize Plex OAuth configuration
 from app.config import initialize_plex  # noqa: E402
+
 initialize_plex()

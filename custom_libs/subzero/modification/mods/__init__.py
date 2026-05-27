@@ -107,5 +107,3 @@ empty_line_post_processors = [
     # empty line (needed?)
     NReProcessor(re.compile(r'^[\s-]+$'), "", name="empty_line"),
 ]
-
-

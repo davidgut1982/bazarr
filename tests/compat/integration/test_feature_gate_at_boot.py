@@ -5,6 +5,7 @@ import pytest  # noqa: F401
 def test_disabled_state_404s_json(monkeypatch):
     """enabled=False: all /api/v1/* return stub JSON 404."""
     from compat import register
+
     monkeypatch.setattr("app.config.settings.compat_endpoint.enabled", False)
     app = Flask(__name__)
     register(app, base_url="")

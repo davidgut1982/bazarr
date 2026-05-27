@@ -216,4 +216,3 @@ class YifySubtitlesProvider(Provider):
                 subtitle.content = fix_line_ending(archive_stream.read(file_name))
                 if subtitle.is_valid():
                     return
-

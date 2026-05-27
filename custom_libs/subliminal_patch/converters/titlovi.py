@@ -41,4 +41,3 @@ class TitloviConverter(LanguageReverseConverter):
             return self.from_titlovi[titlovi]
 
         raise ConfigurationError('Unsupported language number for titlovi: %s' % titlovi)
-

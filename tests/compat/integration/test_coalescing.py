@@ -18,8 +18,10 @@ def test_concurrent_identical_queries_coalesce(monkeypatch):
         time.sleep(0.3)
         return {MagicMock(): []}
 
-    with patch("compat.service._get_compat_pool") as gp, \
-         patch("compat.service.list_all_subtitles_parallel", side_effect=slow_fanout):
+    with (
+        patch("compat.service._get_compat_pool") as gp,
+        patch("compat.service.list_all_subtitles_parallel", side_effect=slow_fanout),
+    ):
         gp.return_value.providers = ["p"]
         gp.return_value.discarded_providers = set()
         results = []
@@ -27,7 +29,9 @@ def test_concurrent_identical_queries_coalesce(monkeypatch):
 
         def go():
             try:
-                results.append(service.search("tt1", 1, 1, [Language("eng")], "episode"))
+                results.append(
+                    service.search("tt1", 1, 1, [Language("eng")], "episode")
+                )
             except Exception as e:
                 errors.append(e)
 

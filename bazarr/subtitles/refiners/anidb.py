@@ -43,7 +43,7 @@ class AniDBClient(object):
     @property
     def is_throttled(self):
         return self.cache and self.cache.get('is_throttled')
-    
+
     @property
     def has_api_credentials(self):
         return self.api_client_key != '' and self.api_client_key is not None
@@ -71,7 +71,7 @@ class AniDBClient(object):
     @region.cache_on_arguments(expiration_time=timedelta(days=1).total_seconds())
     def get_show_information(self, tvdb_series_id, tvdb_series_season, episode):
         mappings = etree.fromstring(self.get_series_mappings())
-        
+
         # Enrich the collection of anime with the episode offset
         animes = [
             self.AnimeInfo(anime, int(anime.attrib.get('episodeoffset', 0)))
@@ -107,7 +107,7 @@ class AniDBClient(object):
 
             for index, anime_info in enumerate(animes):
                 anime, episode_offset = anime_info
-                
+
                 mapping_list = anime.find('mapping-list')
 
                 # Handle mapping list for Specials
@@ -223,12 +223,12 @@ def refine_anidb_ids(video):
         season,
         video.episode,
     )
-    
+
     if not anidb_series_id:
         return video
 
     logger.debug(f'AniDB refinement identified {video.series} as {anidb_series_id}.')  # noqa: G004
-    
+
     anidb_episode_id = None
 
     if anidb_client.has_api_credentials:

@@ -15,7 +15,7 @@ def postprocessing(command, path):
             from ctypes import windll
             code_page = windll.kernel32.GetConsoleOutputCP()
             encoding = f"cp{code_page}"
-            
+
         process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE,
                                    stderr=subprocess.PIPE, encoding=encoding)
         # wait for the process to terminate

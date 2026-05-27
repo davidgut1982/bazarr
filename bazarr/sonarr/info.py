@@ -12,7 +12,7 @@ from app.config import settings, empty_values, get_ssl_verify
 from constants import HEADERS
 from sonarr.http_session import sonarr_session
 
-region = make_region().configure('dogpile.cache.memory')
+region = make_region().configure("dogpile.cache.memory")
 
 
 class GetSonarrInfo:
@@ -22,33 +22,46 @@ class GetSonarrInfo:
         Call system/status API endpoint and get the Sonarr version
         @return: str
         """
-        sonarr_version = region.get("sonarr_version", expiration_time=datetime.timedelta(seconds=60).total_seconds())
-        if sonarr_version and sonarr_version != 'unknown':
+        sonarr_version = region.get(
+            "sonarr_version",
+            expiration_time=datetime.timedelta(seconds=60).total_seconds(),
+        )
+        if sonarr_version and sonarr_version != "unknown":
             region.set("sonarr_version", sonarr_version)
             return sonarr_version
         else:
-            sonarr_version = ''
+            sonarr_version = ""
         if settings.general.use_sonarr:
             headers = {**HEADERS, "X-Api-Key": settings.sonarr.apikey}
             try:
                 sv = f"{url_sonarr()}/api/v3/system/status"
-                sonarr_version = sonarr_session().get(sv, timeout=int(settings.sonarr.http_timeout),
-                                                      verify=get_ssl_verify('sonarr'), headers=headers).json()['version']
+                sonarr_version = (
+                    sonarr_session()
+                    .get(
+                        sv,
+                        timeout=int(settings.sonarr.http_timeout),
+                        verify=get_ssl_verify("sonarr"),
+                        headers=headers,
+                    )
+                    .json()["version"]
+                )
             except (RequestException, JSONDecodeError, KeyError):
-                logging.debug('BAZARR cannot get Sonarr version')
-                sonarr_version = 'unknown'
+                logging.debug("BAZARR cannot get Sonarr version")
+                sonarr_version = "unknown"
             except Exception:
-                logging.debug('BAZARR cannot get Sonarr version')
-                sonarr_version = 'unknown'
-        logging.debug(f'BAZARR got this Sonarr version from its API: {sonarr_version}')  # noqa: G004
+                logging.debug("BAZARR cannot get Sonarr version")
+                sonarr_version = "unknown"
+        logging.debug(f"BAZARR got this Sonarr version from its API: {sonarr_version}")  # noqa: G004
         region.set("sonarr_version", sonarr_version)
         return sonarr_version
 
     def semver(self):
         semver_version = None
-        if isinstance(self.version(), str) and self.version() not in ['', 'unknown']:
-            split_version = self.version().split('.')
-            if len(split_version) >= 3 and all(split_version[i].isdigit() for i in range(3)):
+        if isinstance(self.version(), str) and self.version() not in ["", "unknown"]:
+            split_version = self.version().split(".")
+            if len(split_version) >= 3 and all(
+                split_version[i].isdigit() for i in range(3)
+            ):
                 # Sonarr nightly/develop builds report e.g. "4.0.9.2421-develop" and
                 # linuxserver images can carry "4.0.9.2421-ls123". The 4th segment is
                 # the build number; the trailing channel tag is informational. Pull the
@@ -70,7 +83,9 @@ class GetSonarrInfo:
                             break
                     if digit_prefix:
                         prerelease = digit_prefix
-                semver_version = semver.Version(*(int(part) for part in split_version[:3]), prerelease=prerelease)
+                semver_version = semver.Version(
+                    *(int(part) for part in split_version[:3]), prerelease=prerelease
+                )
         return semver_version
 
     def is_deprecated(self):
@@ -99,7 +114,7 @@ def url_sonarr():
     else:
         protocol_sonarr = "http"
 
-    if settings.sonarr.base_url == '':
+    if settings.sonarr.base_url == "":
         settings.sonarr.base_url = "/"
     if not settings.sonarr.base_url.startswith("/"):
         settings.sonarr.base_url = f"/{settings.sonarr.base_url}"
@@ -115,7 +130,7 @@ def url_sonarr():
 
 
 def url_api_sonarr():
-    return url_sonarr() + '/api/v3/'
+    return url_sonarr() + "/api/v3/"
 
 
 def sonarr_headers(apikey_sonarr):

@@ -350,7 +350,7 @@ class KtuvitProvider(Provider):
         )
         r = self.session.get(url, timeout=10)
         r.raise_for_status()
-        
+
         if len(r.content) < 10:
             logger.debug("Too short content-length in response: [{}]. Treating as No Subtitles Found ".format(str(r.content)))
             return []
@@ -373,7 +373,7 @@ class KtuvitProvider(Provider):
                     sub["sub_id"] = column.find("input", attrs={"data-sub-id": True})[
                         "data-sub-id"
                     ]
-            
+
             if 'sub_id' in sub:
                 subs.append(sub)
         return subs
