@@ -188,7 +188,9 @@ class Subtitles(Resource):
     @api_ns_subtitles.doc(parser=patch_request_parser)
     @api_ns_subtitles.response(204, "Success")
     @api_ns_subtitles.response(401, "Not Authenticated")
-    @api_ns_subtitles.response(400, "Generated sync output files cannot be synchronized again")
+    @api_ns_subtitles.response(
+        400, "Generated sync output files cannot be synchronized again"
+    )
     @api_ns_subtitles.response(404, "Episode/movie not found")
     @api_ns_subtitles.response(409, "Unable to edit subtitles file. Check logs.")
     @api_ns_subtitles.response(500, "Subtitles file not found. Path mapping issue?")
