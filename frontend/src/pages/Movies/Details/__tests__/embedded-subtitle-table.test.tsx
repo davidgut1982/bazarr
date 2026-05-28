@@ -46,9 +46,7 @@ function makeMovie(subtitles: Subtitle[]): Item.Movie {
   };
 }
 
-function makeHistoryEntry(
-  overrides: Partial<History.Movie>,
-): History.Movie {
+function makeHistoryEntry(overrides: Partial<History.Movie>): History.Movie {
   return {
     radarrId: 1,
     title: "Test Movie",
@@ -108,9 +106,7 @@ describe("Movies Detail Table — embedded subtitle scores", () => {
       }),
     ];
 
-    customRender(
-      <Table movie={movie} profile={undefined} history={history} />,
-    );
+    customRender(<Table movie={movie} profile={undefined} history={history} />);
 
     await waitFor(() => {
       expect(screen.getByText("100.0%")).toBeInTheDocument();
@@ -161,9 +157,7 @@ describe("Movies Detail Table — no key collision for hi vs regular", () => {
       }),
     ];
 
-    customRender(
-      <Table movie={movie} profile={undefined} history={history} />,
-    );
+    customRender(<Table movie={movie} profile={undefined} history={history} />);
 
     // Both tracks should render — expect two "Video File Subtitle Track" cells
     await waitFor(() => {
@@ -195,14 +189,10 @@ describe("Movies Detail Table — embedded track path display", () => {
 
     const movie = makeMovie([embedded]);
 
-    customRender(
-      <Table movie={movie} profile={undefined} history={[]} />,
-    );
+    customRender(<Table movie={movie} profile={undefined} history={[]} />);
 
     await waitFor(() => {
-      expect(
-        screen.getByText("Video File Subtitle Track"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Video File Subtitle Track")).toBeInTheDocument();
     });
   });
 });
@@ -225,9 +215,7 @@ describe("Movies Detail Table — external subtitle path display", () => {
 
     const movie = makeMovie([external]);
 
-    customRender(
-      <Table movie={movie} profile={undefined} history={[]} />,
-    );
+    customRender(<Table movie={movie} profile={undefined} history={[]} />);
 
     await waitFor(() => {
       expect(screen.getByText("/movies/test.en.srt")).toBeInTheDocument();
@@ -288,9 +276,7 @@ describe("Movies Detail Table — bitmap 400 error handling", () => {
 
     const movie = makeMovie([embeddedEnglish, missingFrench]);
 
-    customRender(
-      <Table movie={movie} profile={undefined} history={[]} />,
-    );
+    customRender(<Table movie={movie} profile={undefined} history={[]} />);
 
     // Both "Subtitle Actions" buttons should render (one per subtitle row)
     await waitFor(() => {
@@ -330,7 +316,9 @@ describe("Movies Detail Table — bitmap 400 error handling", () => {
       () => {
         // Mantine Notifications renders with role="alert" or the message text
         const errorText = screen.queryByText(/Error 400/i);
-        const bitmapText = screen.queryByText(/bitmap|pgs|codec|cannot extract/i);
+        const bitmapText = screen.queryByText(
+          /bitmap|pgs|codec|cannot extract/i,
+        );
         expect(errorText ?? bitmapText).not.toBeNull();
       },
       { timeout: 3000 },
