@@ -278,7 +278,9 @@ const SubtitleToolsMenu: FunctionComponent<Props> = ({
                         path: source.path ?? "",
                         forced: toPython(missingLanguage!.forced),
                         hi: toPython(missingLanguage!.hi),
-                        from_language: sourceIsEmbedded ? source.code2 : undefined,
+                        from_language: sourceIsEmbedded
+                          ? source.code2
+                          : undefined,
                       },
                     });
                   }}
@@ -312,7 +314,9 @@ const SubtitleToolsMenu: FunctionComponent<Props> = ({
         )}
         <Menu.Item
           disabled={
-            selections.length === 0 || onAction === undefined || isTranslateOnlyMode
+            selections.length === 0 ||
+            onAction === undefined ||
+            isTranslateOnlyMode
           }
           leftSection={<FontAwesomeIcon icon={faEye}></FontAwesomeIcon>}
           onClick={() => {
@@ -332,7 +336,9 @@ const SubtitleToolsMenu: FunctionComponent<Props> = ({
         </Menu.Item>
         <Menu.Item
           disabled={
-            selections.length !== 0 || onAction === undefined || isTranslateOnlyMode
+            selections.length !== 0 ||
+            onAction === undefined ||
+            isTranslateOnlyMode
           }
           leftSection={<FontAwesomeIcon icon={faSearch}></FontAwesomeIcon>}
           onClick={() => {
@@ -343,7 +349,9 @@ const SubtitleToolsMenu: FunctionComponent<Props> = ({
         </Menu.Item>
         <Menu.Item
           disabled={
-            selections.length === 0 || onAction === undefined || isTranslateOnlyMode
+            selections.length === 0 ||
+            onAction === undefined ||
+            isTranslateOnlyMode
           }
           color="red"
           leftSection={<FontAwesomeIcon icon={faTrash}></FontAwesomeIcon>}

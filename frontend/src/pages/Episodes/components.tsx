@@ -65,7 +65,15 @@ export const Subtitle: FunctionComponent<Props> = ({
         from_language: isEmbedded ? subtitle.code2 : undefined,
       },
     ];
-  }, [episodeId, subtitle.code2, subtitle.path, subtitle.forced, subtitle.hi, isEmbedded, missing]);
+  }, [
+    episodeId,
+    subtitle.code2,
+    subtitle.path,
+    subtitle.forced,
+    subtitle.hi,
+    isEmbedded,
+    missing,
+  ]);
 
   // Translation sources: all available subtitles (embedded + external).
   // For missing subs the menu shows "Translate from X" items.

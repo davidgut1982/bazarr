@@ -374,10 +374,7 @@ const Table: FunctionComponent<Props> = ({ movie, profile, history }) => {
           }
         }}
       >
-        <Action
-          label="Subtitle Actions"
-          icon={faEllipsis}
-        ></Action>
+        <Action label="Subtitle Actions" icon={faEllipsis}></Action>
       </SubtitleToolsMenu>
     );
   });
