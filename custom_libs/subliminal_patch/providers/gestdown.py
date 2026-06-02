@@ -168,6 +168,14 @@ class GestdownProvider(Provider):
         return subtitles
 
     def download_subtitle(self, subtitle: GestdownSubtitle):
-        response = self._session.get(subtitle.page_link, allow_redirects=True)
-        response.raise_for_status()
+        try:
+            response = self._session.get(subtitle.page_link, allow_redirects=True)
+            response.raise_for_status()
+        except HTTPError as error:
+            if error.response.status_code == 404:
+                logger.warning(
+                    "Subtitle not found (404) at %s; skipping", subtitle.page_link
+                )
+                return
+            raise
         subtitle.content = response.content
