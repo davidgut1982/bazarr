@@ -121,9 +121,13 @@ class SonarrSignalrClient:
             scheduler.execute_job_now(taskid="update_series")
 
     def on_reconnect_handler(self):
-        self.connected = False
+        # signalrcore's handle_reconnect() transitions the transport
+        # reconnecting -> connected and fires on_reconnect (this callback) but
+        # NOT on_open, so on_connect_handler never runs after an auto-reconnect.
+        # The socket is already live here, so set connected=True directly.
+        self.connected = True
         event_stream(type='badges')
-        logging.error('BAZARR SignalR client for Sonarr connection as been lost. Trying to reconnect...')
+        logging.info('BAZARR SignalR client for Sonarr successfully reconnected.')
 
     def configure(self):
         self.apikey_sonarr = settings.sonarr.apikey
@@ -183,9 +187,13 @@ class RadarrSignalrClient:
             scheduler.execute_job_now(taskid="update_movies")
 
     def on_reconnect_handler(self):
-        self.connected = False
+        # signalrcore's handle_reconnect() transitions the transport
+        # reconnecting -> connected and fires on_reconnect (this callback) but
+        # NOT on_open, so on_connect_handler never runs after an auto-reconnect.
+        # The socket is already live here, so set connected=True directly.
+        self.connected = True
         event_stream(type='badges')
-        logging.error('BAZARR SignalR client for Radarr connection as been lost. Trying to reconnect...')
+        logging.info('BAZARR SignalR client for Radarr successfully reconnected.')
 
     def configure(self):
         self.apikey_radarr = settings.radarr.apikey

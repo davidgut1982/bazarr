@@ -76,3 +76,35 @@ def test_radarr_signalr_start_handles_missing_transport_before_first_start(monke
     client.start()
 
     assert connection.starts == 1
+
+
+def test_sonarr_on_reconnect_handler_sets_connected_true(monkeypatch):
+    # Why: signalrcore's handle_reconnect fires on_reconnect (this handler) but
+    # NOT on_open after an auto-reconnect, so on_connect_handler never runs and
+    # the flag would otherwise stay False permanently while the socket is live.
+    # Test: after on_reconnect_handler, connected must be True and a badges event
+    # must be emitted.
+    client = signalr_client.SonarrSignalrClient()
+    client.connected = False
+    events = []
+    monkeypatch.setattr(signalr_client, "event_stream", lambda **kwargs: events.append(kwargs))
+
+    client.on_reconnect_handler()
+
+    assert client.connected is True
+    assert events == [{"type": "badges"}]
+
+
+def test_radarr_on_reconnect_handler_sets_connected_true(monkeypatch):
+    # Why/Test: mirror of the Sonarr reconnect handler regression guard; the
+    # library never re-fires on_open after auto-reconnect so this handler is the
+    # only place that can restore connected=True for Radarr.
+    client = signalr_client.RadarrSignalrClient()
+    client.connected = False
+    events = []
+    monkeypatch.setattr(signalr_client, "event_stream", lambda **kwargs: events.append(kwargs))
+
+    client.on_reconnect_handler()
+
+    assert client.connected is True
+    assert events == [{"type": "badges"}]

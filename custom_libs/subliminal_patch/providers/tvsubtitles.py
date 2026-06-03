@@ -5,6 +5,8 @@ from __future__ import absolute_import
 import logging
 import re
 
+from typing import Set
+
 from subzero.language import Language
 from subliminal.cache import SHOW_EXPIRATION_TIME
 from subliminal.cache import region
@@ -95,3 +97,31 @@ class TVsubtitlesProvider(_TVsubtitlesProvider):
         for subtitle in subtitles:
             subtitle.language = Language.rebuild(subtitle.language)
         return subtitles
+
+    def list_subtitles(self, video, languages: Set[Language]):
+        """List all the subtitles for the video.
+
+        Overrides the base class to downgrade 'No show id found' from ERROR to
+        WARNING — tvsubtitles.net simply doesn't index many shows, so this is
+        expected behaviour rather than an error condition.
+        """
+        if not isinstance(video, Episode):
+            return []
+
+        titles = [video.series, *video.alternative_series]
+        title = None
+        show_id = None
+        for title in titles:
+            show_id = self.search_show_id(title, video.year)
+            if show_id is not None:
+                break
+
+        if show_id is not None and title is not None and video.episode is not None:
+            return [
+                s
+                for s in self.query(show_id, title, video.season, video.episode, video.year)
+                if s.language in languages and s.episode == video.episode
+            ]
+
+        logger.warning('No show id found for %r (%r)', video.series, {'year': video.year})
+        return []
